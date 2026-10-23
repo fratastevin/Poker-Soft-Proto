@@ -397,3 +397,331 @@
                         }
                     }
                 }
+            });
+
+            tablesGenerees = tables;
+            renderTablesUI();
+            document.getElementById('table-status-msg').innerText = `Tables générées avec succès (${nbTables} tables de ${maxPerTable} sièges max).`;
+        }
+
+        // --- GESTION DU DRAG & DROP DES PLANS DE TABLE ---
+        function renderTablesUI() {
+            const container = document.getElementById('poker-tables-container');
+            container.innerHTML = '';
+
+            if (!tablesGenerees) {
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table générée pour le moment.</p>`;
+                return;
+            }
+
+            for (const [tNum, seats] of Object.entries(tablesGenerees)) {
+                const actifsCount = seats.filter(s => s.player !== null).length;
+                let seatsHtml = '';
+                seats.forEach(s => {
+                    const playerDisplay = s.player ? `<span class="seat-player">${s.player}</span>` : `<span class="seat-empty">Siège vide</span>`;
+                    const draggableAttr = s.player ? `draggable="true" ondragstart="onDragStart(event, '${tNum}', '${s.seat}', '${s.player}')"` : '';
+                    
+                    seatsHtml += `
+                        <div class="seat-item" ${draggableAttr} ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, '${tNum}', '${s.seat}')">
+                            <span class="seat-num">Siège ${s.seat}</span>
+                            ${playerDisplay}
+                        </div>
+                    `;
+                });
+
+                container.innerHTML += `
+                    <div class="poker-table-card">
+                        <div class="poker-table-title">
+                            <span>Table ${tNum}</span>
+                            <span style="font-size:0.75rem; color:#94a3b8;">(${actifsCount} joueurs)</span>
+                        </div>
+                        <div class="seat-list">
+                            ${seatsHtml}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        let draggedData = null;
+        function onDragStart(event, tableNum, seatNum, playerName) {
+            draggedData = { tableNum, seatNum, playerName };
+            event.dataTransfer.setData('text/plain', playerName);
+        }
+
+        function onDragOver(event) {
+            event.preventDefault();
+            event.currentTarget.classList.add('drag-over');
+        }
+
+        function onDragLeave(event) {
+            event.currentTarget.classList.remove('drag-over');
+        }
+
+        function onDrop(event, targetTableNum, targetSeatNum) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('drag-over');
+            if (!draggedData) return;
+
+            const srcTable = draggedData.tableNum;
+            const srcSeat = draggedData.seatNum;
+            const movingPlayer = draggedData.playerName;
+
+            const targetSeatObj = tablesGenerees[targetTableNum].find(s => s.seat == targetSeatNum);
+            const targetPlayer = targetSeatObj.player;
+
+            tablesGenerees[srcTable].find(s => s.seat == srcSeat).player = targetPlayer;
+            targetSeatObj.player = movingPlayer;
+
+            draggedData = null;
+            renderTablesUI();
+            if (tournoiDemare) verifierEtReequilibrer();
+        }
+
+        function showLoading(show, msg) {
+            const status = document.getElementById('loading-status');
+            if (show) {
+                status.innerHTML = `<span class="loader"></span> ${msg}`;
+            } else {
+                status.innerText = msg;
+            }
+        }
+
+        function switchTab(tab) {
+            ['inscriptions', 'tables', 'live'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`btn-${t}`).style.backgroundColor = '#334155';
+                document.getElementById(`btn-${t}`).style.color = '#cbd5e1';
+            });
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            document.getElementById(`btn-${tab}`).style.backgroundColor = '#d97706';
+            document.getElementById(`btn-${tab}`).style.color = '#ffffff';
+
+            if (tab === 'live') {
+                tournoiDemare = true;
+                initLive();
+            }
+        }
+
+        function initLive() {
+            if (!tablesGenerees) {
+                alert("Veuillez d'abord générer les plans de table dans l'onglet 'Plans de Table' avant de lancer le live !");
+                return;
+            }
+
+            let tousJoueursActifs = [];
+            for (const seats of Object.values(tablesGenerees)) {
+                seats.forEach(s => {
+                    if (s.player) tousJoueursActifs.push(s.player);
+                });
+            }
+
+            document.getElementById('stat-total').innerText = tousJoueursActifs.length;
+            document.getElementById('stat-restants').innerText = tousJoueursActifs.length;
+            
+            const sel = document.getElementById('select-eliminer');
+            sel.innerHTML = '';
+            tousJoueursActifs.sort((a,b) => a.localeCompare(b)).forEach(j => {
+                sel.innerHTML += `<option value="${j}">${j}</option>`;
+            });
+
+            verifierEtReequilibrer();
+        }
+
+        // --- MOTEUR DIRECTEUR DE TOURNOI (CASSAGE & REEQUILIBRAGE) ---
+        function verifierEtReequilibrer() {
+            if (!tablesGenerees) return;
+
+            const maxPerTable = appData.maxJoueursParTable || 6;
+            let tablesActivesIds = [];
+            let totalJoueursActifs = 0;
+
+            for (const [tId, seats] of Object.entries(tablesGenerees)) {
+                const count = seats.filter(s => s.player !== null).length;
+                if (count > 0) {
+                    tablesActivesIds.push(tId);
+                    totalJoueursActifs += count;
+                }
+            }
+
+            if (totalJoueursActifs === 0) return;
+
+            const nbTablesNecessaires = Math.ceil(totalJoueursActifs / maxPerTable);
+            const alertBox = document.getElementById('live-alertes');
+            const eqSpan = document.getElementById('stat-equilibre');
+
+            // CAS 1 : CASSAGE DE TABLE NECESSAIRE
+            if (nbTablesNecessaires < tablesActivesIds.length) {
+                eqSpan.innerText = "CASSAGE NECESSAIRE";
+                eqSpan.style.color = "#f43f5e";
+
+                const randIndex = Math.floor(Math.random() * tablesActivesIds.length);
+                const tableAFermerId = tablesActivesIds[randIndex];
+                const joueursAFermer = tablesGenerees[tableAFermerId].filter(s => s.player !== null).map(s => s.player);
+
+                let siegesLibres = [];
+                tablesActivesIds.forEach(tId => {
+                    if (tId !== tableAFermerId) {
+                        tablesGenerees[tId].forEach(s => {
+                            if (s.player === null) {
+                                siegesLibres.push({ tableId: tId, seat: s.seat });
+                            }
+                        });
+                    }
+                });
+
+                siegesLibres.sort(() => Math.random() - 0.5);
+                let consignes = `🚨 <b>CASSAGE DE TABLE (FERMETURE TABLE ${tableAFermerId})</b><br>Fermer la Table ${tableAFermerId} et déplacer les joueurs :<br>`;
+
+                joueursAFermer.forEach((j, idx) => {
+                    if (siegesLibres[idx]) {
+                        const destination = siegesLibres[idx];
+                        consignes += `• <b>${j}</b> ➔ Table ${destination.tableId}, Siège ${destination.seat}<br>`;
+                        
+                        tablesGenerees[tableAFermerId].find(s => s.player === j).player = null;
+                        tablesGenerees[destination.tableId].find(s => s.seat === destination.seat).player = j;
+                    }
+                });
+
+                alertBox.innerHTML = consignes;
+                alertBox.className = "alert alert-action";
+                renderTablesUI();
+                return;
+            }
+
+            // CAS 2 : EQUILIBRAGE SIMPLE (Ecart de 2 joueurs)
+            let minJoueurs = Infinity, maxJoueurs = -1;
+            let tablePlusPetiteId = null, tablePlusGrandeId = null;
+
+            tablesActivesIds.forEach(tId => {
+                const count = tablesGenerees[tId].filter(s => s.player !== null).length;
+                if (count < minJoueurs) { minJoueurs = count; tablePlusPetiteId = tId; }
+                if (count > maxJoueurs) { maxJoueurs = count; tablePlusGrandeId = tId; }
+            });
+
+            if (maxJoueurs - minJoueurs >= 2) {
+                eqSpan.innerText = "RÉÉQUILIBRAGE";
+                eqSpan.style.color = "#fbbf24";
+
+                const joueursGrandeTable = tablesGenerees[tablePlusGrandeId].filter(s => s.player !== null).map(s => s.player);
+                const joueurADeplacer = joueursGrandeTable[Math.floor(Math.random() * joueursGrandeTable.length)];
+                const siegeLibre = tablesGenerees[tablePlusPetiteId].find(s => s.player === null);
+
+                let consignes = `⚠️ <b>RÉÉQUILIBRAGE REQUIS (Écart ≥ 2)</b><br>`;
+                consignes += `Déplacer <b>${joueurADeplacer}</b> de la Table ${tablePlusGrandeId} vers la Table ${tablePlusPetiteId} (Siège ${siegeLibre.seat}).`;
+
+                tablesGenerees[tablePlusGrandeId].find(s => s.player === joueurADeplacer).player = null;
+                siegeLibre.player = joueurADeplacer;
+
+                alertBox.innerHTML = consignes;
+                alertBox.className = "alert alert-action";
+                renderTablesUI();
+                return;
+            }
+
+            // CAS 3 : TOUT EST EQUILIBRE
+            eqSpan.innerText = "PARFAIT";
+            eqSpan.style.color = "#34d399";
+            alertBox.innerHTML = "Tournoi en cours. Toutes les tables sont parfaitement équilibrées.";
+            alertBox.className = "alert";
+        }
+
+        // --- MOTEUR DU CHRONO A HORODATAGE REEL ---
+        function updateChronoUI() {
+            let m = Math.floor(secondesRestantes / 60);
+            let s = secondesRestantes % 60;
+            document.getElementById('live-chrono').innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            document.getElementById('live-niveau').innerText = `Niveau ${niveauActuel}`;
+            
+            const b = structures[niveauActuel] || {sb: niveauActuel*100, bb: niveauActuel*200, ante: niveauActuel*50};
+            document.getElementById('live-blinds').innerText = `SB ${b.sb} / BB ${b.bb} (Ante ${b.ante})`;
+
+            localStorage.setItem('poker_niveau', niveauActuel);
+            localStorage.setItem('poker_secondes', secondesRestantes);
+            localStorage.setItem('poker_running', chronoIsRunning);
+            if (chronoEndTime) localStorage.setItem('poker_endtime', chronoEndTime);
+        }
+
+        function startChronoLoop() {
+            chronoIsRunning = true;
+            const btn = document.getElementById('btn-chrono');
+            btn.innerText = "Pause";
+            btn.className = "btn-amber";
+
+            if (!chronoEndTime) {
+                chronoEndTime = Date.now() + (secondesRestantes * 1000);
+            }
+
+            if (chronoTimer) clearInterval(chronoTimer);
+
+            chronoTimer = setInterval(() => {
+                const now = Date.now();
+                const diff = Math.ceil((chronoEndTime - now) / 1000);
+
+                if (diff > 0) {
+                    secondesRestantes = diff;
+                    updateChronoUI();
+                } else {
+                    clearInterval(chronoTimer);
+                    chronoIsRunning = false;
+                    chronoEndTime = null;
+                    nextLevel();
+                }
+            }, 1000);
+
+            updateChronoUI();
+        }
+
+        function toggleChrono() {
+            if (chronoIsRunning) {
+                // Mettre en Pause
+                clearInterval(chronoTimer);
+                chronoIsRunning = false;
+                chronoEndTime = null;
+                const btn = document.getElementById('btn-chrono');
+                btn.innerText = "Start";
+                btn.className = "btn-green";
+                updateChronoUI();
+            } else {
+                // Démarrer
+                chronoEndTime = Date.now() + (secondesRestantes * 1000);
+                startChronoLoop();
+            }
+        }
+
+        function nextLevel() {
+            if (niveauActuel < 25) niveauActuel++;
+            secondesRestantes = dureeNiveauSec;
+            chronoEndTime = chronoIsRunning ? (Date.now() + (secondesRestantes * 1000)) : null;
+            updateChronoUI();
+            if (chronoIsRunning) startChronoLoop();
+        }
+
+        function prevLevel() {
+            if (niveauActuel > 1) niveauActuel--;
+            secondesRestantes = dureeNiveauSec;
+            chronoEndTime = chronoIsRunning ? (Date.now() + (secondesRestantes * 1000)) : null;
+            updateChronoUI();
+            if (chronoIsRunning) startChronoLoop();
+        }
+
+        function eliminerJoueur() {
+            const joueur = document.getElementById('select-eliminer').value;
+            if (!joueur) return;
+
+            if (!confirm(`Confirmez-vous l'élimination définitive de ${joueur} ? Cette action est irréversible.`)) {
+                return;
+            }
+
+            if (tablesGenerees) {
+                for (const seats of Object.values(tablesGenerees)) {
+                    seats.forEach(s => {
+                        if (s.player === joueur) s.player = null;
+                    });
+                }
+            }
+            initLive();
+        }
+    </script>
+</body>
+</html>
