@@ -280,7 +280,7 @@
 
             fetch(scriptUrl, {
                 method: "POST",
-//                mode: "no-cors",
+                mode: "no-cors",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     tournoiId: activeTournoiId,
@@ -368,7 +368,7 @@
 
             fetch(scriptUrl, {
                 method: "POST",
-//                mode: "no-cors",
+                mode: "no-cors",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: action })
             });
@@ -384,7 +384,7 @@
 
                 fetch(scriptUrl, {
                     method: "POST",
-//                    mode: "no-cors",
+                    mode: "no-cors",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: newPresent })
                 });
@@ -811,7 +811,7 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-//                    mode: "no-cors",
+                    mode: "no-cors",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         tournoiId: activeTournoiId,
@@ -884,7 +884,7 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-//                    mode: "no-cors",
+                    mode: "no-cors",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         tournoiId: activeTournoiId,
@@ -948,7 +948,7 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-//                    mode: "no-cors",
+                    mode: "no-cors",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         tournoiId: activeTournoiId,
