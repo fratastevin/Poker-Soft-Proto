@@ -169,11 +169,12 @@
         let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6 };
         let activeTournoiId = null;
         let tablesGenerees = null;
-        let tournoiDemare = false;
+        let totalJoueursInitial = 0;
+        let alerteIgnoree = false; // Permet de stocker si l'utilisateur a cliqué sur "Compris"
 
         // --- GESTION DU CHRONO PERSISTANT AVEC HORODATAGE REEL ---
         let niveauActuel = parseInt(localStorage.getItem('poker_niveau') || '1', 10);
-        let dureeNiveauSec = 1200; // 20 minutes par défaut
+        let dureeNiveauSec = 1200; // 20 minutes
         let secondesRestantes = parseInt(localStorage.getItem('poker_secondes') || '1200', 10);
         let chronoEndTime = localStorage.getItem('poker_endtime') ? parseInt(localStorage.getItem('poker_endtime'), 10) : null;
         let chronoIsRunning = localStorage.getItem('poker_running') === 'true';
@@ -195,7 +196,6 @@
                 toggleConfig();
             }
             
-            // Reprendre le chrono là où il en était (en tenant compte du temps écoulé)
             if (chronoIsRunning && chronoEndTime) {
                 const now = Date.now();
                 const diff = Math.floor((chronoEndTime - now) / 1000);
@@ -262,7 +262,7 @@
         function onTournoiChange() {
             activeTournoiId = document.getElementById('select-tournoi').value;
             tablesGenerees = null;
-            tournoiDemare = false;
+            totalJoueursInitial = 0;
             updateInscritsUI();
         }
 
@@ -322,10 +322,6 @@
         }
 
         function togglePresence(joueur) {
-            if (tournoiDemare) {
-                alert("Impossible de modifier les présences après le début du tournoi.");
-                return;
-            }
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
             if (tournoiInsc[joueur]) {
                 const currentPresent = tournoiInsc[joueur].present || false;
@@ -343,11 +339,6 @@
         }
 
         function genererTables() {
-            if (tournoiDemare) {
-                alert("Le tournoi a commencé, les tables ne peuvent plus être recréées.");
-                return;
-            }
-
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
             let inscritsNoms = Array.isArray(tournoiInsc) ? tournoiInsc : Object.keys(tournoiInsc);
             const maxPerTable = appData.maxJoueursParTable || 6;
@@ -364,6 +355,7 @@
             absents.sort(() => Math.random() - 0.5);
 
             const totalJoueurs = inscritsNoms.length;
+            totalJoueursInitial = totalJoueurs; // Mémoriser le nombre total au départ
             const nbTables = Math.ceil(totalJoueurs / maxPerTable);
 
             let tables = {};
@@ -475,7 +467,7 @@
 
             draggedData = null;
             renderTablesUI();
-            if (tournoiDemare) verifierEtReequilibrer();
+            verifierEtReequilibrer();
         }
 
         function showLoading(show, msg) {
@@ -498,7 +490,6 @@
             document.getElementById(`btn-${tab}`).style.color = '#ffffff';
 
             if (tab === 'live') {
-                tournoiDemare = true;
                 initLive();
             }
         }
@@ -516,7 +507,11 @@
                 });
             }
 
-            document.getElementById('stat-total').innerText = tousJoueursActifs.length;
+            if (totalJoueursInitial === 0) {
+                totalJoueursInitial = tousJoueursActifs.length;
+            }
+
+            document.getElementById('stat-total').innerText = totalJoueursInitial;
             document.getElementById('stat-restants').innerText = tousJoueursActifs.length;
             
             const sel = document.getElementById('select-eliminer');
@@ -526,6 +521,16 @@
             });
 
             verifierEtReequilibrer();
+        }
+
+        function marquerAlerteComprise() {
+            alerteIgnoree = true;
+            const alertBox = document.getElementById('live-alertes');
+            const eqSpan = document.getElementById('stat-equilibre');
+            alertBox.innerHTML = "Tournoi en cours. Consigne acquittée.";
+            alertBox.className = "alert";
+            eqSpan.innerText = "OK";
+            eqSpan.style.color = "#34d399";
         }
 
         // --- MOTEUR DIRECTEUR DE TOURNOI (CASSAGE & REEQUILIBRAGE) ---
@@ -552,6 +557,7 @@
 
             // CAS 1 : CASSAGE DE TABLE NECESSAIRE
             if (nbTablesNecessaires < tablesActivesIds.length) {
+                alerteIgnoree = false; // Réinitialiser pour exiger l'acquittement
                 eqSpan.innerText = "CASSAGE NECESSAIRE";
                 eqSpan.style.color = "#f43f5e";
 
@@ -583,6 +589,8 @@
                     }
                 });
 
+                consignes += `<br><button onclick="marquerAlerteCompris()" style="background:#d97706; color:white; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto;">Compris</button>`;
+
                 alertBox.innerHTML = consignes;
                 alertBox.className = "alert alert-action";
                 renderTablesUI();
@@ -600,6 +608,7 @@
             });
 
             if (maxJoueurs - minJoueurs >= 2) {
+                alerteIgnoree = false;
                 eqSpan.innerText = "RÉÉQUILIBRAGE";
                 eqSpan.style.color = "#fbbf24";
 
@@ -608,7 +617,8 @@
                 const siegeLibre = tablesGenerees[tablePlusPetiteId].find(s => s.player === null);
 
                 let consignes = `⚠️ <b>RÉÉQUILIBRAGE REQUIS (Écart ≥ 2)</b><br>`;
-                consignes += `Déplacer <b>${joueurADeplacer}</b> de la Table ${tablePlusGrandeId} vers la Table ${tablePlusPetiteId} (Siège ${siegeLibre.seat}).`;
+                consignes += `Déplacer <b>${joueurADeplacer}</b> de la Table ${tablePlusGrandeId} vers la Table ${tablePlusPetiteId} (Siège ${siegeLibre.seat}).<br><br>`;
+                consignes += `<button onclick="marquerAlerteCompris()" style="background:#d97706; color:white; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto;">Compris</button>`;
 
                 tablesGenerees[tablePlusGrandeId].find(s => s.player === joueurADeplacer).player = null;
                 siegeLibre.player = joueurADeplacer;
@@ -620,10 +630,17 @@
             }
 
             // CAS 3 : TOUT EST EQUILIBRE
-            eqSpan.innerText = "PARFAIT";
-            eqSpan.style.color = "#34d399";
-            alertBox.innerHTML = "Tournoi en cours. Toutes les tables sont parfaitement équilibrées.";
-            alertBox.className = "alert";
+            if (alerteIgnoree) {
+                eqSpan.innerText = "OK";
+                eqSpan.style.color = "#34d399";
+                alertBox.innerHTML = "Tournoi en cours. Consigne acquittée.";
+                alertBox.className = "alert";
+            } else {
+                eqSpan.innerText = "PARFAIT";
+                eqSpan.style.color = "#34d399";
+                alertBox.innerHTML = "Tournoi en cours. Toutes les tables sont parfaitement équilibrées.";
+                alertBox.className = "alert";
+            }
         }
 
         // --- MOTEUR DU CHRONO A HORODATAGE REEL ---
@@ -674,7 +691,6 @@
 
         function toggleChrono() {
             if (chronoIsRunning) {
-                // Mettre en Pause
                 clearInterval(chronoTimer);
                 chronoIsRunning = false;
                 chronoEndTime = null;
@@ -683,7 +699,6 @@
                 btn.className = "btn-green";
                 updateChronoUI();
             } else {
-                // Démarrer
                 chronoEndTime = Date.now() + (secondesRestantes * 1000);
                 startChronoLoop();
             }
@@ -713,6 +728,19 @@
                 return;
             }
 
+            // Calculer le classement (ex: si 26 joueurs au départ et il reste X joueurs actifs)
+            let restantsCount = 0;
+            if (tablesGenerees) {
+                for (const seats of Object.values(tablesGenerees)) {
+                    seats.forEach(s => {
+                        if (s.player) restantsCount++;
+                    });
+                }
+            }
+            // Le classement est le nombre de joueurs restants au moment de l'élimination (ex: 26ème, 25ème...)
+            const classementAttribue = restantsCount;
+
+            // Retirer le joueur des tables
             if (tablesGenerees) {
                 for (const seats of Object.values(tablesGenerees)) {
                     seats.forEach(s => {
@@ -721,6 +749,21 @@
                 }
             }
             initLive();
+
+            // Synchroniser avec Google Sheet (onglet Classement MTT)
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        tournoiId: activeTournoiId,
+                        joueur: joueur,
+                        action: "eliminer",
+                        classement: classementAttribue
+                    })
+                });
+            }
         }
     </script>
 </body>
