@@ -61,12 +61,12 @@
     </header>
 
     <main>
-        <!-- CONFIGURATION SCRIPT URL -->
+        <!-- CONFIGURATION SCRIPT URL (Optionnelle si configurée en dur) -->
         <section id="tab-config" class="hidden">
             <div class="card">
                 <h3 style="margin-top:0; color:#fde68a;">Configuration de la connexion Google Sheet</h3>
                 <label>URL du Déploiement Web App Google Apps Script :</label>
-                <input type="text" id="script-url" placeholder="https://script.google.com/macros/s/.../exec">
+                <input type="text" id="script-url" placeholder="https://script.google.com/macros/s/AKfycbwcTiiOjBeliTGBiuxZrMLTs9loMnftjKZ295N1_CzCjRC9e5_dB_0n5bbG_YLGV2fz/exec">
                 <button onclick="saveConfig()" class="btn-green">Enregistrer & Charger les données</button>
             </div>
         </section>
@@ -132,6 +132,7 @@
                     <div id="live-chrono" class="font-mono" style="font-size:2.25rem; font-weight:bold; color:#34d399; margin:0.25rem 0;">20:00</div>
                     <div style="display:flex; gap:0.25rem; justify-content:center; margin-top:0.5rem; flex-wrap:wrap;">
                         <button onclick="prevLevel()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau -</button>
+                        <button onclick="resetChrono()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#e11d48; color:white;">Reset</button>
                         <button onclick="toggleChrono()" id="btn-chrono" class="btn-green" style="width:auto; padding:0.25rem 0.75rem; margin:0; font-size:0.75rem;">Start</button>
                         <button onclick="nextLevel()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau +</button>
                     </div>
@@ -165,14 +166,15 @@
     </main>
 
     <script>
-        let scriptUrl = localStorage.getItem('poker_script_url') || '';
+        // URL Apps Script configurée en dur pour tout le monde (modifiable via la roue dentée ⚙️ si besoin)
+        let scriptUrl = localStorage.getItem('poker_script_url') || "https://script.google.com/macros/s/AKfycbwcTiiOjBeliTGBiuxZrMLTs9loMnftjKZ295N1_CzCjRC9e5_dB_0n5bbG_YLGV2fz/exec"; 
         let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6 };
         let activeTournoiId = null;
         let tablesGenerees = null;
         let totalJoueursInitial = 0;
-        let alerteIgnoree = false; // Permet de stocker si l'utilisateur a cliqué sur "Compris"
+        let alerteIgnoree = false;
 
-        // --- GESTION DU CHRONO PERSISTANT AVEC HORODATAGE REEL ---
+        // --- GESTION DU CHRONO PERSISTANT ---
         let niveauActuel = parseInt(localStorage.getItem('poker_niveau') || '1', 10);
         let dureeNiveauSec = 1200; // 20 minutes
         let secondesRestantes = parseInt(localStorage.getItem('poker_secondes') || '1200', 10);
@@ -355,7 +357,7 @@
             absents.sort(() => Math.random() - 0.5);
 
             const totalJoueurs = inscritsNoms.length;
-            totalJoueursInitial = totalJoueurs; // Mémoriser le nombre total au départ
+            totalJoueursInitial = totalJoueurs;
             const nbTables = Math.ceil(totalJoueurs / maxPerTable);
 
             let tables = {};
@@ -523,7 +525,7 @@
             verifierEtReequilibrer();
         }
 
-        function marquerAlerteComprise() {
+        function marquerAlerteCompris() {
             alerteIgnoree = true;
             const alertBox = document.getElementById('live-alertes');
             const eqSpan = document.getElementById('stat-equilibre');
@@ -533,7 +535,7 @@
             eqSpan.style.color = "#34d399";
         }
 
-        // --- MOTEUR DIRECTEUR DE TOURNOI (CASSAGE & REEQUILIBRAGE) ---
+        // --- MOTEUR DIRECTEUR DE TOURNOI ---
         function verifierEtReequilibrer() {
             if (!tablesGenerees) return;
 
@@ -555,9 +557,9 @@
             const alertBox = document.getElementById('live-alertes');
             const eqSpan = document.getElementById('stat-equilibre');
 
-            // CAS 1 : CASSAGE DE TABLE NECESSAIRE
+            // CAS 1 : CASSAGE DE TABLE
             if (nbTablesNecessaires < tablesActivesIds.length) {
-                alerteIgnoree = false; // Réinitialiser pour exiger l'acquittement
+                alerteIgnoree = false;
                 eqSpan.innerText = "CASSAGE NECESSAIRE";
                 eqSpan.style.color = "#f43f5e";
 
@@ -597,7 +599,7 @@
                 return;
             }
 
-            // CAS 2 : EQUILIBRAGE SIMPLE (Ecart de 2 joueurs)
+            // CAS 2 : REEQUILIBRAGE
             let minJoueurs = Infinity, maxJoueurs = -1;
             let tablePlusPetiteId = null, tablePlusGrandeId = null;
 
@@ -643,7 +645,7 @@
             }
         }
 
-        // --- MOTEUR DU CHRONO A HORODATAGE REEL ---
+        // --- MOTEUR DU CHRONO ---
         function updateChronoUI() {
             let m = Math.floor(secondesRestantes / 60);
             let s = secondesRestantes % 60;
@@ -704,6 +706,20 @@
             }
         }
 
+        function resetChrono() {
+            if (!confirm("Voulez-vous vraiment réinitialiser le chronomètre du niveau actuel à 0 (20:00) ?")) {
+                return;
+            }
+            clearInterval(chronoTimer);
+            chronoIsRunning = false;
+            chronoEndTime = null;
+            secondesRestantes = dureeNiveauSec;
+            const btn = document.getElementById('btn-chrono');
+            btn.innerText = "Start";
+            btn.className = "btn-green";
+            updateChronoUI();
+        }
+
         function nextLevel() {
             if (niveauActuel < 25) niveauActuel++;
             secondesRestantes = dureeNiveauSec;
@@ -728,7 +744,6 @@
                 return;
             }
 
-            // Calculer le classement (ex: si 26 joueurs au départ et il reste X joueurs actifs)
             let restantsCount = 0;
             if (tablesGenerees) {
                 for (const seats of Object.values(tablesGenerees)) {
@@ -737,10 +752,8 @@
                     });
                 }
             }
-            // Le classement est le nombre de joueurs restants au moment de l'élimination (ex: 26ème, 25ème...)
             const classementAttribue = restantsCount;
 
-            // Retirer le joueur des tables
             if (tablesGenerees) {
                 for (const seats of Object.values(tablesGenerees)) {
                     seats.forEach(s => {
@@ -750,7 +763,6 @@
             }
             initLive();
 
-            // Synchroniser avec Google Sheet (onglet Classement MTT)
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
