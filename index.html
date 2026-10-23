@@ -173,7 +173,7 @@
     </main>
 
     <script>
-        // URL Apps Script pré-configurée en dur (modifiable via la roue dentée si besoin)
+        // URL Apps Script pré-configurée en dur (modifiable via la roue dentée ⚙️ si besoin)
         let scriptUrl = localStorage.getItem('poker_script_url') || "https://script.google.com/macros/s/AKfycbwcTiiOjBeliTGBiuxZrMLTs9loMnftjKZ295N1_CzCjRC9e5_dB_0n5bbG_YLGV2fz/exec"; 
         let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6 };
         let activeTournoiId = null;
@@ -287,7 +287,7 @@
                     action: "saveState",
                     state: state
                 })
-            });
+            }).catch(err => console.error("Erreur saveState:", err));
         }
 
         function populateDropdowns() {
@@ -817,7 +817,7 @@
                         tournoiId: activeTournoiId,
                         action: "resetTournament"
                     })
-                });
+                }).catch(err => console.error("Erreur reset:", err));
             }
         }
 
@@ -892,7 +892,7 @@
                         action: "eliminer",
                         classement: classementAttribue
                     })
-                });
+                }).catch(err => console.error("Erreur elimination:", err));
             }
         }
 
@@ -956,7 +956,7 @@
                         action: "reintegrer",
                         eliminationsFutures: eliminationsFutures
                     })
-                });
+                }).catch(err => console.error("Erreur reintegration:", err));
             }
         }
     </script>
