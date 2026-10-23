@@ -31,7 +31,7 @@
         .badge { font-size: 0.75rem; background-color: #064e3b; color: #6ee7b7; padding: 0.125rem 0.5rem; border-radius: 9999px; }
         .badge-absent { background-color: #475569; color: #cbd5e1; cursor: pointer; }
         .badge-present { background-color: #059669; color: white; cursor: pointer; }
-        .alert { background-color: #0f172a; border: 1px solid #334155; padding: 0.75rem; border-radius: 0.375rem; font-size: 0.875rem; font-family: monospace; color: #fde68a; line-height: 1.4; }
+        .alert { background-color: #0f172a; border: 1px solid #334155; padding: 0.75rem; border-radius: 0.875rem; font-size: 0.875rem; font-family: monospace; color: #fde68a; line-height: 1.4; }
         .alert-action { background-color: #451a03; border-color: #d97706; color: #fef08a; }
         .loader { display: inline-block; border: 2px solid #f3f3f3; border-top: 2px solid #d97706; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; margin-right: 5px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -175,7 +175,7 @@
     <script>
         // URL Apps Script pré-configurée en dur (modifiable via la roue dentée ⚙️ si besoin)
         let scriptUrl = localStorage.getItem('poker_script_url') || "https://script.google.com/macros/s/AKfycbwcTiiOjBeliTGBiuxZrMLTs9loMnftjKZ295N1_CzCjRC9e5_dB_0n5bbG_YLGV2fz/exec"; 
-        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6 };
+        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6, allStates: {} };
         let activeTournoiId = null;
         let tablesGenerees = null;
         let totalJoueursInitial = 0;
@@ -228,8 +228,11 @@
                     appData = data;
                     populateDropdowns();
 
-                    if (data.gameState) {
-                        restoreGameState(data.gameState);
+                    // Charger l'état spécifique au tournoi actif s'il existe
+                    if (data.allStates && activeTournoiId && data.allStates[activeTournoiId]) {
+                        restoreGameState(data.allStates[activeTournoiId]);
+                    } else {
+                        resetLocalState();
                     }
 
                     showLoading(false, "");
@@ -240,10 +243,23 @@
                 });
         }
 
+        function resetLocalState() {
+            tablesGenerees = null;
+            totalJoueursInitial = 0;
+            joueursEliminesHistorique = [];
+            niveauActuel = 1;
+            secondesRestantes = 1200;
+            chronoEndTime = null;
+            chronoIsRunning = false;
+            if (chronoTimer) clearInterval(chronoTimer);
+            updateChronoUI();
+            renderTablesUI();
+        }
+
         function restoreGameState(state) {
             if (!state) return;
-            tablesGenerees = state.tablesGenerees || tablesGenerees;
-            totalJoueursInitial = state.totalJoueursInitial || totalJoueursInitial;
+            tablesGenerees = state.tablesGenerees || null;
+            totalJoueursInitial = state.totalJoueursInitial || 0;
             joueursEliminesHistorique = state.joueursEliminesHistorique || [];
             niveauActuel = state.niveauActuel || 1;
             secondesRestantes = state.secondesRestantes || 1200;
@@ -281,7 +297,6 @@
             fetch(scriptUrl, {
                 method: "POST",
                 mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     tournoiId: activeTournoiId,
                     action: "saveState",
@@ -313,9 +328,13 @@
 
         function onTournoiChange() {
             activeTournoiId = document.getElementById('select-tournoi').value;
-            tablesGenerees = null;
-            totalJoueursInitial = 0;
-            joueursEliminesHistorique = [];
+            
+            // Charger l'état du nouveau tournoi sélectionné
+            if (appData.allStates && appData.allStates[activeTournoiId]) {
+                restoreGameState(appData.allStates[activeTournoiId]);
+            } else {
+                resetLocalState();
+            }
             updateInscritsUI();
         }
 
@@ -369,7 +388,6 @@
             fetch(scriptUrl, {
                 method: "POST",
                 mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: action })
             });
         }
@@ -385,7 +403,6 @@
                 fetch(scriptUrl, {
                     method: "POST",
                     mode: "no-cors",
-                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: newPresent })
                 });
             }
@@ -660,6 +677,7 @@
                 alertBox.innerHTML = consignes;
                 alertBox.className = "alert alert-action";
                 renderTablesUI();
+                saveGameStateToSheet();
                 return;
             }
 
@@ -692,6 +710,7 @@
                 alertBox.innerHTML = consignes;
                 alertBox.className = "alert alert-action";
                 renderTablesUI();
+                saveGameStateToSheet();
                 return;
             }
 
@@ -812,7 +831,6 @@
                 fetch(scriptUrl, {
                     method: "POST",
                     mode: "no-cors",
-                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         tournoiId: activeTournoiId,
                         action: "resetTournament"
@@ -885,7 +903,6 @@
                 fetch(scriptUrl, {
                     method: "POST",
                     mode: "no-cors",
-                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         tournoiId: activeTournoiId,
                         joueur: joueur,
@@ -949,7 +966,6 @@
                 fetch(scriptUrl, {
                     method: "POST",
                     mode: "no-cors",
-                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         tournoiId: activeTournoiId,
                         joueur: joueur,
