@@ -132,7 +132,7 @@
 
     <script>
         let scriptUrl = localStorage.getItem('poker_script_url') || '';
-        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {} };
+        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6 };
         let activeTournoiId = null;
 
         // Chrono State
@@ -187,7 +187,7 @@
         }
 
         function populateDropdowns() {
-            // Populate Joueurs (triés par ordre alphabétique dans la combo uniquement)
+            // Populate Joueurs (triés par ordre alphabétique)
             const selJ = document.getElementById('select-joueur');
             selJ.innerHTML = '';
             const joueursTries = [...appData.joueurs].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
@@ -245,7 +245,7 @@
             showLoading(true, "Enregistrement...");
             fetch(scriptUrl, {
                 method: "POST",
-                mode: "no-cors", // Mode no-cors standard pour Apps Script
+                mode: "no-cors",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: action })
             }).then(() => {
@@ -295,13 +295,27 @@
                 sel.innerHTML += `<option value="${j}">${j}</option>`;
             });
 
-            const tContainer = document.getElementById('tables-container');
-            tContainer.innerHTML = `
-                <div style="background:#0f172a; padding:0.75rem; border-radius:0.375rem; border:1px solid #334155;">
-                    <h4 style="margin:0 0 0.25rem 0; font-size:0.875rem; color:#cbd5e1;">Table 1</h4>
-                    <p style="margin:0; font-size:0.75rem; color:#94a3b8;">${currentInscrits.join(', ')}</p>
-                </div>
-            `;
+            // Répartition automatique par table selon maxJoueursParTable (lu depuis I3)
+            const maxPerTable = appData.maxJoueursParTable || 6;
+            const tablesContainer = document.getElementById('tables-container');
+            tablesContainer.innerHTML = '';
+
+            if (currentInscrits.length === 0) {
+                tablesContainer.innerHTML = `<p style="margin:0; font-size:0.875rem; color:#94a3b8;">Aucun joueur inscrit pour ce tournoi.</p>`;
+                return;
+            }
+
+            // Découpage en tables de maxPerTable joueurs
+            for (let i = 0; i < currentInscrits.length; i += maxPerTable) {
+                const tableNum = Math.floor(i / maxPerTable) + 1;
+                const tablePlayers = currentInscrits.slice(i, i + maxPerTable);
+                tablesContainer.innerHTML += `
+                    <div style="background:#0f172a; padding:0.75rem; border-radius:0.375rem; border:1px solid #334155; margin-bottom:0.75rem;">
+                        <h4 style="margin:0 0 0.25rem 0; font-size:0.875rem; color:#cbd5e1;">Table ${tableNum} (${tablePlayers.length} joueurs)</h4>
+                        <p style="margin:0; font-size:0.75rem; color:#94a3b8;">${tablePlayers.join(', ')}</p>
+                    </div>
+                `;
+            }
         }
 
         function toggleChrono() {
