@@ -187,10 +187,11 @@
         }
 
         function populateDropdowns() {
-            // Populate Joueurs
+            // Populate Joueurs (triés par ordre alphabétique dans la combo uniquement)
             const selJ = document.getElementById('select-joueur');
             selJ.innerHTML = '';
-            appData.joueurs.forEach(j => {
+            const joueursTries = [...appData.joueurs].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+            joueursTries.forEach(j => {
                 selJ.innerHTML += `<option value="${j}">${j}</option>`;
             });
 
