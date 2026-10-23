@@ -35,15 +35,17 @@
         .loader { display: inline-block; border: 2px solid #f3f3f3; border-top: 2px solid #d97706; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; margin-right: 5px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        /* Visuel des tables poker */
+        /* Visuel des tables poker & Drag and Drop */
         .poker-table-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
         .poker-table-card { background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; padding: 1rem; }
         .poker-table-title { font-weight: bold; color: #fbbf24; margin-bottom: 0.75rem; border-bottom: 1px solid #1e293b; padding-bottom: 0.25rem; display: flex; justify-content: space-between; }
         .seat-list { display: flex; flex-direction: column; gap: 0.375rem; }
-        .seat-item { display: flex; justify-content: space-between; background: #1e293b; padding: 0.375rem 0.75rem; border-radius: 0.25rem; font-size: 0.875rem; align-items: center; }
+        .seat-item { display: flex; justify-content: space-between; background: #1e293b; padding: 0.375rem 0.75rem; border-radius: 0.25rem; font-size: 0.875rem; align-items: center; border: 1px dashed transparent; cursor: grab; }
+        .seat-item:active { cursor: grabbing; }
+        .seat-item.drag-over { border-color: #fbbf24; background: #334155; }
         .seat-num { color: #94a3b8; font-size: 0.75rem; font-weight: bold; }
         .seat-player { color: #f8fafc; font-weight: 500; }
-        .seat-empty { color: #475569; font-style: italic; }
+        .seat-empty { color: #475569; font-style: italic; cursor: default; }
     </style>
 </head>
 <body>
@@ -105,13 +107,13 @@
         <section id="tab-tables" class="hidden">
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:1rem;">
-                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Répartition des Tables (Tirage au sort)</h2>
+                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Répartition des Tables (Drag & Drop dispo)</h2>
                     <div>
                         <button onclick="genererTables()" id="btn-generer-tables" class="btn-amber" style="width:auto; padding:0.5rem 1rem; margin:0;">🎲 Créer / Mélanger les tables</button>
                     </div>
                 </div>
                 <div id="table-status-msg" class="alert" style="margin-bottom:1rem;">
-                    Tables non générées. Cliquez sur le bouton ci-dessus pour répartir les joueurs.
+                    Tables non générées. Cliquez sur le bouton ci-dessus pour répartir les joueurs. Glissez-déposez un joueur sur un autre siège pour l'échanger.
                 </div>
                 <div id="poker-tables-container" class="poker-table-grid"></div>
             </div>
@@ -128,9 +130,10 @@
                 <div class="card text-center" style="margin-bottom:0;">
                     <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Chrono Restant</span>
                     <div id="live-chrono" class="font-mono" style="font-size:2.25rem; font-weight:bold; color:#34d399; margin:0.25rem 0;">20:00</div>
-                    <div style="display:flex; gap:0.5rem; justify-content:center; margin-top:0.5rem;">
+                    <div style="display:flex; gap:0.25rem; justify-content:center; margin-top:0.5rem; flex-wrap:wrap;">
+                        <button onclick="prevLevel()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau -</button>
                         <button onclick="toggleChrono()" id="btn-chrono" class="btn-green" style="width:auto; padding:0.25rem 0.75rem; margin:0; font-size:0.75rem;">Start</button>
-                        <button onclick="nextLevel()" style="width:auto; padding:0.25rem 0.75rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau +</button>
+                        <button onclick="nextLevel()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau +</button>
                     </div>
                 </div>
                 <div class="card text-center" style="margin-bottom:0;">
@@ -168,17 +171,20 @@
         let tablesGenerees = null;
         let tournoiDemare = false;
 
-        // Chrono State
-        let niveauActuel = 1;
-        let secondesRestantes = 1200;
+        // --- GESTION DU CHRONO PERSISTANT AVEC HORODATAGE REEL ---
+        let niveauActuel = parseInt(localStorage.getItem('poker_niveau') || '1', 10);
+        let dureeNiveauSec = 1200; // 20 minutes par défaut
+        let secondesRestantes = parseInt(localStorage.getItem('poker_secondes') || '1200', 10);
+        let chronoEndTime = localStorage.getItem('poker_endtime') ? parseInt(localStorage.getItem('poker_endtime'), 10) : null;
+        let chronoIsRunning = localStorage.getItem('poker_running') === 'true';
         let chronoTimer = null;
-        let chronoActif = false;
 
         const structures = {
             1: {sb: 5, bb: 10, ante: 0}, 2: {sb: 10, bb: 20, ante: 0},
             3: {sb: 15, bb: 30, ante: 0}, 4: {sb: 20, bb: 40, ante: 0},
             5: {sb: 25, bb: 50, ante: 25}, 6: {sb: 30, bb: 60, ante: 30},
-            7: {sb: 40, bb: 80, ante: 40}
+            7: {sb: 40, bb: 80, ante: 40}, 8: {sb: 50, bb: 100, ante: 50},
+            9: {sb: 75, bb: 150, ante: 75}, 10: {sb: 100, bb: 200, ante: 100}
         };
 
         window.onload = function() {
@@ -187,6 +193,20 @@
                 loadDataFromSheet();
             } else {
                 toggleConfig();
+            }
+            
+            // Reprendre le chrono là où il en était (en tenant compte du temps écoulé)
+            if (chronoIsRunning && chronoEndTime) {
+                const now = Date.now();
+                const diff = Math.floor((chronoEndTime - now) / 1000);
+                if (diff > 0) {
+                    secondesRestantes = diff;
+                    startChronoLoop();
+                } else {
+                    nextLevel();
+                }
+            } else {
+                updateChronoUI();
             }
         };
 
@@ -377,252 +397,3 @@
                         }
                     }
                 }
-            });
-
-            tablesGenerees = tables;
-            renderTablesUI();
-            document.getElementById('table-status-msg').innerText = `Tables générées avec succès (${nbTables} tables de ${maxPerTable} sièges max).`;
-        }
-
-        function renderTablesUI() {
-            const container = document.getElementById('poker-tables-container');
-            container.innerHTML = '';
-
-            if (!tablesGenerees) {
-                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table générée pour le moment.</p>`;
-                return;
-            }
-
-            for (const [tNum, seats] of Object.entries(tablesGenerees)) {
-                const actifsCount = seats.filter(s => s.player !== null).length;
-                let seatsHtml = '';
-                seats.forEach(s => {
-                    const playerDisplay = s.player ? `<span class="seat-player">${s.player}</span>` : `<span class="seat-empty">Siège vide</span>`;
-                    seatsHtml += `
-                        <div class="seat-item">
-                            <span class="seat-num">Siège ${s.seat}</span>
-                            ${playerDisplay}
-                        </div>
-                    `;
-                });
-
-                container.innerHTML += `
-                    <div class="poker-table-card">
-                        <div class="poker-table-title">
-                            <span>Table ${tNum}</span>
-                            <span style="font-size:0.75rem; color:#94a3b8;">(${actifsCount} joueurs)</span>
-                        </div>
-                        <div class="seat-list">
-                            ${seatsHtml}
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
-        function showLoading(show, msg) {
-            const status = document.getElementById('loading-status');
-            if (show) {
-                status.innerHTML = `<span class="loader"></span> ${msg}`;
-            } else {
-                status.innerText = msg;
-            }
-        }
-
-        function switchTab(tab) {
-            ['inscriptions', 'tables', 'live'].forEach(t => {
-                document.getElementById(`tab-${t}`).classList.add('hidden');
-                document.getElementById(`btn-${t}`).style.backgroundColor = '#334155';
-                document.getElementById(`btn-${t}`).style.color = '#cbd5e1';
-            });
-            document.getElementById(`tab-${tab}`).classList.remove('hidden');
-            document.getElementById(`btn-${tab}`).style.backgroundColor = '#d97706';
-            document.getElementById(`btn-${tab}`).style.color = '#ffffff';
-
-            if (tab === 'live') {
-                tournoiDemare = true;
-                initLive();
-            }
-        }
-
-        function initLive() {
-            if (!tablesGenerees) {
-                alert("Veuillez d'abord générer les plans de table dans l'onglet 'Plans de Table' avant de lancer le live !");
-                return;
-            }
-
-            let tousJoueursActifs = [];
-            for (const seats of Object.values(tablesGenerees)) {
-                seats.forEach(s => {
-                    if (s.player) tousJoueursActifs.push(s.player);
-                });
-            }
-
-            document.getElementById('stat-total').innerText = tousJoueursActifs.length;
-            document.getElementById('stat-restants').innerText = tousJoueursActifs.length;
-            
-            const sel = document.getElementById('select-eliminer');
-            sel.innerHTML = '';
-            tousJoueursActifs.sort((a,b) => a.localeCompare(b)).forEach(j => {
-                sel.innerHTML += `<option value="${j}">${j}</option>`;
-            });
-
-            verifierEtReequilibrer();
-        }
-
-        // --- MOTEUR DIRECTEUR DE TOURNOI (CASSAGE & REEQUILIBRAGE) ---
-        function verifierEtReequilibrer() {
-            if (!tablesGenerees) return;
-
-            const maxPerTable = appData.maxJoueursParTable || 6;
-            let tablesActivesIds = [];
-            let totalJoueursActifs = 0;
-
-            for (const [tId, seats] of Object.entries(tablesGenerees)) {
-                const count = seats.filter(s => s.player !== null).length;
-                if (count > 0) {
-                    tablesActivesIds.push(tId);
-                    totalJoueursActifs += count;
-                }
-            }
-
-            if (totalJoueursActifs === 0) return;
-
-            const nbTablesNecessaires = Math.ceil(totalJoueursActifs / maxPerTable);
-            const alertBox = document.getElementById('live-alertes');
-            const eqSpan = document.getElementById('stat-equilibre');
-
-            // CAS 1 : CASSAGE DE TABLE NECESSAIRE
-            if (nbTablesNecessaires < tablesActivesIds.length) {
-                eqSpan.innerText = "CASSAGE NECESSAIRE";
-                eqSpan.style.color = "#f43f5e";
-
-                // Choix aléatoire de la table à fermer
-                const randIndex = Math.floor(Math.random() * tablesActivesIds.length);
-                const tableAFermerId = tablesActivesIds[randIndex];
-                const joueursAFermer = tablesGenerees[tableAFermerId].filter(s => s.player !== null).map(s => s.player);
-
-                // Trouver les sièges libres dans les AUTRES tables actives
-                let siegesLibres = [];
-                tablesActivesIds.forEach(tId => {
-                    if (tId !== tableAFermerId) {
-                        tablesGenerees[tId].forEach(s => {
-                            if (s.player === null) {
-                                siegesLibres.push({ tableId: tId, seat: s.seat });
-                            }
-                        });
-                    }
-                });
-
-                // Mélanger les sièges libres et affecter les joueurs
-                siegesLibres.sort(() => Math.random() - 0.5);
-                let consignes = `🚨 <b>CASSAGE DE TABLE (FERMETURE TABLE ${tableAFermerId})</b><br>Fermer la Table ${tableAFermerId} et déplacer les joueurs :<br>`;
-
-                joueursAFermer.forEach((j, idx) => {
-                    if (siegesLibres[idx]) {
-                        const destination = siegesLibres[idx];
-                        consignes += `• <b>${j}</b> ➔ Table ${destination.tableId}, Siège ${destination.seat}<br>`;
-                        
-                        // Appliquer immédiatement le déplacement dans la structure
-                        // Libérer l'ancien siège
-                        tablesGenerees[tableAFermerId].find(s => s.player === j).player = null;
-                        // Assigner au nouveau
-                        tablesGenerees[destination.tableId].find(s => s.seat === destination.seat).player = j;
-                    }
-                });
-
-                alertBox.innerHTML = consignes;
-                alertBox.className = "alert alert-action";
-                renderTablesUI();
-                return;
-            }
-
-            // CAS 2 : EQUILIBRAGE SIMPLE (Ecart de 2 joueurs)
-            let minJoueurs = Infinity, maxJoueurs = -1;
-            let tablePlusPetiteId = null, tablePlusGrandeId = null;
-
-            tablesActivesIds.forEach(tId => {
-                const count = tablesGenerees[tId].filter(s => s.player !== null).length;
-                if (count < minJoueurs) { minJoueurs = count; tablePlusPetiteId = tId; }
-                if (count > maxJoueurs) { maxJoueurs = count; tablePlusGrandeId = tId; }
-            });
-
-            if (maxJoueurs - minJoueurs >= 2) {
-                eqSpan.innerText = "RÉÉQUILIBRAGE";
-                eqSpan.style.color = "#fbbf24";
-
-                // Choisir un joueur au hasard dans la plus grande table
-                const joueursGrandeTable = tablesGenerees[tablePlusGrandeId].filter(s => s.player !== null).map(s => s.player);
-                const joueurADeplacer = joueursGrandeTable[Math.floor(Math.random() * joueursGrandeTable.length)];
-
-                // Trouver un siège vide dans la plus petite table
-                const siegeLibre = tablesGenerees[tablePlusPetiteId].find(s => s.player === null);
-
-                let consignes = `⚠️ <b>RÉÉQUILIBRAGE REQUIS (Écart ≥ 2)</b><br>`;
-                consignes += `Déplacer <b>${joueurADeplacer}</b> de la Table ${tablePlusGrandeId} vers la Table ${tablePlusPetiteId} (Siège ${siegeLibre.seat}).`;
-
-                // Appliquer le déplacement
-                tablesGenerees[tablePlusGrandeId].find(s => s.player === joueurADeplacer).player = null;
-                siegeLibre.player = joueurADeplacer;
-
-                alertBox.innerHTML = consignes;
-                alertBox.className = "alert alert-action";
-                renderTablesUI();
-                return;
-            }
-
-            // CAS 3 : TOUT EST EQUILIBRE
-            eqSpan.innerText = "PARFAIT";
-            eqSpan.style.color = "#34d399";
-            alertBox.innerHTML = " Tournoi en cours. Toutes les tables sont parfaitement équilibrées.";
-            alertBox.className = "alert";
-        }
-
-        function toggleChrono() {
-            chronoActif = !chronoActif;
-            const btn = document.getElementById('btn-chrono');
-            if(chronoActif) {
-                btn.innerText = "Pause";
-                btn.className = "btn-amber";
-                chronoTimer = setInterval(() => {
-                    if(secondesRestantes > 0) {
-                        secondesRestantes--;
-                        let m = Math.floor(secondesRestantes / 60);
-                        let s = secondesRestantes % 60;
-                        document.getElementById('live-chrono').innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                    } else {
-                        nextLevel();
-                    }
-                }, 1000);
-            } else {
-                btn.innerText = "Start";
-                btn.className = "btn-green";
-                clearInterval(chronoTimer);
-            }
-        }
-
-        function nextLevel() {
-            if(niveauActuel < 25) niveauActuel++;
-            secondesRestantes = 1200;
-            document.getElementById('live-niveau').innerText = `Niveau ${niveauActuel}`;
-            const b = structures[niveauActuel] || {sb: niveauActuel*100, bb: niveauActuel*200, ante: niveauActuel*50};
-            document.getElementById('live-blinds').innerText = `SB ${b.sb} / BB ${b.bb} (Ante ${b.ante})`;
-        }
-
-        function eliminerJoueur() {
-            const joueur = document.getElementById('select-eliminer').value;
-            if (!joueur) return;
-
-            // Supprimer le joueur de la table
-            if (tablesGenerees) {
-                for (const seats of Object.values(tablesGenerees)) {
-                    seats.forEach(s => {
-                        if (s.player === joueur) s.player = null;
-                    });
-                }
-            }
-            initLive();
-        }
-    </script>
-</body>
-</html>
