@@ -173,12 +173,13 @@
     </main>
 
     <script>
-        let scriptUrl = localStorage.getItem('poker_script_url') || ""; 
+        // URL Apps Script pré-configurée en dur (modifiable via la roue dentée si besoin)
+        let scriptUrl = localStorage.getItem('poker_script_url') || "https://script.google.com/macros/s/AKfycbwcTiiOjBeliTGBiuxZrMLTs9loMnftjKZ295N1_CzCjRC9e5_dB_0n5bbG_YLGV2fz/exec"; 
         let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6 };
         let activeTournoiId = null;
         let tablesGenerees = null;
         let totalJoueursInitial = 0;
-        let joueursEliminesHistorique = []; // [ {joueur: "Nom", classement: 26, tableId: "1", seat: 2}, ... ]
+        let joueursEliminesHistorique = []; 
         let alerteIgnoree = false;
 
         // --- GESTION DU CHRONO PERSISTANT ---
@@ -227,7 +228,6 @@
                     appData = data;
                     populateDropdowns();
 
-                    // Restauration de l'état du tournoi depuis Google Sheet s'il existe
                     if (data.gameState) {
                         restoreGameState(data.gameState);
                     }
@@ -255,7 +255,7 @@
                 const diff = Math.floor((chronoEndTime - now) / 1000);
                 if (diff > 0) {
                     secondesRestantes = diff;
-                    startChronoLoop(false); // Sans ré-enregistrer immédiatement
+                    startChronoLoop(false);
                 } else {
                     nextLevel();
                 }
@@ -570,20 +570,17 @@
             document.getElementById('stat-total').innerText = totalJoueursInitial;
             document.getElementById('stat-restants').innerText = tousJoueursActifs.length;
             
-            // 1. Combo Éliminer (Seulement les joueurs ENCORE ACTIFS)
             const selElim = document.getElementById('select-eliminer');
             selElim.innerHTML = '';
             tousJoueursActifs.sort((a,b) => a.localeCompare(b)).forEach(j => {
                 selElim.innerHTML += `<option value="${j}">${j}</option>`;
             });
 
-            // 2. Combo Réintégrer (Seulement les joueurs ÉLIMINÉS)
             const selReint = document.getElementById('select-reintegrer');
             selReint.innerHTML = '';
             if (joueursEliminesHistorique.length === 0) {
                 selReint.innerHTML = `<option value="">Aucun joueur éliminé</option>`;
             } else {
-                // Tri par ordre inverse d'élimination (le dernier éliminé apparaît en haut)
                 [...joueursEliminesHistorique].reverse().forEach(item => {
                     selReint.innerHTML += `<option value="${item.joueur}">${item.joueur} (Place: ${item.classement})</option>`;
                 });
@@ -771,18 +768,57 @@
         }
 
         function resetChrono() {
-            if (!confirm("Voulez-vous vraiment réinitialiser le chronomètre du niveau actuel à 0 (20:00) ?")) {
+            if (!confirm("⚠️ RESET COMPLET DU TOURNOI :\n\n- Le chrono repassera à 20:00 (Niveau 1).\n- Tous les joueurs éliminés seront réintégrés.\n- Leurs classements enregistrés sur Google Sheet seront effacés.\n- Les plans de table pourront être refaits.\n\nConfirmez-vous cette réinitialisation ?")) {
                 return;
             }
             clearInterval(chronoTimer);
             chronoIsRunning = false;
             chronoEndTime = null;
             secondesRestantes = dureeNiveauSec;
+            niveauActuel = 1;
+
             const btn = document.getElementById('btn-chrono');
             btn.innerText = "Start";
             btn.className = "btn-green";
             updateChronoUI();
-            saveGameStateToSheet();
+
+            if (joueursEliminesHistorique.length > 0 && tablesGenerees) {
+                joueursEliminesHistorique.forEach(item => {
+                    let placeRemise = false;
+                    if (tablesGenerees[item.origTableId]) {
+                        const sOrig = tablesGenerees[item.origTableId].find(s => s.seat == item.origSeat);
+                        if (sOrig && sOrig.player === null) {
+                            sOrig.player = item.joueur;
+                            placeRemise = true;
+                        }
+                    }
+                    if (!placeRemise) {
+                        for (const seats of Object.values(tablesGenerees)) {
+                            const sLibre = seats.find(s => s.player === null);
+                            if (sLibre) {
+                                sLibre.player = item.joueur;
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+
+            joueursEliminesHistorique = [];
+            renderTablesUI();
+            initLive();
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        tournoiId: activeTournoiId,
+                        action: "resetTournament"
+                    })
+                });
+            }
         }
 
         function nextLevel() {
@@ -829,9 +865,8 @@
                 }
             }
 
-            const classementAttribue = restantsCount; // ex: 26 pour le 1er éliminé
+            const classementAttribue = restantsCount;
 
-            // Enregistrer dans l'historique local pour pouvoir réintégrer
             joueursEliminesHistorique.push({
                 joueur: joueur,
                 classement: classementAttribue,
@@ -839,7 +874,6 @@
                 origSeat: origSeat
             });
 
-            // Supprimer des tables
             if (tablesGenerees && origTableId) {
                 tablesGenerees[origTableId].find(s => s.seat == origSeat).player = null;
             }
@@ -847,7 +881,6 @@
             initLive();
             saveGameStateToSheet();
 
-            // Synchronisation Google Sheet
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
@@ -878,22 +911,18 @@
             const elemReintegre = joueursEliminesHistorique[idx];
             const classementsAncien = elemReintegre.classement;
 
-            // Retirer de l'historique d'élimination
             joueursEliminesHistorique.splice(idx, 1);
 
-            // Ajuster les classements des joueurs éliminés APRES lui dans le tournoi
             let eliminationsFutures = [];
             joueursEliminesHistorique.forEach(item => {
                 if (item.classement > classementsAncien) {
-                    item.classement = item.classement - 1; // Décalage
+                    item.classement = item.classement - 1;
                     eliminationsFutures.push({ joueur: item.joueur, nouveauClassement: item.classement });
                 }
             });
 
-            // Remettre le joueur à sa place d'origine ou sur le premier siège vide trouvé
             let remplace = false;
             if (tablesGenerees) {
-                // Tenter siège d'origine
                 if (tablesGenerees[elemReintegre.origTableId]) {
                     const targetSeat = tablesGenerees[elemReintegre.origTableId].find(s => s.seat == elemReintegre.origSeat);
                     if (targetSeat && targetSeat.player === null) {
@@ -901,7 +930,6 @@
                         remplace = true;
                     }
                 }
-                // Sinon, premier siège libre
                 if (!remplace) {
                     for (const seats of Object.values(tablesGenerees)) {
                         const sLibre = seats.find(s => s.player === null);
@@ -917,7 +945,6 @@
             initLive();
             saveGameStateToSheet();
 
-            // Synchronisation Google Sheet (Annulation + Décalage)
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
