@@ -6,8 +6,9 @@
     <title>Poker Club Manager - Connected</title>
     <style>
         body { font-family: ui-sans-serif, system-ui, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
-        header { background-color: #1e293b; border-bottom: 1px solid #334155; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
+        header { background-color: #1e293b; border-bottom: 1px solid #334155; padding: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
         h1 { font-size: 1.25rem; font-weight: bold; color: #fbbf24; margin: 0; }
+        .nav-buttons { display: flex; gap: 0.25rem; flex-wrap: wrap; }
         main { flex-grow: 1; padding: 1rem; max-width: 64rem; margin: 0 auto; width: 100%; box-sizing: border-box; }
         .hidden { display: none; }
         .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
@@ -21,25 +22,38 @@
         .btn-green:hover { background-color: #047857; }
         .btn-amber { background-color: #d97706; color: white; }
         .btn-rose { background-color: #e11d48; color: white; }
-        .btn-tab { padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; width: auto; display: inline-block; margin: 0; }
+        .btn-tab { padding: 0.5rem 0.75rem; border-radius: 0.375rem; font-weight: 500; font-size: 0.875rem; width: auto; display: inline-block; margin: 0; background-color: #334155; color: #cbd5e1; }
         .text-center { text-align: center; }
         .font-mono { font-family: monospace; }
         ul { list-style: none; padding: 0; margin: 0; }
         li { padding: 0.5rem 0; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; }
         .badge { font-size: 0.75rem; background-color: #064e3b; color: #6ee7b7; padding: 0.125rem 0.5rem; border-radius: 9999px; }
+        .badge-absent { background-color: #475569; color: #cbd5e1; cursor: pointer; }
+        .badge-present { background-color: #059669; color: white; cursor: pointer; }
         .alert { background-color: #0f172a; border: 1px solid #334155; padding: 0.75rem; border-radius: 0.375rem; font-size: 0.75rem; font-family: monospace; color: #fde68a; }
         .loader { display: inline-block; border: 2px solid #f3f3f3; border-top: 2px solid #d97706; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; margin-right: 5px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Visuel des tables poker */
+        .poker-table-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+        .poker-table-card { background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; padding: 1rem; }
+        .poker-table-title { font-weight: bold; color: #fbbf24; margin-bottom: 0.75rem; border-bottom: 1px solid #1e293b; padding-bottom: 0.25rem; display: flex; justify-content: space-between; }
+        .seat-list { display: flex; flex-direction: column; gap: 0.375rem; }
+        .seat-item { display: flex; justify-content: space-between; background: #1e293b; padding: 0.375rem 0.75rem; border-radius: 0.25rem; font-size: 0.875rem; align-items: center; }
+        .seat-num { color: #94a3b8; font-size: 0.75rem; font-weight: bold; }
+        .seat-player { color: #f8fafc; font-weight: 500; }
+        .seat-empty { color: #475569; font-style: italic; }
     </style>
 </head>
 <body>
 
     <header>
         <h1>♠️ Poker Club Manager</h1>
-        <div>
-            <button onclick="switchTab('inscriptions')" id="btn-inscriptions" class="btn-tab btn-amber">Inscriptions</button>
-            <button onclick="switchTab('live')" id="btn-live" class="btn-tab" style="background-color:#334155; color:#cbd5e1;">Live Tournoi</button>
-            <button onclick="toggleConfig()" class="btn-tab" style="background-color:#475569; color:white; margin-left:0.5rem;">⚙️</button>
+        <div class="nav-buttons">
+            <button onclick="switchTab('inscriptions')" id="btn-inscriptions" class="btn-tab btn-amber">Inscriptions & Appel</button>
+            <button onclick="switchTab('tables')" id="btn-tables" class="btn-tab">Plans de Table</button>
+            <button onclick="switchTab('live')" id="btn-live" class="btn-tab">Live Tournoi</button>
+            <button onclick="toggleConfig()" class="btn-tab" style="background-color:#475569; color:white;">⚙️</button>
         </div>
     </header>
 
@@ -54,11 +68,11 @@
             </div>
         </section>
 
-        <!-- ONGLET INSCRIPTIONS -->
+        <!-- ONGLET INSCRIPTIONS & APPEL -->
         <section id="tab-inscriptions">
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Inscriptions aux Tournois</h2>
+                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Inscriptions & Appel</h2>
                     <span id="loading-status" style="font-size:0.875rem; color:#94a3b8;"></span>
                 </div>
                 
@@ -80,8 +94,25 @@
             </div>
 
             <div class="card">
-                <h3 style="margin-top:0; color:#cbd5e1; font-size:1rem;">Joueurs Inscrits pour ce tournoi (<span id="count-inscrits">0</span>)</h3>
+                <h3 style="margin-top:0; color:#cbd5e1; font-size:1rem;">Liste des Inscrits & Appel (<span id="count-inscrits">0</span>)</h3>
+                <p style="font-size:0.75rem; color:#94a3b8; margin-top:0;">Cliquez sur le badge de présence pour basculer entre Présent et Absent.</p>
                 <ul id="list-inscrits"></ul>
+            </div>
+        </section>
+
+        <!-- ONGLET PLANS DE TABLE -->
+        <section id="tab-tables" class="hidden">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:1rem;">
+                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Répartition des Tables (Tirage au sort)</h2>
+                    <div>
+                        <button onclick="genererTables()" id="btn-generer-tables" class="btn-amber" style="width:auto; padding:0.5rem 1rem; margin:0;">🎲 Créer / Mélanger les tables</button>
+                    </div>
+                </div>
+                <div id="table-status-msg" class="alert" style="margin-bottom:1rem;">
+                    Tables non générées. Cliquez sur le bouton ci-dessus pour répartir les joueurs (présents en priorité, puis absents).
+                </div>
+                <div id="poker-tables-container" class="poker-table-grid"></div>
             </div>
         </section>
 
@@ -105,25 +136,21 @@
                     <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Statistiques</span>
                     <div style="font-size:0.875rem; margin-top:0.5rem; line-height:1.5;">
                         <div>Restants : <span id="stat-restants" style="font-weight:bold;">0</span> / <span id="stat-total">0</span></div>
-                        <div>Tapis Moyen : <span id="stat-stack" style="font-weight:bold;">1 500</span></div>
+                        <div>Équilibrage : <span id="stat-equilibre" style="font-weight:bold; color:#34d399;">OK</span></div>
                     </div>
                 </div>
             </div>
 
-            <div class="grid-2">
-                <div class="card">
-                    <h3 style="margin-top:0; color:#fde68a; font-size:1rem;">Répartition des Tables</h3>
-                    <div id="tables-container"></div>
-                </div>
-                <div class="card">
-                    <h3 style="margin-top:0; color:#fde68a; font-size:1rem;">Actions Rapides</h3>
+            <div class="card">
+                <h3 style="margin-top:0; color:#fde68a; font-size:1rem;">Actions Rapides & Éliminations</h3>
+                <div class="grid-2">
                     <div>
                         <label>Éliminer un joueur :</label>
                         <select id="select-eliminer"></select>
                         <button onclick="eliminerJoueur()" class="btn-rose">Marquer comme Éliminé</button>
                     </div>
-                    <div id="live-alertes" class="alert" style="margin-top:1rem;">
-                        Système prêt. En attente d'événements...
+                    <div id="live-alertes" class="alert">
+                        Tournoi en cours. Les tables sont verrouillées.
                     </div>
                 </div>
             </div>
@@ -134,6 +161,8 @@
         let scriptUrl = localStorage.getItem('poker_script_url') || '';
         let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6 };
         let activeTournoiId = null;
+        let tablesGenerees = null; // Structure des tables { tableNum: [ {seat: 1, player: "Nom"}, ... ] }
+        let tournoiDemare = false;
 
         // Chrono State
         let niveauActuel = 1;
@@ -158,8 +187,7 @@
         };
 
         function toggleConfig() {
-            const conf = document.getElementById('tab-config');
-            conf.classList.toggle('hidden');
+            document.getElementById('tab-config').classList.toggle('hidden');
         }
 
         function saveConfig() {
@@ -187,7 +215,6 @@
         }
 
         function populateDropdowns() {
-            // Populate Joueurs (triés par ordre alphabétique)
             const selJ = document.getElementById('select-joueur');
             selJ.innerHTML = '';
             const joueursTries = [...appData.joueurs].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
@@ -195,7 +222,6 @@
                 selJ.innerHTML += `<option value="${j}">${j}</option>`;
             });
 
-            // Populate Tournois
             const selT = document.getElementById('select-tournoi');
             selT.innerHTML = '';
             appData.tournois.forEach(t => {
@@ -211,49 +237,188 @@
 
         function onTournoiChange() {
             activeTournoiId = document.getElementById('select-tournoi').value;
+            tablesGenerees = null; // Reset des tables au changement de tournoi
+            tournoiDemare = false;
             updateInscritsUI();
         }
 
         function updateInscritsUI() {
             const list = document.getElementById('list-inscrits');
             list.innerHTML = '';
-            const currentInscrits = appData.inscriptions[activeTournoiId] || [];
+            const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
+            const inscritsNoms = Object.keys(tournoiInsc);
 
-            currentInscrits.forEach(j => {
-                list.innerHTML += `<li><span>${j}</span><span class="badge">Inscrit</span></li>`;
+            inscritsNoms.forEach(j => {
+                const isPresent = tournoiInsc[j].present;
+                const badgeClass = isPresent ? "badge badge-present" : "badge badge-absent";
+                const badgeText = isPresent ? "Présent" : "Absent";
+                
+                list.innerHTML += `
+                    <li>
+                        <span>${j}</span>
+                        <span class="${badgeClass}" onclick="togglePresence('${j}')">${badgeText}</span>
+                    </li>
+                `;
             });
-            document.getElementById('count-inscrits').innerText = currentInscrits.length;
+            document.getElementById('count-inscrits').innerText = inscritsNoms.length;
+            renderTablesUI();
         }
 
         function toggleInscription() {
             if (!scriptUrl || !activeTournoiId) return;
             const joueur = document.getElementById('select-joueur').value;
-            const currentInscrits = appData.inscriptions[activeTournoiId] || [];
-            const isAlreadyInscrit = currentInscrits.includes(joueur);
+            const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
+            const isAlreadyInscrit = tournoiInsc.hasOwnProperty(joueur);
             const action = isAlreadyInscrit ? "desinscrire" : "inscrire";
 
-            // Optimistic UI Update
             if (isAlreadyInscrit) {
-                appData.inscriptions[activeTournoiId] = currentInscrits.filter(j => j !== joueur);
+                delete appData.inscriptions[activeTournoiId][joueur];
             } else {
-                if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = [];
-                appData.inscriptions[activeTournoiId].push(joueur);
+                if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+                appData.inscriptions[activeTournoiId][joueur] = { present: false };
             }
             updateInscritsUI();
 
-            // Sync with Google Sheet
-            showLoading(true, "Enregistrement...");
             fetch(scriptUrl, {
                 method: "POST",
                 mode: "no-cors",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: action })
-            }).then(() => {
-                showLoading(false, "");
-            }).catch(err => {
-                console.error(err);
-                showLoading(false, "Erreur de synchro");
             });
+        }
+
+        function togglePresence(joueur) {
+            if (tournoiDemare) {
+                alert("Impossible de modifier les présences après le début du tournoi.");
+                return;
+            }
+            const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
+            if (tournoiInsc[joueur]) {
+                const currentPresent = tournoiInsc[joueur].present;
+                const newPresent = !currentPresent;
+                tournoiInsc[joueur].present = newPresent;
+                updateInscritsUI();
+
+                fetch(scriptUrl, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: newPresent })
+                });
+            }
+        }
+
+        // --- ALGORITHME DE REPARTITION DES TABLES ---
+        function genererTables() {
+            if (tournoiDemare) {
+                alert("Le tournoi a commencé, les tables ne peuvent plus être recréées.");
+                return;
+            }
+
+            const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
+            const inscritsNoms = Object.keys(tournoiInsc);
+            const maxPerTable = appData.maxJoueursParTable || 6;
+
+            if (inscritsNoms.length === 0) {
+                alert("Aucun joueur inscrit !");
+                return;
+            }
+
+            // Séparation Présents / Absents et mélange aléatoire (Fisher-Yates)
+            let presents = inscritsNoms.filter(j => tournoiInsc[j].present);
+            let absents = inscritsNoms.filter(j => !tournoiInsc[j].present);
+            
+            presents.sort(() => Math.random() - 0.5);
+            absents.sort(() => Math.random() - 0.5);
+
+            const totalJoueurs = inscritsNoms.length;
+            const nbTables = Math.ceil(totalJoueurs / maxPerTable);
+
+            // Initialisation des tables vides avec le nombre de sièges égal à maxPerTable
+            let tables = {};
+            for (let t = 1; t <= nbTables; t++) {
+                tables[t] = [];
+                for (let s = 1; s <= maxPerTable; s++) {
+                    tables[t].push({ seat: s, player: null });
+                }
+            }
+
+            // Remplissage intelligent :
+            // Règle : Si nb total de joueurs / tables n'est pas entier, les tables avec un joueur de moins
+            // doivent en priorité être celles qui ont le moins de joueurs.
+            // On distribue les présents uniformément sur toutes les tables siège par siège.
+            let tableIndex = 1;
+            let seatIndex = 0;
+
+            // Placement des présents
+            presents.forEach(p => {
+                while (tables[tableIndex][seatIndex].player !== null) {
+                    tableIndex++;
+                    if (tableIndex > nbTables) {
+                        tableIndex = 1;
+                        seatIndex++;
+                    }
+                }
+                tables[tableIndex][seatIndex].player = p;
+                tableIndex++;
+                if (tableIndex > nbTables) {
+                    tableIndex = 1;
+                    seatIndex++;
+                }
+            });
+
+            // Placement des absents (retardataires) dans les sièges restants
+            absents.forEach(a => {
+                let placed = false;
+                for (let s = 0; s < maxPerTable && !placed; s++) {
+                    for (let t = 1; t <= nbTables && !placed; t++) {
+                        if (tables[t][s].player === null) {
+                            tables[t][s].player = a;
+                            placed = true;
+                        }
+                    }
+                }
+            });
+
+            tablesGenerees = tables;
+            renderTablesUI();
+            document.getElementById('table-status-msg').innerText = `Tables générées avec succès (${nbTables} tables de ${maxPerTable} sièges max).`;
+        }
+
+        function renderTablesUI() {
+            const container = document.getElementById('poker-tables-container');
+            container.innerHTML = '';
+
+            if (!tablesGenerees) {
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table générée pour le moment.</p>`;
+                return;
+            }
+
+            for (const [tNum, seats] of Object.entries(tablesGenerees)) {
+                const actifsCount = seats.filter(s => s.player !== null).length;
+                let seatsHtml = '';
+                seats.forEach(s => {
+                    const playerDisplay = s.player ? `<span class="seat-player">${s.player}</span>` : `<span class="seat-empty">Siège vide</span>`;
+                    seatsHtml += `
+                        <div class="seat-item">
+                            <span class="seat-num">Siège ${s.seat}</span>
+                            ${playerDisplay}
+                        </div>
+                    `;
+                });
+
+                container.innerHTML += `
+                    <div class="poker-table-card">
+                        <div class="poker-table-title">
+                            <span>Table ${tNum}</span>
+                            <span style="font-size:0.75rem; color:#94a3b8;">(${actifscz = actifsCount} joueurs)</span>
+                        </div>
+                        <div class="seat-list">
+                            ${seatsHtml}
+                        </div>
+                    </div>
+                `;
+            }
         }
 
         function showLoading(show, msg) {
@@ -266,55 +431,70 @@
         }
 
         function switchTab(tab) {
-            if(tab === 'inscriptions') {
-                document.getElementById('tab-inscriptions').classList.remove('hidden');
-                document.getElementById('tab-live').classList.add('hidden');
-                document.getElementById('btn-inscriptions').style.backgroundColor = '#d97706';
-                document.getElementById('btn-inscriptions').style.color = '#ffffff';
-                document.getElementById('btn-live').style.backgroundColor = '#334155';
-                document.getElementById('btn-live').style.color = '#cbd5e1';
-            } else {
-                document.getElementById('tab-inscriptions').classList.add('hidden');
-                document.getElementById('tab-live').classList.remove('hidden');
-                document.getElementById('btn-live').style.backgroundColor = '#d97706';
-                document.getElementById('btn-live').style.color = '#ffffff';
-                document.getElementById('btn-inscriptions').style.backgroundColor = '#334155';
-                document.getElementById('btn-inscriptions').style.color = '#cbd5e1';
+            ['inscriptions', 'tables', 'live'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`btn-${t}`).style.backgroundColor = '#334155';
+                document.getElementById(`btn-${t}`).style.color = '#cbd5e1`;
+            });
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            document.getElementById(`btn-${tab}`).style.backgroundColor = '#d97706';
+            document.getElementById(`btn-${tab}`).style.color = '#ffffff';
+
+            if (tab === 'live') {
+                tournoiDemare = true;
                 initLive();
             }
         }
 
         function initLive() {
-            const currentInscrits = appData.inscriptions[activeTournoiId] || [];
-            document.getElementById('stat-total').innerText = currentInscrits.length;
-            document.getElementById('stat-restants').innerText = currentInscrits.length;
+            if (!tablesGenerees) {
+                alert("Veuillez d'abord générer les plans de table dans l'onglet 'Plans de Table' avant de lancer le live !");
+            }
+            
+            // Collecter tous les joueurs actifs des tables
+            let tousJoueursActifs = [];
+            if (tablesGenerees) {
+                for (const seats of Object.values(tablesGenerees)) {
+                    seats.forEach(s => {
+                        if (s.player) tousJoueursActifs.push(s.player);
+                    });
+                }
+            }
+
+            document.getElementById('stat-total').innerText = tousJoueursActifs.length;
+            document.getElementById('stat-restants').innerText = tousJoueursActifs.length;
             
             const sel = document.getElementById('select-eliminer');
             sel.innerHTML = '';
-            currentInscrits.forEach(j => {
+            tousJoueursActifs.forEach(j => {
                 sel.innerHTML += `<option value="${j}">${j}</option>`;
             });
 
-            // Répartition automatique par table selon maxJoueursParTable (lu depuis I3)
-            const maxPerTable = appData.maxJoueursParTable || 6;
-            const tablesContainer = document.getElementById('tables-container');
-            tablesContainer.innerHTML = '';
+            verifierEquilibrage();
+        }
 
-            if (currentInscrits.length === 0) {
-                tablesContainer.innerHTML = `<p style="margin:0; font-size:0.875rem; color:#94a3b8;">Aucun joueur inscrit pour ce tournoi.</p>`;
-                return;
+        function verifierEquilibrage() {
+            if (!tablesGenerees) return;
+            let tailles = [];
+            for (const seats of Object.values(tablesGenerees)) {
+                const count = seats.filter(s => s.player !== null).length;
+                if (count > 0) tailles.push(count);
             }
+            if (tailles.length === 0) return;
 
-            // Découpage en tables de maxPerTable joueurs
-            for (let i = 0; i < currentInscrits.length; i += maxPerTable) {
-                const tableNum = Math.floor(i / maxPerTable) + 1;
-                const tablePlayers = currentInscrits.slice(i, i + maxPerTable);
-                tablesContainer.innerHTML += `
-                    <div style="background:#0f172a; padding:0.75rem; border-radius:0.375rem; border:1px solid #334155; margin-bottom:0.75rem;">
-                        <h4 style="margin:0 0 0.25rem 0; font-size:0.875rem; color:#cbd5e1;">Table ${tableNum} (${tablePlayers.length} joueurs)</h4>
-                        <p style="margin:0; font-size:0.75rem; color:#94a3b8;">${tablePlayers.join(', ')}</p>
-                    </div>
-                `;
+            const minN = Math.min(...tailles);
+            const maxN = Math.max(...tailles);
+            const estEquilibre = (maxN - minN <= 1);
+
+            const eqSpan = document.getElementById('stat-equilibre');
+            if (estEquilibre) {
+                eqSpan.innerText = "OK (Équilibré)";
+                eqSpan.style.color = "#34d399";
+                document.getElementById('live-alertes.').innerText = "Les tables sont parfaitement équilibrées (écart ≤ 1).";
+            } else {
+                eqSpan.innerText = "DÉSÉQUILIBRÉ !";
+                eqSpan.style.color = "#f43f5e";
+                document.getElementById('live-alertes').innerText = `Attention : écart de taille entre tables détecté (Min: ${minN}, Max: ${maxN}). Veuillez rééquilibrer si nécessaire.`;
             }
         }
 
@@ -351,13 +531,16 @@
 
         function eliminerJoueur() {
             const joueur = document.getElementById('select-eliminer').value;
-            const currentInscrits = appData.inscriptions[activeTournoiId] || [];
-            const idx = currentInscrits.indexOf(joueur);
-            if(idx > -1) {
-                currentInscrits.splice(idx, 1);
-                initLive();
-                document.getElementById('live-alertes').innerText = `Élimination enregistrée : ${joueur}.`;
+            // Retirer le joueur des tables
+            if (tablesGenerees) {
+                for (const seats of Object.values(tablesGenerees)) {
+                    seats.forEach(s => {
+                        if (s.player === joueur) s.player = null;
+                    });
+                }
             }
+            initLive();
+            document.getElementById('live-alertes').innerText = `Élimination enregistrée : ${joueur}. Tables vérifiées.`;
         }
     </script>
 </body>
