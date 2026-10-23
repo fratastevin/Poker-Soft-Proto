@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Club Live & Inscriptions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col">
+
+    <!-- Header / Navigation -->
+    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold text-amber-400">♠️ Poker Club Manager</h1>
+        <div class="space-x-2">
+            <button onclick="switchTab('inscriptions')" id="btn-inscriptions" class="px-4 py-2 rounded bg-amber-600 text-white font-medium transition">Inscriptions</button>
+            <button onclick="switchTab('live')" id="btn-live" class="px-4 py-2 rounded bg-slate-700 text-slate-300 font-medium transition">Live Tournoi</button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow p-4 max-w-5xl mx-auto w-full">
+
+        <!-- ONGLET INSCRIPTIONS -->
+        <section id="tab-inscriptions" class="space-y-6">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow">
+                <h2 class="text-lg font-semibold mb-4 text-amber-300">Prochain Tournoi & Inscriptions</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Sélectionner le Tournoi :</label>
+                        <select id="select-tournoi" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-slate-100">
+                            <option value="1">MTT 1 - 11/09/26 (Prochain)</option>
+                            <option value="2">MTT 2 - 18/09/26</option>
+                            <option value="3">MTT 3 - 25/09/26</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Votre Joueur / Pseudo :</label>
+                        <select id="select-joueur" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-slate-100">
+                            <option value="Frafra">Frafra</option>
+                            <option value="Muchel">Muchel</option>
+                            <option value="Bloonsy">Bloonsy</option>
+                            <option value="In2zewild">In2zewild</option>
+                            <option value="Monokiny">Monokiny</option>
+                        </select>
+                    </div>
+                </div>
+                <button onclick="toggleInscription()" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-2 rounded transition">S'inscrire / Se désinscrire</button>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow">
+                <h3 class="text-md font-semibold mb-3 text-slate-300">Joueurs Inscrits (<span id="count-inscrits">0</span>)</h3>
+                <ul id="list-inscrits" class="divide-y divide-slate-700 text-sm">
+                    <!-- Rempli par JS -->
+                </ul>
+            </div>
+        </section>
+
+        <!-- ONGLET LIVE TOURNOI -->
+        <section id="tab-live" class="hidden space-y-6">
+            <!-- Dashboard Chrono & Blindes -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center flex flex-col justify-center">
+                    <span class="text-xs uppercase tracking-wider text-slate-400">Niveau Actuel</span>
+                    <span id="live-niveau" class="text-3xl font-black text-amber-400 my-1">Niveau 1</span>
+                    <span id="live-blinds" class="text-lg font-semibold text-slate-200">SB 5 / BB 10 (Ante 25)</span>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center flex flex-col justify-center">
+                    <span class="text-xs uppercase tracking-wider text-slate-400">Chrono Restant</span>
+                    <span id="live-chrono" class="text-4xl font-mono font-bold text-emerald-400 my-1">20:00</span>
+                    <div class="space-x-2 mt-2">
+                        <button onclick="toggleChrono()" id="btn-chrono" class="px-3 py-1 bg-emerald-600 text-xs rounded font-bold">Start</button>
+                        <button onclick="nextLevel()" class="px-3 py-1 bg-slate-700 text-xs rounded">Niveau +</button>
+                    </div>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center flex flex-col justify-center">
+                    <span class="text-xs uppercase tracking-wider text-slate-400">Statistiques</span>
+                    <div class="text-sm mt-1 space-y-1">
+                        <div>Restants : <span id="stat-restants" class="font-bold">0</span> / <span id="stat-total">0</span></div>
+                        <div>Tapis Moyen : <span id="stat-stack" class="font-bold">1 500</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gestion des Tables & Éliminations -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Tables Actives -->
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow">
+                    <h3 class="text-md font-semibold mb-3 text-amber-300">Répartition des Tables</h3>
+                    <div id="tables-container" class="space-y-4">
+                        <!-- Généré dynamiquement -->
+                    </div>
+                </div>
+
+                <!-- Actions / Éliminations -->
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow space-y-4">
+                    <h3 class="text-md font-semibold text-amber-300">Actions Rapides</h3>
+                    <div>
+                      <label class="block text-sm text-slate-400 mb-1">Éliminer un joueur :</label>
+                      <select id="select-eliminer" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-slate-100 mb-2">
+                          <!-- Rempli par JS -->
+                      </select>
+                      <button onclick="eliminerJoueur()" class="w-full bg-rose-600 hover:bg-rose-500 font-bold py-2 rounded transition">Marquer comme Éliminé</button>
+                    </div>
+                    <div id="live-alertes" class="p-3 bg-slate-900 border border-slate-700 rounded text-xs text-amber-200 font-mono">
+                        Système prêt. En attente d'événements...
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // Logique Simple pour le Prototype Frontend
+        let inscrits = ["Frafra", "Muchel", "Bloonsy", "In2zewild"];
+        let niveauActuel = 1;
+        let secondesRestantes = 1200; // 20 min
+        let chronoTimer = null;
+        let chronoActif = false;
+
+        const structures = {
+            1: {sb: 5, bb: 10, ante: 0},
+            2: {sb: 10, bb: 20, ante: 0},
+            3: {sb: 15, bb: 30, ante: 0},
+            4: {sb: 20, bb: 40, ante: 0},
+            5: {sb: 25, bb: 50, ante: 25}
+        };
+
+        function switchTab(tab) {
+            if(tab === 'inscriptions') {
+                document.getElementById('tab-inscriptions').classList.remove('hidden');
+                document.getElementById('tab-live').classList.add('hidden');
+                document.getElementById('btn-inscriptions').className = "px-4 py-2 rounded bg-amber-600 text-white font-medium transition";
+                document.getElementById('btn-live').className = "px-4 py-2 rounded bg-slate-700 text-slate-300 font-medium transition";
+            } else {
+                document.getElementById('tab-inscriptions').classList.add('hidden');
+                document.getElementById('tab-live').classList.remove('hidden');
+                document.getElementById('btn-live').className = "px-4 py-2 rounded bg-amber-600 text-white font-medium transition";
+                document.getElementById('btn-inscriptions').className = "px-4 py-2 rounded bg-slate-700 text-slate-300 font-medium transition";
+                initLive();
+            }
+        }
+
+        function toggleInscription() {
+            const joueur = document.getElementById('select-joueur').value;
+            const index = inscrits.indexOf(joueur);
+            if(index > -1) {
+                inscrits.splice(index, 1);
+            } else {
+                inscrits.push(joueur);
+            }
+            updateInscritsUI();
+        }
+
+        function updateInscritsUI() {
+            const list = document.getElementById('list-inscrits');
+            list.innerHTML = '';
+            inscrits.forEach(j => {
+                list.innerHTML += `<li class="py-2 flex justify-between items-center"><span>${j}</span><span class="text-xs bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded">Inscrit</span></li>`;
+            });
+            document.getElementById('count-inscrits').innerText = inscrits.length;
+        }
+
+        function initLive() {
+            updateInscritsUI();
+            document.getElementById('stat-total').innerText = inscrits.length;
+            document.getElementById('stat-restants').innerText = inscrits.length;
+            
+            // Remplir select élimination
+            const sel = document.getElementById('select-eliminer');
+            sel.innerHTML = '';
+            inscrits.forEach(j => {
+                sel.innerHTML += `<option value="${j}">${j}</option>`;
+            });
+
+            // Afficher tables factices
+            const tContainer = document.getElementById('tables-container');
+            tContainer.innerHTML = `
+                <div class="p-3 bg-slate-900 rounded border border-slate-700">
+                    <h4 class="font-bold text-sm text-slate-300 mb-1">Table 1</h4>
+                    <p class="text-xs text-slate-400">${inscrits.slice(0, 5).join(', ')}</p>
+                </div>
+            `;
+        }
+
+        function toggleChrono() {
+            chronoActif = !chronoActif;
+            const btn = document.getElementById('btn-chrono');
+            if(chronoActif) {
+                btn.innerText = "Pause";
+                btn.className = "px-3 py-1 bg-amber-600 text-xs rounded font-bold";
+                chronoTimer = setInterval(() => {
+                    if(secondesRestantes > 0) {
+                        secondesRestantes--;
+                        let m = Math.floor(secondesRestantes / 60);
+                        let s = secondesRestantes % 60;
+                        document.getElementById('live-chrono').innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                    } else {
+                        nextLevel();
+                    }
+                }, 1000);
+            } else {
+                btn.innerText = "Start";
+                btn.className = "px-3 py-1 bg-emerald-600 text-xs rounded font-bold";
+                clearInterval(chronoTimer);
+            }
+        }
+
+        function nextLevel() {
+            if(niveauActuel < 25) niveauActuel++;
+            secondesRestantes = 1200;
+            document.getElementById('live-niveau').innerText = `Niveau ${niveauActuel}`;
+            const b = structures[niveauActuel] || {sb: niveauActuel*100, bb: niveauActuel*200, ante: niveauActuel*50};
+            document.getElementById('live-blinds').innerText = `SB ${b.sb} / BB ${b.bb} (Ante ${b.ante})`;
+        }
+
+        function eliminerJoueur() {
+            const joueur = document.getElementById('select-eliminer').value;
+            const idx = inscrits.indexOf(joueur);
+            if(idx > -1) {
+                inscrits.splice(idx, 1);
+                initLive();
+                document.getElementById('live-alertes').innerText = `Élimination enregistrée : ${joueur}. Tables rééquilibrées automatiquement.`;
+            }
+        }
+
+        updateInscritsUI();
+    </script>
+</body>
+</html>
