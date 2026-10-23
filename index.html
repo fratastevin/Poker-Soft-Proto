@@ -30,7 +30,8 @@
         .badge { font-size: 0.75rem; background-color: #064e3b; color: #6ee7b7; padding: 0.125rem 0.5rem; border-radius: 9999px; }
         .badge-absent { background-color: #475569; color: #cbd5e1; cursor: pointer; }
         .badge-present { background-color: #059669; color: white; cursor: pointer; }
-        .alert { background-color: #0f172a; border: 1px solid #334155; padding: 0.75rem; border-radius: 0.375rem; font-size: 0.75rem; font-family: monospace; color: #fde68a; }
+        .alert { background-color: #0f172a; border: 1px solid #334155; padding: 0.75rem; border-radius: 0.375rem; font-size: 0.875rem; font-family: monospace; color: #fde68a; line-height: 1.4; }
+        .alert-action { background-color: #451a03; border-color: #d97706; color: #fef08a; }
         .loader { display: inline-block; border: 2px solid #f3f3f3; border-top: 2px solid #d97706; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; margin-right: 5px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
@@ -110,7 +111,7 @@
                     </div>
                 </div>
                 <div id="table-status-msg" class="alert" style="margin-bottom:1rem;">
-                    Tables non générées. Cliquez sur le bouton ci-dessus pour répartir les joueurs (présents en priorité, puis absents).
+                    Tables non générées. Cliquez sur le bouton ci-dessus pour répartir les joueurs.
                 </div>
                 <div id="poker-tables-container" class="poker-table-grid"></div>
             </div>
@@ -136,21 +137,24 @@
                     <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Statistiques</span>
                     <div style="font-size:0.875rem; margin-top:0.5rem; line-height:1.5;">
                         <div>Restants : <span id="stat-restants" style="font-weight:bold;">0</span> / <span id="stat-total">0</span></div>
-                        <div>Équilibrage : <span id="stat-equilibre" style="font-weight:bold; color:#34d399;">OK</span></div>
+                        <div>État Tables : <span id="stat-equilibre" style="font-weight:bold; color:#34d399;">OK</span></div>
                     </div>
                 </div>
             </div>
 
             <div class="card">
-                <h3 style="margin-top:0; color:#fde68a; font-size:1rem;">Actions Rapides & Éliminations</h3>
+                <h3 style="margin-top:0; color:#fde68a; font-size:1rem;">Gestion du Live & Consignes Directes</h3>
                 <div class="grid-2">
                     <div>
                         <label>Éliminer un joueur :</label>
                         <select id="select-eliminer"></select>
                         <button onclick="eliminerJoueur()" class="btn-rose">Marquer comme Éliminé</button>
                     </div>
-                    <div id="live-alertes" class="alert">
-                        Tournoi en cours. Les tables sont verrouillées.
+                    <div>
+                        <label>Consignes / Mouvements requis :</label>
+                        <div id="live-alertes" class="alert">
+                            Tournoi en cours. Toutes les tables sont équilibrées.
+                        </div>
                     </div>
                 </div>
             </div>
@@ -161,7 +165,7 @@
         let scriptUrl = localStorage.getItem('poker_script_url') || '';
         let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6 };
         let activeTournoiId = null;
-        let tablesGenerees = null; // Structure des tables { tableNum: [ {seat: 1, player: "Nom"}, ... ] }
+        let tablesGenerees = null;
         let tournoiDemare = false;
 
         // Chrono State
@@ -237,7 +241,7 @@
 
         function onTournoiChange() {
             activeTournoiId = document.getElementById('select-tournoi').value;
-            tablesGenerees = null; // Reset des tables au changement de tournoi
+            tablesGenerees = null;
             tournoiDemare = false;
             updateInscritsUI();
         }
@@ -246,10 +250,12 @@
             const list = document.getElementById('list-inscrits');
             list.innerHTML = '';
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
-            const inscritsNoms = Object.keys(tournoiInsc);
+
+            let inscritsNoms = Array.isArray(tournoiInsc) ? tournoiInsc : Object.keys(tournoiInsc);
 
             inscritsNoms.forEach(j => {
-                const isPresent = tournoiInsc[j].present;
+                const info = (typeof tournoiInsc[j] === 'object' && tournoiInsc[j] !== null) ? tournoiInsc[j] : { present: false };
+                const isPresent = info.present;
                 const badgeClass = isPresent ? "badge badge-present" : "badge badge-absent";
                 const badgeText = isPresent ? "Présent" : "Absent";
                 
@@ -268,14 +274,22 @@
             if (!scriptUrl || !activeTournoiId) return;
             const joueur = document.getElementById('select-joueur').value;
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
-            const isAlreadyInscrit = tournoiInsc.hasOwnProperty(joueur);
+            const isAlreadyInscrit = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
             const action = isAlreadyInscrit ? "desinscrire" : "inscrire";
 
             if (isAlreadyInscrit) {
-                delete appData.inscriptions[activeTournoiId][joueur];
+                if (Array.isArray(tournoiInsc)) {
+                    appData.inscriptions[activeTournoiId] = tournoiInsc.filter(x => x !== joueur);
+                } else {
+                    delete appData.inscriptions[activeTournoiId][joueur];
+                }
             } else {
-                if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
-                appData.inscriptions[activeTournoiId][joueur] = { present: false };
+                if (Array.isArray(tournoiInsc)) {
+                    appData.inscriptions[activeTournoiId].push(joueur);
+                } else {
+                    if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+                    appData.inscriptions[activeTournoiId][joueur] = { present: false };
+                }
             }
             updateInscritsUI();
 
@@ -294,7 +308,7 @@
             }
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
             if (tournoiInsc[joueur]) {
-                const currentPresent = tournoiInsc[joueur].present;
+                const currentPresent = tournoiInsc[joueur].present || false;
                 const newPresent = !currentPresent;
                 tournoiInsc[joueur].present = newPresent;
                 updateInscritsUI();
@@ -308,7 +322,6 @@
             }
         }
 
-        // --- ALGORITHME DE REPARTITION DES TABLES ---
         function genererTables() {
             if (tournoiDemare) {
                 alert("Le tournoi a commencé, les tables ne peuvent plus être recréées.");
@@ -316,7 +329,7 @@
             }
 
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
-            const inscritsNoms = Object.keys(tournoiInsc);
+            let inscritsNoms = Array.isArray(tournoiInsc) ? tournoiInsc : Object.keys(tournoiInsc);
             const maxPerTable = appData.maxJoueursParTable || 6;
 
             if (inscritsNoms.length === 0) {
@@ -324,9 +337,8 @@
                 return;
             }
 
-            // Séparation Présents / Absents et mélange aléatoire (Fisher-Yates)
-            let presents = inscritsNoms.filter(j => tournoiInsc[j].present);
-            let absents = inscritsNoms.filter(j => !tournoiInsc[j].present);
+            let presents = inscritsNoms.filter(j => (tournoiInsc[j] && tournoiInsc[j].present));
+            let absents = inscritsNoms.filter(j => !(tournoiInsc[j] && tournoiInsc[j].present));
             
             presents.sort(() => Math.random() - 0.5);
             absents.sort(() => Math.random() - 0.5);
@@ -334,7 +346,6 @@
             const totalJoueurs = inscritsNoms.length;
             const nbTables = Math.ceil(totalJoueurs / maxPerTable);
 
-            // Initialisation des tables vides avec le nombre de sièges égal à maxPerTable
             let tables = {};
             for (let t = 1; t <= nbTables; t++) {
                 tables[t] = [];
@@ -343,31 +354,19 @@
                 }
             }
 
-            // Remplissage intelligent :
-            // Règle : Si nb total de joueurs / tables n'est pas entier, les tables avec un joueur de moins
-            // doivent en priorité être celles qui ont le moins de joueurs.
-            // On distribue les présents uniformément sur toutes les tables siège par siège.
             let tableIndex = 1;
             let seatIndex = 0;
 
-            // Placement des présents
             presents.forEach(p => {
                 while (tables[tableIndex][seatIndex].player !== null) {
                     tableIndex++;
-                    if (tableIndex > nbTables) {
-                        tableIndex = 1;
-                        seatIndex++;
-                    }
+                    if (tableIndex > nbTables) { tableIndex = 1; seatIndex++; }
                 }
                 tables[tableIndex][seatIndex].player = p;
                 tableIndex++;
-                if (tableIndex > nbTables) {
-                    tableIndex = 1;
-                    seatIndex++;
-                }
+                if (tableIndex > nbTables) { tableIndex = 1; seatIndex++; }
             });
 
-            // Placement des absents (retardataires) dans les sièges restants
             absents.forEach(a => {
                 let placed = false;
                 for (let s = 0; s < maxPerTable && !placed; s++) {
@@ -411,7 +410,7 @@
                     <div class="poker-table-card">
                         <div class="poker-table-title">
                             <span>Table ${tNum}</span>
-                            <span style="font-size:0.75rem; color:#94a3b8;">(${actifscz = actifsCount} joueurs)</span>
+                            <span style="font-size:0.75rem; color:#94a3b8;">(${actifsCount} joueurs)</span>
                         </div>
                         <div class="seat-list">
                             ${seatsHtml}
@@ -449,16 +448,14 @@
         function initLive() {
             if (!tablesGenerees) {
                 alert("Veuillez d'abord générer les plans de table dans l'onglet 'Plans de Table' avant de lancer le live !");
+                return;
             }
-            
-            // Collecter tous les joueurs actifs des tables
+
             let tousJoueursActifs = [];
-            if (tablesGenerees) {
-                for (const seats of Object.values(tablesGenerees)) {
-                    seats.forEach(s => {
-                        if (s.player) tousJoueursActifs.push(s.player);
-                    });
-                }
+            for (const seats of Object.values(tablesGenerees)) {
+                seats.forEach(s => {
+                    if (s.player) tousJoueursActifs.push(s.player);
+                });
             }
 
             document.getElementById('stat-total').innerText = tousJoueursActifs.length;
@@ -466,36 +463,119 @@
             
             const sel = document.getElementById('select-eliminer');
             sel.innerHTML = '';
-            tousJoueursActifs.forEach(j => {
+            tousJoueursActifs.sort((a,b) => a.localeCompare(b)).forEach(j => {
                 sel.innerHTML += `<option value="${j}">${j}</option>`;
             });
 
-            verifierEquilibrage();
+            verifierEtReequilibrer();
         }
 
-        function verifierEquilibrage() {
+        // --- MOTEUR DIRECTEUR DE TOURNOI (CASSAGE & REEQUILIBRAGE) ---
+        function verifierEtReequilibrer() {
             if (!tablesGenerees) return;
-            let tailles = [];
-            for (const seats of Object.values(tablesGenerees)) {
+
+            const maxPerTable = appData.maxJoueursParTable || 6;
+            let tablesActivesIds = [];
+            let totalJoueursActifs = 0;
+
+            for (const [tId, seats] of Object.entries(tablesGenerees)) {
                 const count = seats.filter(s => s.player !== null).length;
-                if (count > 0) tailles.push(count);
+                if (count > 0) {
+                    tablesActivesIds.push(tId);
+                    totalJoueursActifs += count;
+                }
             }
-            if (tailles.length === 0) return;
 
-            const minN = Math.min(...tailles);
-            const maxN = Math.max(...tailles);
-            const estEquilibre = (maxN - minN <= 1);
+            if (totalJoueursActifs === 0) return;
 
+            const nbTablesNecessaires = Math.ceil(totalJoueursActifs / maxPerTable);
+            const alertBox = document.getElementById('live-alertes');
             const eqSpan = document.getElementById('stat-equilibre');
-            if (estEquilibre) {
-                eqSpan.innerText = "OK (Équilibré)";
-                eqSpan.style.color = "#34d399";
-                document.getElementById('live-alertes.').innerText = "Les tables sont parfaitement équilibrées (écart ≤ 1).";
-            } else {
-                eqSpan.innerText = "DÉSÉQUILIBRÉ !";
+
+            // CAS 1 : CASSAGE DE TABLE NECESSAIRE
+            if (nbTablesNecessaires < tablesActivesIds.length) {
+                eqSpan.innerText = "CASSAGE NECESSAIRE";
                 eqSpan.style.color = "#f43f5e";
-                document.getElementById('live-alertes').innerText = `Attention : écart de taille entre tables détecté (Min: ${minN}, Max: ${maxN}). Veuillez rééquilibrer si nécessaire.`;
+
+                // Choix aléatoire de la table à fermer
+                const randIndex = Math.floor(Math.random() * tablesActivesIds.length);
+                const tableAFermerId = tablesActivesIds[randIndex];
+                const joueursAFermer = tablesGenerees[tableAFermerId].filter(s => s.player !== null).map(s => s.player);
+
+                // Trouver les sièges libres dans les AUTRES tables actives
+                let siegesLibres = [];
+                tablesActivesIds.forEach(tId => {
+                    if (tId !== tableAFermerId) {
+                        tablesGenerees[tId].forEach(s => {
+                            if (s.player === null) {
+                                siegesLibres.push({ tableId: tId, seat: s.seat });
+                            }
+                        });
+                    }
+                });
+
+                // Mélanger les sièges libres et affecter les joueurs
+                siegesLibres.sort(() => Math.random() - 0.5);
+                let consignes = `🚨 <b>CASSAGE DE TABLE (FERMETURE TABLE ${tableAFermerId})</b><br>Fermer la Table ${tableAFermerId} et déplacer les joueurs :<br>`;
+
+                joueursAFermer.forEach((j, idx) => {
+                    if (siegesLibres[idx]) {
+                        const destination = siegesLibres[idx];
+                        consignes += `• <b>${j}</b> ➔ Table ${destination.tableId}, Siège ${destination.seat}<br>`;
+                        
+                        // Appliquer immédiatement le déplacement dans la structure
+                        // Libérer l'ancien siège
+                        tablesGenerees[tableAFermerId].find(s => s.player === j).player = null;
+                        // Assigner au nouveau
+                        tablesGenerees[destination.tableId].find(s => s.seat === destination.seat).player = j;
+                    }
+                });
+
+                alertBox.innerHTML = consignes;
+                alertBox.className = "alert alert-action";
+                renderTablesUI();
+                return;
             }
+
+            // CAS 2 : EQUILIBRAGE SIMPLE (Ecart de 2 joueurs)
+            let minJoueurs = Infinity, maxJoueurs = -1;
+            let tablePlusPetiteId = null, tablePlusGrandeId = null;
+
+            tablesActivesIds.forEach(tId => {
+                const count = tablesGenerees[tId].filter(s => s.player !== null).length;
+                if (count < minJoueurs) { minJoueurs = count; tablePlusPetiteId = tId; }
+                if (count > maxJoueurs) { maxJoueurs = count; tablePlusGrandeId = tId; }
+            });
+
+            if (maxJoueurs - minJoueurs >= 2) {
+                eqSpan.innerText = "RÉÉQUILIBRAGE";
+                eqSpan.style.color = "#fbbf24";
+
+                // Choisir un joueur au hasard dans la plus grande table
+                const joueursGrandeTable = tablesGenerees[tablePlusGrandeId].filter(s => s.player !== null).map(s => s.player);
+                const joueurADeplacer = joueursGrandeTable[Math.floor(Math.random() * joueursGrandeTable.length)];
+
+                // Trouver un siège vide dans la plus petite table
+                const siegeLibre = tablesGenerees[tablePlusPetiteId].find(s => s.player === null);
+
+                let consignes = `⚠️ <b>RÉÉQUILIBRAGE REQUIS (Écart ≥ 2)</b><br>`;
+                consignes += `Déplacer <b>${joueurADeplacer}</b> de la Table ${tablePlusGrandeId} vers la Table ${tablePlusPetiteId} (Siège ${siegeLibre.seat}).`;
+
+                // Appliquer le déplacement
+                tablesGenerees[tablePlusGrandeId].find(s => s.player === joueurADeplacer).player = null;
+                siegeLibre.player = joueurADeplacer;
+
+                alertBox.innerHTML = consignes;
+                alertBox.className = "alert alert-action";
+                renderTablesUI();
+                return;
+            }
+
+            // CAS 3 : TOUT EST EQUILIBRE
+            eqSpan.innerText = "PARFAIT";
+            eqSpan.style.color = "#34d399";
+            alertBox.innerHTML = " Tournoi en cours. Toutes les tables sont parfaitement équilibrées.";
+            alertBox.className = "alert";
         }
 
         function toggleChrono() {
@@ -531,7 +611,9 @@
 
         function eliminerJoueur() {
             const joueur = document.getElementById('select-eliminer').value;
-            // Retirer le joueur des tables
+            if (!joueur) return;
+
+            // Supprimer le joueur de la table
             if (tablesGenerees) {
                 for (const seats of Object.values(tablesGenerees)) {
                     seats.forEach(s => {
@@ -540,7 +622,6 @@
                 }
             }
             initLive();
-            document.getElementById('live-alertes').innerText = `Élimination enregistrée : ${joueur}. Tables vérifiées.`;
         }
     </script>
 </body>
