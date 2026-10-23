@@ -3,182 +3,302 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Poker Club Live & Inscriptions</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Poker Club Manager - Connected</title>
+    <style>
+        body { font-family: ui-sans-serif, system-ui, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
+        header { background-color: #1e293b; border-bottom: 1px solid #334155; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
+        h1 { font-size: 1.25rem; font-weight: bold; color: #fbbf24; margin: 0; }
+        main { flex-grow: 1; padding: 1rem; max-width: 64rem; margin: 0 auto; width: 100%; box-sizing: border-box; }
+        .hidden { display: none; }
+        .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .grid-2 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+        @media(min-width: 768px) { .grid-2 { grid-template-columns: 1fr 1fr; } .grid-3 { grid-template-columns: repeat(3, 1fr) !important; } }
+        .grid-3 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+        label { display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.25rem; }
+        select, input, button { width: 100%; background-color: #0f172a; border: 1px solid #475569; border-radius: 0.375rem; padding: 0.5rem; color: #f8fafc; font-size: 1rem; margin-bottom: 1rem; box-sizing: border-box; }
+        button { cursor: pointer; font-weight: bold; border: none; transition: background 0.2s; }
+        .btn-green { background-color: #059669; color: white; }
+        .btn-green:hover { background-color: #047857; }
+        .btn-amber { background-color: #d97706; color: white; }
+        .btn-rose { background-color: #e11d48; color: white; }
+        .btn-tab { padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; width: auto; display: inline-block; margin: 0; }
+        .text-center { text-align: center; }
+        .font-mono { font-family: monospace; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { padding: 0.5rem 0; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; }
+        .badge { font-size: 0.75rem; background-color: #064e3b; color: #6ee7b7; padding: 0.125rem 0.5rem; border-radius: 9999px; }
+        .alert { background-color: #0f172a; border: 1px solid #334155; padding: 0.75rem; border-radius: 0.375rem; font-size: 0.75rem; font-family: monospace; color: #fde68a; }
+        .loader { display: inline-block; border: 2px solid #f3f3f3; border-top: 2px solid #d97706; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; margin-right: 5px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col">
+<body>
 
-    <!-- Header / Navigation -->
-    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md flex justify-between items-center">
-        <h1 class="text-xl font-bold text-amber-400">♠️ Poker Club Manager</h1>
-        <div class="space-x-2">
-            <button onclick="switchTab('inscriptions')" id="btn-inscriptions" class="px-4 py-2 rounded bg-amber-600 text-white font-medium transition">Inscriptions</button>
-            <button onclick="switchTab('live')" id="btn-live" class="px-4 py-2 rounded bg-slate-700 text-slate-300 font-medium transition">Live Tournoi</button>
+    <header>
+        <h1>♠️ Poker Club Manager</h1>
+        <div>
+            <button onclick="switchTab('inscriptions')" id="btn-inscriptions" class="btn-tab btn-amber">Inscriptions</button>
+            <button onclick="switchTab('live')" id="btn-live" class="btn-tab" style="background-color:#334155; color:#cbd5e1;">Live Tournoi</button>
+            <button onclick="toggleConfig()" class="btn-tab" style="background-color:#475569; color:white; margin-left:0.5rem;">⚙️</button>
         </div>
     </header>
 
-    <!-- Main Container -->
-    <main class="flex-grow p-4 max-w-5xl mx-auto w-full">
+    <main>
+        <!-- CONFIGURATION SCRIPT URL -->
+        <section id="tab-config" class="hidden">
+            <div class="card">
+                <h3 style="margin-top:0; color:#fde68a;">Configuration de la connexion Google Sheet</h3>
+                <label>URL du Déploiement Web App Google Apps Script :</label>
+                <input type="text" id="script-url" placeholder="https://script.google.com/macros/s/.../exec">
+                <button onclick="saveConfig()" class="btn-green">Enregistrer & Charger les données</button>
+            </div>
+        </section>
 
         <!-- ONGLET INSCRIPTIONS -->
-        <section id="tab-inscriptions" class="space-y-6">
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow">
-                <h2 class="text-lg font-semibold mb-4 text-amber-300">Prochain Tournoi & Inscriptions</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <section id="tab-inscriptions">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Inscriptions aux Tournois</h2>
+                    <span id="loading-status" style="font-size:0.875rem; color:#94a3b8;"></span>
+                </div>
+                
+                <div class="grid-2">
                     <div>
-                        <label class="block text-sm text-slate-400 mb-1">Sélectionner le Tournoi :</label>
-                        <select id="select-tournoi" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-slate-100">
-                            <option value="1">MTT 1 - 11/09/26 (Prochain)</option>
-                            <option value="2">MTT 2 - 18/09/26</option>
-                            <option value="3">MTT 3 - 25/09/26</option>
+                        <label>Sélectionner le Tournoi :</label>
+                        <select id="select-tournoi" onchange="onTournoiChange()">
+                            <option value="">Chargement des tournois...</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm text-slate-400 mb-1">Votre Joueur / Pseudo :</label>
-                        <select id="select-joueur" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-slate-100">
-                            <option value="Frafra">Frafra</option>
-                            <option value="Muchel">Muchel</option>
-                            <option value="Bloonsy">Bloonsy</option>
-                            <option value="In2zewild">In2zewild</option>
-                            <option value="Monokiny">Monokiny</option>
+                        <label>Votre Joueur / Pseudo :</label>
+                        <select id="select-joueur">
+                            <option value="">Chargement des joueurs...</option>
                         </select>
                     </div>
                 </div>
-                <button onclick="toggleInscription()" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-2 rounded transition">S'inscrire / Se désinscrire</button>
+                <button onclick="toggleInscription()" id="btn-inscrire" class="btn-green">S'inscrire / Se désinscrire</button>
             </div>
 
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow">
-                <h3 class="text-md font-semibold mb-3 text-slate-300">Joueurs Inscrits (<span id="count-inscrits">0</span>)</h3>
-                <ul id="list-inscrits" class="divide-y divide-slate-700 text-sm">
-                    <!-- Rempli par JS -->
-                </ul>
+            <div class="card">
+                <h3 style="margin-top:0; color:#cbd5e1; font-size:1rem;">Joueurs Inscrits pour ce tournoi (<span id="count-inscrits">0</span>)</h3>
+                <ul id="list-inscrits"></ul>
             </div>
         </section>
 
         <!-- ONGLET LIVE TOURNOI -->
-        <section id="tab-live" class="hidden space-y-6">
-            <!-- Dashboard Chrono & Blindes -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center flex flex-col justify-center">
-                    <span class="text-xs uppercase tracking-wider text-slate-400">Niveau Actuel</span>
-                    <span id="live-niveau" class="text-3xl font-black text-amber-400 my-1">Niveau 1</span>
-                    <span id="live-blinds" class="text-lg font-semibold text-slate-200">SB 5 / BB 10 (Ante 25)</span>
+        <section id="tab-live" class="hidden">
+            <div class="grid-3" style="margin-bottom:1.5rem;">
+                <div class="card text-center" style="margin-bottom:0;">
+                    <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Niveau Actuel</span>
+                    <div id="live-niveau" style="font-size:1.875rem; font-weight:900; color:#fbbf24; margin:0.25rem 0;">Niveau 1</div>
+                    <span id="live-blinds" style="font-size:1rem; font-weight:600; color:#e2e8f0;">SB 5 / BB 10 (Ante 0)</span>
                 </div>
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center flex flex-col justify-center">
-                    <span class="text-xs uppercase tracking-wider text-slate-400">Chrono Restant</span>
-                    <span id="live-chrono" class="text-4xl font-mono font-bold text-emerald-400 my-1">20:00</span>
-                    <div class="space-x-2 mt-2">
-                        <button onclick="toggleChrono()" id="btn-chrono" class="px-3 py-1 bg-emerald-600 text-xs rounded font-bold">Start</button>
-                        <button onclick="nextLevel()" class="px-3 py-1 bg-slate-700 text-xs rounded">Niveau +</button>
+                <div class="card text-center" style="margin-bottom:0;">
+                    <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Chrono Restant</span>
+                    <div id="live-chrono" class="font-mono" style="font-size:2.25rem; font-weight:bold; color:#34d399; margin:0.25rem 0;">20:00</div>
+                    <div style="display:flex; gap:0.5rem; justify-content:center; margin-top:0.5rem;">
+                        <button onclick="toggleChrono()" id="btn-chrono" class="btn-green" style="width:auto; padding:0.25rem 0.75rem; margin:0; font-size:0.75rem;">Start</button>
+                        <button onclick="nextLevel()" style="width:auto; padding:0.25rem 0.75rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau +</button>
                     </div>
                 </div>
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center flex flex-col justify-center">
-                    <span class="text-xs uppercase tracking-wider text-slate-400">Statistiques</span>
-                    <div class="text-sm mt-1 space-y-1">
-                        <div>Restants : <span id="stat-restants" class="font-bold">0</span> / <span id="stat-total">0</span></div>
-                        <div>Tapis Moyen : <span id="stat-stack" class="font-bold">1 500</span></div>
+                <div class="card text-center" style="margin-bottom:0;">
+                    <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Statistiques</span>
+                    <div style="font-size:0.875rem; margin-top:0.5rem; line-height:1.5;">
+                        <div>Restants : <span id="stat-restants" style="font-weight:bold;">0</span> / <span id="stat-total">0</span></div>
+                        <div>Tapis Moyen : <span id="stat-stack" style="font-weight:bold;">1 500</span></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Gestion des Tables & Éliminations -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Tables Actives -->
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow">
-                    <h3 class="text-md font-semibold mb-3 text-amber-300">Répartition des Tables</h3>
-                    <div id="tables-container" class="space-y-4">
-                        <!-- Généré dynamiquement -->
-                    </div>
+            <div class="grid-2">
+                <div class="card">
+                    <h3 style="margin-top:0; color:#fde68a; font-size:1rem;">Répartition des Tables</h3>
+                    <div id="tables-container"></div>
                 </div>
-
-                <!-- Actions / Éliminations -->
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow space-y-4">
-                    <h3 class="text-md font-semibold text-amber-300">Actions Rapides</h3>
+                <div class="card">
+                    <h3 style="margin-top:0; color:#fde68a; font-size:1rem;">Actions Rapides</h3>
                     <div>
-                      <label class="block text-sm text-slate-400 mb-1">Éliminer un joueur :</label>
-                      <select id="select-eliminer" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-slate-100 mb-2">
-                          <!-- Rempli par JS -->
-                      </select>
-                      <button onclick="eliminerJoueur()" class="w-full bg-rose-600 hover:bg-rose-500 font-bold py-2 rounded transition">Marquer comme Éliminé</button>
+                        <label>Éliminer un joueur :</label>
+                        <select id="select-eliminer"></select>
+                        <button onclick="eliminerJoueur()" class="btn-rose">Marquer comme Éliminé</button>
                     </div>
-                    <div id="live-alertes" class="p-3 bg-slate-900 border border-slate-700 rounded text-xs text-amber-200 font-mono">
+                    <div id="live-alertes" class="alert" style="margin-top:1rem;">
                         Système prêt. En attente d'événements...
                     </div>
                 </div>
             </div>
         </section>
-
     </main>
 
     <script>
-        // Logique Simple pour le Prototype Frontend
-        let inscrits = ["Frafra", "Muchel", "Bloonsy", "In2zewild"];
+        let scriptUrl = localStorage.getItem('poker_script_url') || '';
+        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {} };
+        let activeTournoiId = null;
+
+        // Chrono State
         let niveauActuel = 1;
-        let secondesRestantes = 1200; // 20 min
+        let secondesRestantes = 1200;
         let chronoTimer = null;
         let chronoActif = false;
 
         const structures = {
-            1: {sb: 5, bb: 10, ante: 0},
-            2: {sb: 10, bb: 20, ante: 0},
-            3: {sb: 15, bb: 30, ante: 0},
-            4: {sb: 20, bb: 40, ante: 0},
-            5: {sb: 25, bb: 50, ante: 25}
+            1: {sb: 5, bb: 10, ante: 0}, 2: {sb: 10, bb: 20, ante: 0},
+            3: {sb: 15, bb: 30, ante: 0}, 4: {sb: 20, bb: 40, ante: 0},
+            5: {sb: 25, bb: 50, ante: 25}, 6: {sb: 30, bb: 60, ante: 30},
+            7: {sb: 40, bb: 80, ante: 40}
         };
 
-        function switchTab(tab) {
-            if(tab === 'inscriptions') {
-                document.getElementById('tab-inscriptions').classList.remove('hidden');
-                document.getElementById('tab-live').classList.add('hidden');
-                document.getElementById('btn-inscriptions').className = "px-4 py-2 rounded bg-amber-600 text-white font-medium transition";
-                document.getElementById('btn-live').className = "px-4 py-2 rounded bg-slate-700 text-slate-300 font-medium transition";
+        window.onload = function() {
+            if (scriptUrl) {
+                document.getElementById('script-url').value = scriptUrl;
+                loadDataFromSheet();
             } else {
-                document.getElementById('tab-inscriptions').classList.add('hidden');
-                document.getElementById('tab-live').classList.remove('hidden');
-                document.getElementById('btn-live').className = "px-4 py-2 rounded bg-amber-600 text-white font-medium transition";
-                document.getElementById('btn-inscriptions').className = "px-4 py-2 rounded bg-slate-700 text-slate-300 font-medium transition";
-                initLive();
+                toggleConfig();
             }
+        };
+
+        function toggleConfig() {
+            const conf = document.getElementById('tab-config');
+            conf.classList.toggle('hidden');
         }
 
-        function toggleInscription() {
-            const joueur = document.getElementById('select-joueur').value;
-            const index = inscrits.indexOf(joueur);
-            if(index > -1) {
-                inscrits.splice(index, 1);
-            } else {
-                inscrits.push(joueur);
-            }
+        function saveConfig() {
+            scriptUrl = document.getElementById('script-url').value.trim();
+            localStorage.setItem('poker_script_url', scriptUrl);
+            document.getElementById('tab-config').classList.add('hidden');
+            loadDataFromSheet();
+        }
+
+        function loadDataFromSheet() {
+            if (!scriptUrl) return;
+            showLoading(true, "Connexion au Google Sheet...");
+
+            fetch(scriptUrl)
+                .then(res => res.json())
+                .then(data => {
+                    appData = data;
+                    populateDropdowns();
+                    showLoading(false, "");
+                })
+                .catch(err => {
+                    console.error(err);
+                    showLoading(false, "Erreur de chargement");
+                });
+        }
+
+        function populateDropdowns() {
+            // Populate Joueurs
+            const selJ = document.getElementById('select-joueur');
+            selJ.innerHTML = '';
+            appData.joueurs.forEach(j => {
+                selJ.innerHTML += `<option value="${j}">${j}</option>`;
+            });
+
+            // Populate Tournois
+            const selT = document.getElementById('select-tournoi');
+            selT.innerHTML = '';
+            appData.tournois.forEach(t => {
+                const isSelected = (t.id === appData.prochainTournoiId) ? 'selected' : '';
+                selT.innerHTML += `<option value="${t.id}" ${isSelected}>${t.displayLabel}</option>`;
+            });
+
+            activeTournoiId = appData.prochainTournoiId || (appData.tournois[0] ? appData.tournois[0].id : null);
+            selT.value = activeTournoiId;
+
+            updateInscritsUI();
+        }
+
+        function onTournoiChange() {
+            activeTournoiId = document.getElementById('select-tournoi').value;
             updateInscritsUI();
         }
 
         function updateInscritsUI() {
             const list = document.getElementById('list-inscrits');
             list.innerHTML = '';
-            inscrits.forEach(j => {
-                list.innerHTML += `<li class="py-2 flex justify-between items-center"><span>${j}</span><span class="text-xs bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded">Inscrit</span></li>`;
+            const currentInscrits = appData.inscriptions[activeTournoiId] || [];
+
+            currentInscrits.forEach(j => {
+                list.innerHTML += `<li><span>${j}</span><span class="badge">Inscrit</span></li>`;
             });
-            document.getElementById('count-inscrits').innerText = inscrits.length;
+            document.getElementById('count-inscrits').innerText = currentInscrits.length;
+        }
+
+        function toggleInscription() {
+            if (!scriptUrl || !activeTournoiId) return;
+            const joueur = document.getElementById('select-joueur').value;
+            const currentInscrits = appData.inscriptions[activeTournoiId] || [];
+            const isAlreadyInscrit = currentInscrits.includes(joueur);
+            const action = isAlreadyInscrit ? "desinscrire" : "inscrire";
+
+            // Optimistic UI Update
+            if (isAlreadyInscrit) {
+                appData.inscriptions[activeTournoiId] = currentInscrits.filter(j => j !== joueur);
+            } else {
+                if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = [];
+                appData.inscriptions[activeTournoiId].push(joueur);
+            }
+            updateInscritsUI();
+
+            // Sync with Google Sheet
+            showLoading(true, "Enregistrement...");
+            fetch(scriptUrl, {
+                method: "POST",
+                mode: "no-cors", // Mode no-cors standard pour Apps Script
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: action })
+            }).then(() => {
+                showLoading(false, "");
+            }).catch(err => {
+                console.error(err);
+                showLoading(false, "Erreur de synchro");
+            });
+        }
+
+        function showLoading(show, msg) {
+            const status = document.getElementById('loading-status');
+            if (show) {
+                status.innerHTML = `<span class="loader"></span> ${msg}`;
+            } else {
+                status.innerText = msg;
+            }
+        }
+
+        function switchTab(tab) {
+            if(tab === 'inscriptions') {
+                document.getElementById('tab-inscriptions').classList.remove('hidden');
+                document.getElementById('tab-live').classList.add('hidden');
+                document.getElementById('btn-inscriptions').style.backgroundColor = '#d97706';
+                document.getElementById('btn-inscriptions').style.color = '#ffffff';
+                document.getElementById('btn-live').style.backgroundColor = '#334155';
+                document.getElementById('btn-live').style.color = '#cbd5e1';
+            } else {
+                document.getElementById('tab-inscriptions').classList.add('hidden');
+                document.getElementById('tab-live').classList.remove('hidden');
+                document.getElementById('btn-live').style.backgroundColor = '#d97706';
+                document.getElementById('btn-live').style.color = '#ffffff';
+                document.getElementById('btn-inscriptions').style.backgroundColor = '#334155';
+                document.getElementById('btn-inscriptions').style.color = '#cbd5e1';
+                initLive();
+            }
         }
 
         function initLive() {
-            updateInscritsUI();
-            document.getElementById('stat-total').innerText = inscrits.length;
-            document.getElementById('stat-restants').innerText = inscrits.length;
+            const currentInscrits = appData.inscriptions[activeTournoiId] || [];
+            document.getElementById('stat-total').innerText = currentInscrits.length;
+            document.getElementById('stat-restants').innerText = currentInscrits.length;
             
-            // Remplir select élimination
             const sel = document.getElementById('select-eliminer');
             sel.innerHTML = '';
-            inscrits.forEach(j => {
+            currentInscrits.forEach(j => {
                 sel.innerHTML += `<option value="${j}">${j}</option>`;
             });
 
-            // Afficher tables factices
             const tContainer = document.getElementById('tables-container');
             tContainer.innerHTML = `
-                <div class="p-3 bg-slate-900 rounded border border-slate-700">
-                    <h4 class="font-bold text-sm text-slate-300 mb-1">Table 1</h4>
-                    <p class="text-xs text-slate-400">${inscrits.slice(0, 5).join(', ')}</p>
+                <div style="background:#0f172a; padding:0.75rem; border-radius:0.375rem; border:1px solid #334155;">
+                    <h4 style="margin:0 0 0.25rem 0; font-size:0.875rem; color:#cbd5e1;">Table 1</h4>
+                    <p style="margin:0; font-size:0.75rem; color:#94a3b8;">${currentInscrits.join(', ')}</p>
                 </div>
             `;
         }
@@ -188,7 +308,7 @@
             const btn = document.getElementById('btn-chrono');
             if(chronoActif) {
                 btn.innerText = "Pause";
-                btn.className = "px-3 py-1 bg-amber-600 text-xs rounded font-bold";
+                btn.className = "btn-amber";
                 chronoTimer = setInterval(() => {
                     if(secondesRestantes > 0) {
                         secondesRestantes--;
@@ -201,7 +321,7 @@
                 }, 1000);
             } else {
                 btn.innerText = "Start";
-                btn.className = "px-3 py-1 bg-emerald-600 text-xs rounded font-bold";
+                btn.className = "btn-green";
                 clearInterval(chronoTimer);
             }
         }
@@ -216,15 +336,14 @@
 
         function eliminerJoueur() {
             const joueur = document.getElementById('select-eliminer').value;
-            const idx = inscrits.indexOf(joueur);
+            const currentInscrits = appData.inscriptions[activeTournoiId] || [];
+            const idx = currentInscrits.indexOf(joueur);
             if(idx > -1) {
-                inscrits.splice(idx, 1);
+                currentInscrits.splice(idx, 1);
                 initLive();
-                document.getElementById('live-alertes').innerText = `Élimination enregistrée : ${joueur}. Tables rééquilibrées automatiquement.`;
+                document.getElementById('live-alertes').innerText = `Élimination enregistrée : ${joueur}.`;
             }
         }
-
-        updateInscritsUI();
     </script>
 </body>
 </html>
