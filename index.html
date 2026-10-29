@@ -12,7 +12,6 @@
         main { flex-grow: 1; padding: 1rem; max-width: 64rem; margin: 0 auto; width: 100%; box-sizing: border-box; }
         .hidden { display: none; }
         
-        /* Écran de chargement global de démarrage */
         #global-loader { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #0f172a; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; color: #fbbf24; font-weight: bold; gap: 1rem; }
         .big-loader { border: 4px solid #334155; border-top: 4px solid #fbbf24; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
 
@@ -56,7 +55,6 @@
         .classement-item:active { cursor: grabbing; }
         .classement-item.drag-over { border-color: #fbbf24; background: #334155; }
 
-        /* Style Tableau Classement Général */
         .table-general { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.875rem; }
         .table-general th, .table-general td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #334155; }
         .table-general th { color: #fbbf24; background-color: #1e293b; font-weight: bold; }
@@ -65,7 +63,6 @@
 </head>
 <body>
 
-    <!-- Écran de chargement global bloquant tant que la synchro n'est pas finie -->
     <div id="global-loader">
         <div class="big-loader"></div>
         <div>Synchronisation complète en cours...</div>
@@ -84,7 +81,6 @@
     </header>
 
     <main>
-        <!-- CONFIGURATION SCRIPT URL -->
         <section id="tab-config" class="hidden">
             <div class="card">
                 <h3 style="margin-top:0; color:#fde68a;">Configuration Google Sheet</h3>
@@ -94,7 +90,6 @@
             </div>
         </section>
 
-        <!-- ONGLET INSCRIPTIONS & APPEL -->
         <section id="tab-inscriptions">
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
@@ -129,7 +124,6 @@
             </div>
         </section>
 
-        <!-- ONGLET PLANS DE TABLE -->
         <section id="tab-tables" class="hidden">
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:1rem;">
@@ -145,7 +139,6 @@
             </div>
         </section>
 
-        <!-- ONGLET LIVE TOURNOI -->
         <section id="tab-live" class="hidden">
             <div class="grid-3" style="margin-bottom:1.5rem;">
                 <div class="card text-center" style="margin-bottom:0;">
@@ -196,7 +189,6 @@
             </div>
         </section>
 
-        <!-- ONGLET CLASSEMENT TOURNOI -->
         <section id="tab-classement" class="hidden">
             <div class="card">
                 <h2 style="margin-top:0; color:#fde68a; font-size:1.125rem;">Classement du Tournoi en Cours</h2>
@@ -205,7 +197,6 @@
             </div>
         </section>
 
-        <!-- ONGLET CLASSEMENT GENERAL -->
         <section id="tab-general" class="hidden">
             <div class="card">
                 <h2 style="margin-top:0; color:#fbbf24; font-size:1.125rem;">🏆 Classement Général de la Saison</h2>
@@ -279,7 +270,6 @@
                     checkTournoiLockStatus();
                     renderClassementGeneralUI();
 
-                    // Disparition de l'écran de chargement bloquant une fois tout prêt
                     document.getElementById('global-loader').style.display = 'none';
                 })
                 .catch(err => {
@@ -307,7 +297,6 @@
             totalJoueursInitial = state.totalJoueursInitial || 0;
             joueursEliminesHistorique = state.joueursEliminesHistorique || [];
             
-            // Reprise automatique du temps écoulé (même si refermé depuis 35 min ou plus)
             niveauActuel = state.niveauActuel || 1;
             secondesRestantes = state.secondesRestantes || 1200;
             chronoEndTime = state.chronoEndTime || null;
@@ -321,7 +310,6 @@
                     secondesRestantes = diffSec;
                     startChronoLoop(false);
                 } else {
-                    // Le temps est écoulé pendant la fermeture : avancer les niveaux nécessaires
                     let tempsEcouleAbsolu = Math.floor((now - (chronoEndTime - (secondesRestantes * 1000))) / 1000);
                     let niveauxPasses = Math.floor(tempsEcouleAbsolu / dureeNiveauSec);
                     niveauActuel = Math.min(25, niveauActuel + niveauxPasses);
@@ -888,7 +876,6 @@
             const alertBox = document.getElementById('live-alertes');
             const eqSpan = document.getElementById('stat-equilibre');
 
-            // --- CHANGEMENT IMMÉDIAT DES TABLES ET BOUTON COMPRIS UNIQUEMENT POUR MASQUER ---
             if (nbTablesNecessaires < tablesActivesIds.length) {
                 eqSpan.innerText = "CASSAGE APPLIQUÉ";
                 eqSpan.style.color = "#f43f5e";
@@ -974,7 +961,6 @@
             }
         }
 
-        // --- CLASSEMENT TOURNOI (DRAG & DROP) ---
         function renderClassementUI() {
             const container = document.getElementById('classement-container');
             container.innerHTML = '';
@@ -1038,7 +1024,7 @@
             }
         }
 
-        // --- CLASSEMENT GÉNÉRAL DE LA SAISON ---
+        // --- CLASSEMENT GÉNÉRAL DE LA SAISON (AVEC POINTS TOUS & TRI CROISSANT) ---
         function renderClassementGeneralUI() {
             const container = document.getElementById('general-container');
             const data = appData.classementGeneral || [];
@@ -1054,7 +1040,8 @@
                         <tr>
                             <th style="width:60px;">Place</th>
                             <th>Pseudo</th>
-                            <th style="text-align:center;">Points Top 12</th>
+                            <th style="text-align:center;">Points</th>
+                            <th style="text-align:center;">Points Tous</th>
                             <th style="text-align:center;">Win</th>
                             <th style="text-align:center;">ITM</th>
                             <th style="text-align:center;">Participations</th>
@@ -1063,12 +1050,13 @@
                     <tbody>
             `;
 
-            data.forEach((row, idx) => {
+            data.forEach((row) => {
                 html += `
                     <tr>
-                        <td style="font-weight:bold; color:#fbbf24;">#${idx + 1}</td>
+                        <td style="font-weight:bold; color:#fbbf24;">#${row.classement}</td>
                         <td style="font-weight:500;">${row.joueur}</td>
                         <td style="text-align:center; font-weight:bold; color:#34d399;">${row.points}</td>
+                        <td style="text-align:center; font-weight:bold; color:#60a5fa;">${row.pointsTous}</td>
                         <td style="text-align:center;">${row.win}</td>
                         <td style="text-align:center;">${row.itm}</td>
                         <td style="text-align:center;">${row.participations}</td>
