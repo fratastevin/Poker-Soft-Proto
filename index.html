@@ -71,7 +71,7 @@
     </div>
 
     <div id="spectator-banner">
-        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Le Maître du tournoi gère les commandes. (Cliquez sur "👑 Master" pour reprendre le contrôle si c'est votre PC).
+        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Le Maître du tournoi gère les commandes. (Cliquez sur "👑 Master" pour reprendre le contrôle si c'est votre appareil).
     </div>
 
     <header>
@@ -248,7 +248,7 @@
             setInterval(() => {
                 if (!scriptUrl || !activeTournoiId) return;
 
-                // Si nous sommes le Maître, nous n'interrogeons pas le serveur pour écraser notre propre état actif en cours
+                // Le Maître n'a pas besoin de se resynchroniser depuis l'extérieur en boucle
                 if (isMaster) return;
 
                 fetch(scriptUrl)
@@ -261,23 +261,30 @@
                         const remoteState = appData.allStates[activeTournoiId];
                         if (remoteState) {
                             if (remoteState.masterClientId && remoteState.masterClientId !== myClientId) {
-                                isMaster = false;
-                                lockLiveInterfaceForSpectator(true);
-                            } else if (!remoteState.masterClientId || remoteState.masterClientId === myClientId) {
-                                isMaster = true;
-                                lockLiveInterfaceForSpectator(false);
+                                if (isMaster) {
+                                    isMaster = false;
+                                    lockLiveInterfaceForSpectator(true);
+                                }
+                            } else {
+                                if (!isMaster && remoteState.masterClientId === myClientId) {
+                                    isMaster = true;
+                                    lockLiveInterfaceForSpectator(false);
+                                }
                             }
 
                             syncRemoteLiveState(remoteState);
+                        } else {
+                            tablesGenerees = null;
+                            renderTablesUI();
                         }
                     })
                     .catch(err => console.error("Erreur sync arrière-plan:", err));
-            }, 5000); // 5 secondes pour une réactivité optimale
+            }, 4000); // Polling toutes les 4 secondes pour une réactivité maximale
         }
 
         function syncRemoteLiveState(state) {
             if (!state) return;
-            if (isMaster) return; // Sécurité : le maître ne se synchronise pas depuis l'extérieur
+            if (isMaster) return;
 
             niveauActuel = state.niveauActuel || 1;
             tablesGenerees = state.tablesGenerees || null;
@@ -285,7 +292,6 @@
             totalJoueursInitial = state.totalJoueursInitial || 0;
             chronoIsRunning = state.chronoIsRunning || false;
 
-            // Synchronisation fine et instantanée du chrono et du bouton Start/Pause
             if (chronoIsRunning && state.chronoEndTime) {
                 chronoEndTime = state.chronoEndTime;
                 const now = Date.now();
@@ -312,8 +318,17 @@
 
             updateChronoUI();
             renderTablesUI();
-            if (document.getElementById('tab-live') && !document.getElementById('tab-live').classList.contains('hidden')) {
-                initLive();
+
+            const tabLive = document.getElementById('tab-live');
+            if (tabLive && !tabLive.classList.contains('hidden')) {
+                let tousJoueursActifs = [];
+                if (tablesGenerees) {
+                    for (const seats of Object.values(tablesGenerees)) {
+                        seats.forEach(s => { if (s.player) tousJoueursActifs.push(s.player); });
+                    }
+                }
+                document.getElementById('stat-total').innerText = totalJoueursInitial || tousJoueursActifs.length;
+                document.getElementById('stat-restants').innerText = tousJoueursActifs.length;
             }
         }
 
@@ -348,7 +363,6 @@
 
                 saveGameStateToSheet();
                 
-                // Petit retour visuel de confirmation de reprise du master
                 const btnMaster = document.querySelector('button[onclick="reprendreControleMaster()"]');
                 if(btnMaster) {
                     const originalText = btnMaster.innerText;
@@ -1323,7 +1337,6 @@
                 updateChronoUI();
                 saveGameStateToSheet();
             } else {
-                // Conserve précisément le temps restant actuel au moment de repartir
                 chronoEndTime = Date.now() + (secondesRestantes * 1000);
                 startChronoLoop(true);
             }
