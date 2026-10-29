@@ -508,6 +508,8 @@
             const maxPerTable = appData.maxJoueursParTable || 6;
             
             if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+            
+            // On l'ajoute comme présent par défaut lors d'une inscription de dernière minute
             appData.inscriptions[activeTournoiId][joueur] = { present: true };
             totalJoueursInitial++;
 
@@ -555,6 +557,22 @@
 
             updateInscritsUI();
             saveGameStateToSheet();
+
+            // ENREGISTREMENT PERMANENT DANS GOOGLE SHEETS (Onglet Inscriptions & Présence)
+            if (scriptUrl && activeTournoiId) {
+                // 1. Inscrire dans l'onglet Inscriptions
+                fetch(scriptUrl, {
+                    method: "POST",
+                    mode: "no-cors",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire" })
+                });
+                // 2. Marquer comme présent par la même occasion
+                fetch(scriptUrl, {
+                    method: "POST",
+                    mode: "no-cors",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: true })
+                });
+            }
         }
 
         function repartirTablesRecalculees(listeJoueurs) {
