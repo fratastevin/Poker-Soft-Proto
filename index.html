@@ -253,26 +253,28 @@
                     .then(data => {
                         appData.allStates = data.allStates || {};
                         appData.tournoisTermines = data.tournoisTermines || {};
+                        appData.classementGeneral = data.classementGeneral || appData.classementGeneral;
                         if (data.structures) appData.structures = data.structures;
                         
+                        const generalTab = document.getElementById('tab-general');
+                        if (generalTab && !generalTab.classList.contains('hidden')) {
+                            renderClassementGeneralUI();
+                        }
+
                         const remoteState = appData.allStates[activeTournoiId];
                         if (remoteState) {
-                            // --- SURVEILLANCE ACTIVE DU MASTER ---
                             if (remoteState.masterClientId && remoteState.masterClientId !== myClientId) {
-                                // Si le serveur indique un autre Maître que nous, on devient spectateur
                                 if (isMaster) {
                                     isMaster = false;
                                     lockLiveInterfaceForSpectator(true);
                                 }
                             } else if (remoteState.masterClientId === myClientId) {
-                                // Si le serveur confirme que c'est bien nous le maître
                                 if (!isMaster) {
                                     isMaster = true;
                                     lockLiveInterfaceForSpectator(false);
                                 }
                             }
 
-                            // Si nous ne sommes PAS le maître, on synchronise l'état live (chrono, tables, etc.)
                             if (!isMaster) {
                                 syncRemoteLiveState(remoteState);
                             }
@@ -282,7 +284,7 @@
                         }
                     })
                     .catch(err => console.error("Erreur sync arrière-plan:", err));
-            }, 4000); // Polling toutes les 4 secondes
+            }, 4000);
         }
 
         function syncRemoteLiveState(state) {
@@ -295,21 +297,17 @@
             totalJoueursInitial = state.totalJoueursInitial || 0;
             chronoIsRunning = state.chronoIsRunning || false;
 
-            // --- SYNCHRONISATION DES CONSIGNES LIVE POUR LE SPECTATEUR ---
             const alertBox = document.getElementById('live-alertes');
             if (alertBox && state.derniereAlerte) {
-                // On nettoie le bouton "Compris" pour les spectateurs s'il était présent dans le HTML brut
                 let consigneNettoyee = state.derniereAlerte.replace(/<button[^>]*>Compris<\/button>/gi, '');
                 alertBox.innerHTML = consigneNettoyee;
                 
-                // Si la consigne contient une alerte (cassage / rééquilibrage), on met le style alerte
                 if (consignesContiennentUneAlerte(state.derniereAlerte)) {
                     alertBox.className = "alert alert-action";
                 } else {
                     alertBox.className = "alert";
                 }
             }
-            // -------------------------------------------------------------
 
             if (chronoIsRunning && state.chronoEndTime) {
                 chronoEndTime = state.chronoEndTime;
@@ -351,7 +349,6 @@
             }
         }
 
-        // Petite fonction utilitaire pour détecter si le texte de l'alerte est une action requise
         function consignesContiennentUneAlerte(htmlTexte) {
             return htmlTexte.includes("CASSAGE") || htmlTexte.includes("RÉÉQUILIBRAGE") || htmlTexte.includes("⚠️") || htmlTexte.includes("🚨");
         }
@@ -488,7 +485,6 @@
 
             isMaster = true;
 
-            // Récupérer le contenu actuel de la boîte d'alerte live
             const alertBox = document.getElementById('live-alertes');
             let consigneActuelle = alertBox ? alertBox.innerHTML : "";
 
@@ -501,7 +497,7 @@
                 secondesRestantes: secondesRestantes,
                 chronoEndTime: chronoEndTime,
                 chronoIsRunning: chronoIsRunning,
-                derniereAlerte: consigneActuelle // <-- Ajout de la consigne ici
+                derniereAlerte: consigneActuelle
             };
 
             fetch(scriptUrl, {
@@ -1088,7 +1084,12 @@
 
                     appData.tournoisTermines[activeTournoiId] = dernierJoueur;
                     checkTournoiLockStatus();
-                    alert(`🏆 TOURNOI TERMINÉ !\n\nVainqueur : ${dernierJoueur}.`);
+                    
+                    setTimeout(() => {
+                        loadDataFromSheet();
+                    }, 1500);
+
+                    alert(`🏆 TOURNOI TERMINÉ !\n\nVainqueur : ${dernierJoueur}.\nLe classement général a été mis à jour.`);
                 }
             }
 
