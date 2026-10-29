@@ -23,6 +23,7 @@
         .btn-amber { background-color: #d97706; color: white; }
         .btn-rose { background-color: #e11d48; color: white; }
         .btn-blue { background-color: #2563eb; color: white; }
+        .btn-disabled { background-color: #334155 !important; color: #64748b !important; cursor: not-allowed !important; }
         .btn-tab { padding: 0.5rem 0.75rem; border-radius: 0.375rem; font-weight: 500; font-size: 0.875rem; width: auto; display: inline-block; margin: 0; background-color: #334155; color: #cbd5e1; }
         .text-center { text-align: center; }
         .font-mono { font-family: monospace; }
@@ -31,12 +32,11 @@
         .badge { font-size: 0.75rem; background-color: #064e3b; color: #6ee7b7; padding: 0.125rem 0.5rem; border-radius: 9999px; }
         .badge-absent { background-color: #475569; color: #cbd5e1; cursor: pointer; }
         .badge-present { background-color: #059669; color: white; cursor: pointer; }
-        .alert { background-color: #0f172a; border: 1px solid #334155; padding: 0.75rem; border-radius: 0.875rem; font-size: 0.875rem; font-family: monospace; color: #fde68a; line-height: 1.4; }
+        .alert { background-color: #0f172a; border: 1px solid #334155; padding: 0.75rem; border-radius: 0.375rem; font-size: 0.875rem; font-family: monospace; color: #fde68a; line-height: 1.4; }
         .alert-action { background-color: #451a03; border-color: #d97706; color: #fef08a; }
         .loader { display: inline-block; border: 2px solid #f3f3f3; border-top: 2px solid #d97706; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; margin-right: 5px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        /* Visuel des tables poker & Drag and Drop */
         .poker-table-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
         .poker-table-card { background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; padding: 1rem; }
         .poker-table-title { font-weight: bold; color: #fbbf24; margin-bottom: 0.75rem; border-bottom: 1px solid #1e293b; padding-bottom: 0.25rem; display: flex; justify-content: space-between; }
@@ -47,6 +47,11 @@
         .seat-num { color: #94a3b8; font-size: 0.75rem; font-weight: bold; }
         .seat-player { color: #f8fafc; font-weight: 500; }
         .seat-empty { color: #475569; font-style: italic; cursor: default; }
+
+        /* Style pour le Drag & Drop du Classement */
+        .classement-item { display: flex; justify-content: space-between; background: #1e293b; padding: 0.5rem 1rem; border-radius: 0.375rem; margin-bottom: 0.5rem; align-items: center; border: 1px solid #334155; cursor: grab; }
+        .classement-item:active { cursor: grabbing; }
+        .classement-item.drag-over { border-color: #fbbf24; background: #334155; }
     </style>
 </head>
 <body>
@@ -57,6 +62,7 @@
             <button onclick="switchTab('inscriptions')" id="btn-inscriptions" class="btn-tab btn-amber">Inscriptions & Appel</button>
             <button onclick="switchTab('tables')" id="btn-tables" class="btn-tab">Plans de Table</button>
             <button onclick="switchTab('live')" id="btn-live" class="btn-tab">Live Tournoi</button>
+            <button onclick="switchTab('classement')" id="btn-classement" class="btn-tab">Classement</button>
             <button onclick="toggleConfig()" class="btn-tab" style="background-color:#475569; color:white;">⚙️</button>
         </div>
     </header>
@@ -90,16 +96,19 @@
                     <div>
                         <label>Votre Joueur / Pseudo :</label>
                         <select id="select-joueur">
-                            <option value="">Chargement des joueurs...</option>
+                            <option value="" disabled selected>-- Sélectionnez un joueur --</option>
                         </select>
                     </div>
                 </div>
-                <button onclick="toggleInscription()" id="btn-inscrire" class="btn-green">S'inscrire / Se désinscrire</button>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <button onclick="toggleInscription()" id="btn-inscrire" class="btn-green" style="flex:1;">S'inscrire / Se désinscrire</button>
+                    <button onclick="ouvrirModalAjoutJoueur()" class="btn-blue" style="width:auto; padding:0.5rem 1rem;">+ Ajouter un nouveau joueur</button>
+                </div>
             </div>
 
             <div class="card">
                 <h3 style="margin-top:0; color:#cbd5e1; font-size:1rem;">Liste des Inscrits & Appel (<span id="count-inscrits">0</span>)</h3>
-                <p style="font-size:0.75rem; color:#94a3b8; margin-top:0;">Cliquez sur le badge de présence pour basculer entre Présent et Absent.</p>
+                <p id="lock-warning" style="font-size:0.75rem; color:#f87171; margin-top:0; display:none;">🔒 Tournoi en cours : Inscriptions et présences verrouillées (désinscriptions de dernière minute autorisées).</p>
                 <ul id="list-inscrits"></ul>
             </div>
         </section>
@@ -108,13 +117,13 @@
         <section id="tab-tables" class="hidden">
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:1rem;">
-                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Répartition des Tables (Drag & Drop dispo)</h2>
+                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Répartition des Tables</h2>
                     <div>
                         <button onclick="genererTables()" id="btn-generer-tables" class="btn-amber" style="width:auto; padding:0.5rem 1rem; margin:0;">🎲 Créer / Mélanger les tables</button>
                     </div>
                 </div>
                 <div id="table-status-msg" class="alert" style="margin-bottom:1rem;">
-                    Tables non générées. Cliquez sur le bouton ci-dessus pour répartir les joueurs. Glissez-déposez un joueur sur un autre siège pour l'échanger.
+                    Tables non générées. Cliquez sur le bouton ci-dessus pour répartir les joueurs.
                 </div>
                 <div id="poker-tables-container" class="poker-table-grid"></div>
             </div>
@@ -133,7 +142,7 @@
                     <div id="live-chrono" class="font-mono" style="font-size:2.25rem; font-weight:bold; color:#34d399; margin:0.25rem 0;">20:00</div>
                     <div style="display:flex; gap:0.25rem; justify-content:center; margin-top:0.5rem; flex-wrap:wrap;">
                         <button onclick="prevLevel()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau -</button>
-                        <button onclick="resetChrono()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#e11d48; color:white;">Reset</button>
+                        <button onclick="resetChrono()" id="btn-reset" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#e11d48; color:white;">Reset</button>
                         <button onclick="toggleChrono()" id="btn-chrono" class="btn-green" style="width:auto; padding:0.25rem 0.75rem; margin:0; font-size:0.75rem;">Start</button>
                         <button onclick="nextLevel()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau +</button>
                     </div>
@@ -153,12 +162,12 @@
                     <div>
                         <label>Éliminer un joueur :</label>
                         <select id="select-eliminer"></select>
-                        <button onclick="eliminerJoueur()" class="btn-rose">Marquer comme Éliminé</button>
+                        <button onclick="eliminerJoueur()" id="btn-eliminer" class="btn-rose">Marquer comme Éliminé</button>
 
                         <div style="margin-top:1.5rem; border-top:1px solid #334155; padding-top:1rem;">
                             <label style="color:#60a5fa;">Réintégrer un joueur éliminé par erreur :</label>
                             <select id="select-reintegrer"></select>
-                            <button onclick="reintegrerJoueur()" class="btn-blue">Réintégrer le joueur</button>
+                            <button onclick="reintegrerJoueur()" id="btn-reintegrer" class="btn-blue">Réintégrer le joueur</button>
                         </div>
                     </div>
                     <div>
@@ -170,21 +179,28 @@
                 </div>
             </div>
         </section>
+
+        <!-- ONGLET CLASSEMENT -->
+        <section id="tab-classement" class="hidden">
+            <div class="card">
+                <h2 style="margin-top:0; color:#fde68a; font-size:1.125rem;">Classement du Tournoi en Cours</h2>
+                <p style="font-size:0.75rem; color:#94a3b8;">Glissez-déposez les joueurs éliminés pour réajuster leur ordre de classement si besoin. Le Google Sheet sera mis à jour instantanément.</p>
+                <div id="classement-container" style="margin-top:1rem;"></div>
+            </div>
+        </section>
     </main>
 
     <script>
-        // URL Apps Script pré-configurée en dur (modifiable via la roue dentée ⚙️ si besoin)
         let scriptUrl = localStorage.getItem('poker_script_url') || "https://script.google.com/macros/s/AKfycbwcTiiOjBeliTGBiuxZrMLTs9loMnftjKZ295N1_CzCjRC9e5_dB_0n5bbG_YLGV2fz/exec"; 
-        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6, allStates: {} };
+        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6, allStates: {}, tournoisTermines: {} };
         let activeTournoiId = null;
         let tablesGenerees = null;
         let totalJoueursInitial = 0;
         let joueursEliminesHistorique = []; 
         let alerteIgnoree = false;
 
-        // --- GESTION DU CHRONO PERSISTANT ---
         let niveauActuel = 1;
-        let dureeNiveauSec = 1200; // 20 minutes
+        let dureeNiveauSec = 1200;
         let secondesRestantes = 1200;
         let chronoEndTime = null;
         let chronoIsRunning = false;
@@ -228,13 +244,13 @@
                     appData = data;
                     populateDropdowns();
 
-                    // Charger l'état spécifique au tournoi actif s'il existe
                     if (data.allStates && activeTournoiId && data.allStates[activeTournoiId]) {
                         restoreGameState(data.allStates[activeTournoiId]);
                     } else {
                         resetLocalState();
                     }
 
+                    checkTournoiLockStatus();
                     showLoading(false, "");
                 })
                 .catch(err => {
@@ -307,7 +323,7 @@
 
         function populateDropdowns() {
             const selJ = document.getElementById('select-joueur');
-            selJ.innerHTML = '';
+            selJ.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
             const joueursTries = [...appData.joueurs].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
             joueursTries.forEach(j => {
                 selJ.innerHTML += `<option value="${j}">${j}</option>`;
@@ -329,19 +345,86 @@
         function onTournoiChange() {
             activeTournoiId = document.getElementById('select-tournoi').value;
             
-            // Charger l'état du nouveau tournoi sélectionné
             if (appData.allStates && appData.allStates[activeTournoiId]) {
                 restoreGameState(appData.allStates[activeTournoiId]);
             } else {
                 resetLocalState();
             }
             updateInscritsUI();
+            checkTournoiLockStatus();
+        }
+
+        // --- AJOUT DE NOUVEAU JOUEUR ---
+        function ouvrirModalAjoutJoueur() {
+            const nomNouveau = prompt("Entrez le pseudo du nouveau joueur :");
+            if (!nomNouveau || nomNouveau.trim() === "") return;
+
+            const cleanNom = nomNouveau.trim();
+            if (appData.joueurs.includes(cleanNom)) {
+                alert("Ce joueur existe déjà dans la liste.");
+                return;
+            }
+
+            // Ajouter localement et trier
+            appData.joueurs.push(cleanNom);
+            appData.joueurs.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+            populateDropdowns();
+
+            // Sélectionner automatiquement le nouveau joueur dans la combo et l'inscrire
+            document.getElementById('select-joueur').value = cleanNom;
+            toggleInscription();
+
+            // Enregistrer dans la feuille Google Sheet "Joueurs"
+            if (scriptUrl) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    mode: "no-cors",
+                    body: JSON.stringify({
+                        action: "ajouterJoueur",
+                        joueur: cleanNom
+                    })
+                }).catch(err => console.error("Erreur ajout joueur:", err));
+            }
+        }
+
+        // --- GESTION DES VERROUILLAGES (LOCKS) ---
+        function checkTournoiLockStatus() {
+            const isTournoiStarted = tablesGenerees !== null;
+            const hasVainqueur = appData.tournoisTermines && appData.tournoisTermines[activeTournoiId];
+
+            const lockWarning = document.getElementById('lock-warning');
+            if (isTournoiStarted) {
+                lockWarning.style.display = "block";
+            } else {
+                lockWarning.style.display = "none";
+            }
+
+            const btnGenerer = document.getElementById('btn-generer-tables');
+            if (isTournoiStarted) {
+                btnGenerer.disabled = true;
+                btnGenerer.className = "btn-disabled";
+            } else {
+                btnGenerer.disabled = false;
+                btnGenerer.className = "btn-amber";
+            }
+
+            const btnReset = document.getElementById('btn-reset');
+            if (hasVainqueur) {
+                btnReset.disabled = true;
+                btnReset.className = "btn-disabled";
+                btnReset.title = "Reset impossible : le vainqueur de ce tournoi est déjà enregistré.";
+            } else {
+                btnReset.disabled = false;
+                btnReset.className = "btn-rose";
+                btnReset.title = "";
+            }
         }
 
         function updateInscritsUI() {
             const list = document.getElementById('list-inscrits');
             list.innerHTML = '';
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
+            const isTournoiStarted = tablesGenerees !== null;
 
             let inscritsNoms = Array.isArray(tournoiInsc) ? tournoiInsc : Object.keys(tournoiInsc);
 
@@ -350,11 +433,16 @@
                 const isPresent = info.present;
                 const badgeClass = isPresent ? "badge badge-present" : "badge badge-absent";
                 const badgeText = isPresent ? "Présent" : "Absent";
+                // Les présences peuvent être basculées tant que le tournoi n'a pas commencé
+                const clickAction = isTournoiStarted ? "" : `onclick="togglePresence('${j}')"`;
                 
                 list.innerHTML += `
                     <li>
                         <span>${j}</span>
-                        <span class="${badgeClass}" onclick="togglePresence('${j}')">${badgeText}</span>
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <span class="${badgeClass}" ${clickAction}>${badgeText}</span>
+                            <button onclick="desinscrireJoueurDirect('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;" title="Désinscrire">✕</button>
+                        </div>
                     </li>
                 `;
             });
@@ -363,36 +451,183 @@
         }
 
         function toggleInscription() {
-            if (!scriptUrl || !activeTournoiId) return;
             const joueur = document.getElementById('select-joueur').value;
+            if (!joueur) {
+                alert("Veuillez sélectionner un joueur dans la liste.");
+                return;
+            }
+
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
             const isAlreadyInscrit = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
-            const action = isAlreadyInscrit ? "desinscrire" : "inscrire";
-
+            
             if (isAlreadyInscrit) {
-                if (Array.isArray(tournoiInsc)) {
-                    appData.inscriptions[activeTournoiId] = tournoiInsc.filter(x => x !== joueur);
-                } else {
-                    delete appData.inscriptions[activeTournoiId][joueur];
-                }
+                desinscrireJoueurDirect(joueur);
             } else {
-                if (Array.isArray(tournoiInsc)) {
-                    appData.inscriptions[activeTournoiId].push(joueur);
+                if (tablesGenerees !== null) {
+                    // INSCRIPTION DE DERNIÈRE MINUTE APRES MÉLANGE DES TABLES
+                    inscrireDerniereMinute(joueur);
                 } else {
-                    if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
-                    appData.inscriptions[activeTournoiId][joueur] = { present: false };
+                    // Inscription classique avant mélange
+                    if (Array.isArray(tournoiInsc)) {
+                        appData.inscriptions[activeTournoiId].push(joueur);
+                    } else {
+                        if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+                        appData.inscriptions[activeTournoiId][joueur] = { present: false };
+                    }
+                    updateInscritsUI();
+
+                    if (scriptUrl && activeTournoiId) {
+                        fetch(scriptUrl, {
+                            method: "POST",
+                            mode: "no-cors",
+                            body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire" })
+                        });
+                    }
                 }
             }
-            updateInscritsUI();
+            document.getElementById('select-joueur').selectedIndex = 0;
+        }
 
-            fetch(scriptUrl, {
-                method: "POST",
-                mode: "no-cors",
-                body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: action })
+        // --- INSCRIPTION DE DERNIÈRE MINUTE (APRÈS MÉLANGE) ---
+        function inscrireDerniereMinute(joueur) {
+            const maxPerTable = appData.maxJoueursParTable || 6;
+            
+            // 1. Ajouter aux inscriptions
+            if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+            appData.inscriptions[activeTournoiId][joueur] = { present: true };
+
+            totalJoueursInitial++;
+
+            // 2. Trouver la plus petite table avec de la place (< maxPerTable)
+            let plusPetiteTableId = null;
+            let minJoueurs = Infinity;
+
+            for (const [tId, seats] of Object.entries(tablesGenerees)) {
+                const actifsCount = seats.filter(s => s.player !== null).length;
+                if (actifsCount < maxPerTable && actifsCount < minJoueurs) {
+                    minJoueurs = actifsCount;
+                    plusPetiteTableId = tId;
+                }
+            }
+
+            if (plusPetiteTableId !== null) {
+                // Placer dans le premier siège vide de cette table sans bouger personne
+                const siegeLibre = tablesGenerees[plusPetiteTableId].find(s => s.player === null);
+                if (siegeLibre) {
+                    siegeLibre.player = joueur;
+                    alert(`✅ ${joueur} a été ajouté à la Table ${plusPetiteTableId} (Siège ${siegeLibre.seat}).`);
+                }
+            } else {
+                // TOUTES LES TABLES SONT PLEINES ! Proposer les options
+                const choix = prompt(`⚠️ Toutes les tables sont pleines !\n\nChoisissez une option :\n1. Réagencer les tables (créer une nouvelle petite table équilibrée).\n2. Accepter en extra exceptionnel sur une table.\n3. Refuser l'inscription.\n\nTapez 1, 2 ou 3 :`, "1");
+                
+                if (choix === "1") {
+                    // Option 1 : Réagencer / recréer les tables avec tous les joueurs actifs + le nouveau
+                    let tousActifs = [joueur];
+                    for (const seats of Object.values(tablesGenerees)) {
+                        seats.forEach(s => { if (s.player) tousActifs.push(s.player); });
+                    }
+                    repartirTablesRecalculees(tousActifs);
+                    alert(`🔄 Tables réagencées avec succès pour intégrer ${joueur}.`);
+                } else if (choix === "2") {
+                    // Option 2 : Ajouter en extra sur la table 1
+                    tablesGenerees[1].push({ seat: tablesGenerees[1].length + 1, player: joueur });
+                    alert(`➕ ${joueur} accepté en extra sur la Table 1.`);
+                } else {
+                    // Option 3 : Refus
+                    // Annuler l'inscription
+                    if (Array.isArray(appData.inscriptions[activeTournoiId])) {
+                        appData.inscriptions[activeTournoiId] = appData.inscriptions[activeTournoiId].filter(x => x !== joueur);
+                    } else {
+                        delete appData.inscriptions[activeTournoiId][joueur];
+                    }
+                    totalJoueursInitial--;
+                    alert(`❌ Inscription de ${joueur} refusée.`);
+                    return;
+                }
+            }
+
+            updateInscritsUI();
+            saveGameStateToSheet();
+        }
+
+        function repartirTablesRecalculees(listeJoueurs) {
+            const maxPerTable = appData.maxJoueursParTable || 6;
+            listeJoueurs.sort(() => Math.random() - 0.5);
+            const nbTables = Math.ceil(listeJoueurs.length / maxPerTable);
+
+            let tables = {};
+            for (let t = 1; t <= nbTables; t++) {
+                tables[t] = [];
+                for (let s = 1; s <= maxPerTable; s++) {
+                    tables[t].push({ seat: s, player: null });
+                }
+            }
+
+            let tIdx = 1, sIdx = 0;
+            listeJoueurs.forEach(j => {
+                while (tables[tIdx][sIdx].player !== null) {
+                    tIdx++;
+                    if (tIdx > nbTables) { tIdx = 1; sIdx++; }
+                }
+                tables[tIdx][sIdx].player = j;
+                tIdx++;
+                if (tIdx > nbTables) { tIdx = 1; sIdx++; }
             });
+
+            tablesGenerees = tables;
+            renderTablesUI();
+        }
+
+        // --- DÉSINSCRIRE UN JOUEUR (AVANT OU APRÈS DÉBUT DU TOURNOI) ---
+        function desinscrireJoueurDirect(joueur) {
+            const isTournoiStarted = tablesGenerees !== null;
+
+            if (isTournoiStarted) {
+                if (!confirm(`Voulez-vous vraiment désinscrire ${joueur} du tournoi en cours ? Il sera retiré des tables et rééquilibré, sans apparaître dans le classement.`)) {
+                    return;
+                }
+
+                // Retirer des tables
+                let trouveTable = false;
+                for (const [tId, seats] of Object.entries(tablesGenerees)) {
+                    const seatObj = seats.find(s => s.player === joueur);
+                    if (seatObj) {
+                        seatObj.player = null;
+                        trouveTable = true;
+                        break;
+                    }
+                }
+                if (trouveTable) {
+                    totalJoueursInitial--;
+                }
+            }
+
+            // Supprimer des inscriptions
+            const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
+            if (Array.isArray(tournoiInsc)) {
+                appData.inscriptions[activeTournoiId] = tournoiInsc.filter(x => x !== joueur);
+            } else {
+                delete tournoiInsc[joueur];
+            }
+
+            updateInscritsUI();
+            if (isTournoiStarted) {
+                verifierEtReequilibrer();
+                saveGameStateToSheet();
+            }
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    mode: "no-cors",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "desinscrire" })
+                });
+            }
         }
 
         function togglePresence(joueur) {
+            if (tablesGenerees !== null) return;
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
             if (tournoiInsc[joueur]) {
                 const currentPresent = tournoiInsc[joueur].present || false;
@@ -409,6 +644,7 @@
         }
 
         function genererTables() {
+            if (tablesGenerees !== null) return;
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
             let inscritsNoms = Array.isArray(tournoiInsc) ? tournoiInsc : Object.keys(tournoiInsc);
             const maxPerTable = appData.maxJoueursParTable || 6;
@@ -424,7 +660,12 @@
             presents.sort(() => Math.random() - 0.5);
             absents.sort(() => Math.random() - 0.5);
 
-            const totalJoueurs = inscritsNoms.length;
+            const totalJoueurs = presents.length; // Seuls les présents participent au tournoi
+            if (totalJoueurs === 0) {
+                alert("Aucun joueur n'est marqué comme 'Présent' !");
+                return;
+            }
+
             totalJoueursInitial = totalJoueurs;
             const nbTables = Math.ceil(totalJoueurs / maxPerTable);
 
@@ -449,26 +690,14 @@
                 if (tableIndex > nbTables) { tableIndex = 1; seatIndex++; }
             });
 
-            absents.forEach(a => {
-                let placed = false;
-                for (let s = 0; s < maxPerTable && !placed; s++) {
-                    for (let t = 1; t <= nbTables && !placed; t++) {
-                        if (tables[t][s].player === null) {
-                            tables[t][s].player = a;
-                            placed = true;
-                        }
-                    }
-                }
-            });
-
             tablesGenerees = tables;
             joueursEliminesHistorique = [];
             renderTablesUI();
             document.getElementById('table-status-msg').innerText = `Tables générées avec succès (${nbTables} tables de ${maxPerTable} sièges max).`;
+            checkTournoiLockStatus();
             saveGameStateToSheet();
         }
 
-        // --- GESTION DU DRAG & DROP DES PLANS DE TABLE ---
         function renderTablesUI() {
             const container = document.getElementById('poker-tables-container');
             container.innerHTML = '';
@@ -553,7 +782,7 @@
         }
 
         function switchTab(tab) {
-            ['inscriptions', 'tables', 'live'].forEach(t => {
+            ['inscriptions', 'tables', 'live', 'classement'].forEach(t => {
                 document.getElementById(`tab-${t}`).classList.add('hidden');
                 document.getElementById(`btn-${t}`).style.backgroundColor = '#334155';
                 document.getElementById(`btn-${t}`).style.color = '#cbd5e1';
@@ -564,6 +793,8 @@
 
             if (tab === 'live') {
                 initLive();
+            } else if (tab === 'classement') {
+                renderClassementUI();
             }
         }
 
@@ -616,7 +847,6 @@
             eqSpan.style.color = "#34d399";
         }
 
-        // --- MOTEUR DIRECTEUR DE TOURNOI ---
         function verifierEtReequilibrer() {
             if (!tablesGenerees) return;
 
@@ -634,11 +864,40 @@
 
             if (totalJoueursActifs === 0) return;
 
+            // Vérification fin de tournoi (1 seul joueur restant)
+            if (totalJoueursActifs === 1 && !appData.tournoisTermines[activeTournoiId]) {
+                let dernierJoueur = null;
+                for (const seats of Object.values(tablesGenerees)) {
+                    const s = seats.find(seat => seat.player !== null);
+                    if (s) { dernierJoueur = s.player; break; }
+                }
+
+                if (dernierJoueur) {
+                    if (chronoIsRunning) toggleChrono();
+
+                    if (scriptUrl && activeTournoiId) {
+                        fetch(scriptUrl, {
+                            method: "POST",
+                            mode: "no-cors",
+                            body: JSON.stringify({
+                                tournoiId: activeTournoiId,
+                                joueur: dernierJoueur,
+                                action: "eliminer",
+                                classement: 1
+                            })
+                        }).catch(err => console.error("Erreur enregistrement vainqueur:", err));
+                    }
+
+                    appData.tournoisTermines[activeTournoiId] = dernierJoueur;
+                    checkTournoiLockStatus();
+                    alert(`🏆 TOURNOI TERMINÉ !\n\nVainqueur : ${dernierJoueur}.`);
+                }
+            }
+
             const nbTablesNecessaires = Math.ceil(totalJoueursActifs / maxPerTable);
             const alertBox = document.getElementById('live-alertes');
             const eqSpan = document.getElementById('stat-equilibre');
 
-            // CAS 1 : CASSAGE DE TABLE
             if (nbTablesNecessaires < tablesActivesIds.length) {
                 alerteIgnoree = false;
                 eqSpan.innerText = "CASSAGE NECESSAIRE";
@@ -681,7 +940,6 @@
                 return;
             }
 
-            // CAS 2 : REEQUILIBRAGE
             let minJoueurs = Infinity, maxJoueurs = -1;
             let tablePlusPetiteId = null, tablePlusGrandeId = null;
 
@@ -714,7 +972,6 @@
                 return;
             }
 
-            // CAS 3 : TOUT EST EQUILIBRE
             if (alerteIgnoree) {
                 eqSpan.innerText = "OK";
                 eqSpan.style.color = "#34d399";
@@ -728,7 +985,74 @@
             }
         }
 
-        // --- MOTEUR DU CHRONO ---
+        // --- ONGLET CLASSEMENT INTERACTIF (DRAG & DROP) ---
+        function renderClassementUI() {
+            const container = document.getElementById('classement-container');
+            container.innerHTML = '';
+
+            // Trier l'historique des éliminés par classement croissant
+            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => a.classement - b.classement);
+
+            if (eliminesTries.length === 0) {
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucun joueur éliminé pour le moment.</p>`;
+                return;
+            }
+
+            eliminesTries.forEach((item, index) => {
+                container.innerHTML += `
+                    <div class="classement-item" draggable="true" ondragstart="onDragClassementStart(event, ${index})" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDropClassement(event, ${index})">
+                        <span style="font-weight:bold; color:#fbbf24; width:30px;">#${item.classement}</span>
+                        <span style="flex-grow:1; font-weight:500;">${item.joueur}</span>
+                        <span style="font-size:0.75rem; color:#94a3b8;">Glisser pour déplacer</span>
+                    </div>
+                `;
+            });
+        }
+
+        let dragClassementIndex = null;
+        function onDragClassementStart(event, index) {
+            dragClassementIndex = index;
+        }
+
+        function onDropClassement(event, targetIndex) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('drag-over');
+            if (dragClassementIndex === null || dragClassementIndex === targetIndex) return;
+
+            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => a.classement - b.classement);
+            const movedItem = eliminesTries.splice(dragClassementIndex, 1)[0];
+            eliminesTries.splice(targetIndex, 0, movedItem);
+
+            // Réassigner les classements de manière séquentielle (du plus petit au plus grand)
+            eliminesTries.forEach((item, idx) => {
+                // Le classement correspond au nombre de joueurs restants ou ordre inverse selon ta convention (ici position dans la liste d'élimination)
+                item.classement = idx + 2; // à adapter selon l'ordre souhaité, ou basé sur la taille initiale
+            });
+
+            joueursEliminesHistorique = eliminesTries;
+            dragClassementIndex = null;
+            renderClassementUI();
+            saveGameStateToSheet();
+
+            // Synchroniser avec le Google Sheet
+            let classementMap = {};
+            joueursEliminesHistorique.forEach(item => {
+                classementMap[item.joueur] = item.classement;
+            });
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    mode: "no-cors",
+                    body: JSON.stringify({
+                        tournoiId: activeTournoiId,
+                        action: "updateClassementBatch",
+                        classementMap: classementMap
+                    })
+                }).catch(err => console.error("Erreur synchro classement:", err));
+            }
+        }
+
         function updateChronoUI() {
             let m = Math.floor(secondesRestantes / 60);
             let s = secondesRestantes % 60;
@@ -787,6 +1111,11 @@
         }
 
         function resetChrono() {
+            if (appData.tournoisTermines && appData.tournoisTermines[activeTournoiId]) {
+                alert("⚠️ Reset impossible : ce tournoi est terminé et son vainqueur est enregistré dans le classement.");
+                return;
+            }
+
             if (!confirm("⚠️ RESET COMPLET DU TOURNOI :\n\n- Le chrono repassera à 20:00 (Niveau 1).\n- Tous les joueurs éliminés seront réintégrés.\n- Leurs classements enregistrés sur Google Sheet seront effacés.\n- Les plans de table pourront être refaits.\n\nConfirmez-vous cette réinitialisation ?")) {
                 return;
             }
@@ -824,7 +1153,9 @@
             }
 
             joueursEliminesHistorique = [];
+            tablesGenerees = null;
             renderTablesUI();
+            checkTournoiLockStatus();
             initLive();
 
             if (scriptUrl && activeTournoiId) {
@@ -857,12 +1188,11 @@
             else saveGameStateToSheet();
         }
 
-        // --- ACTION : ÉLIMINATION ---
         function eliminerJoueur() {
             const joueur = document.getElementById('select-eliminer').value;
             if (!joueur) return;
 
-            if (!confirm(`Confirmez-vous l'élimination définitive de ${joueur} ? Cette action est irréversible.`)) {
+            if (!confirm(`Confirmez-vous l'élimination définitive de ${joueur} ?`)) {
                 return;
             }
 
@@ -913,7 +1243,6 @@
             }
         }
 
-        // --- ACTION : RÉINTÉGRATION ---
         function reintegrerJoueur() {
             const joueur = document.getElementById('select-reintegrer').value;
             if (!joueur) return;
