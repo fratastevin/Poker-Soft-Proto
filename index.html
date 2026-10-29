@@ -67,11 +67,11 @@
 
     <div id="global-loader">
         <div class="big-loader"></div>
-        <div>Synchronisation complète en cours...</div>
+        <div>Chargement de la configuration et des données...</div>
     </div>
 
     <div id="spectator-banner">
-        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Le Maître du tournoi gère les commandes. (Cliquez sur "👑 Master" dans le menu pour reprendre le contrôle si c'est votre PC).
+        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Le Maître du tournoi gère les commandes. (Cliquez sur "👑 Master" pour reprendre le contrôle si c'est votre PC).
     </div>
 
     <header>
@@ -83,20 +83,10 @@
             <button onclick="switchTab('classement')" id="btn-classement" class="btn-tab">Classement Tournoi</button>
             <button onclick="switchTab('general')" id="btn-general" class="btn-tab">Classement Général</button>
             <button onclick="reprendreControleMaster()" class="btn-tab btn-purple" title="Forcer le statut de Maître du tournoi sur cet appareil">👑 Master</button>
-            <button onclick="toggleConfig()" class="btn-tab" style="background-color:#475569; color:white;">⚙️</button>
         </div>
     </header>
 
     <main>
-        <section id="tab-config" class="hidden">
-            <div class="card">
-                <h3 style="margin-top:0; color:#fde68a;">Configuration Google Sheet</h3>
-                <label>URL du Déploiement Web App Google Apps Script :</label>
-                <input type="text" id="script-url" placeholder="https://script.google.com/macros/s/AKfycbwcTiiOjBeliTGBiuxZrMLTs9loMnftjKZ295N1_CzCjRC9e5_dB_0n5bbG_YLGV2fz/exec">
-                <button onclick="saveConfig()" class="btn-green">Enregistrer & Charger les données</button>
-            </div>
-        </section>
-
         <section id="tab-inscriptions">
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
@@ -147,7 +137,6 @@
         </section>
 
         <section id="tab-live" class="hidden">
-            <!-- Bloc Chrono & Niveau Fusionné et Pleine Largeur -->
             <div class="card text-center" style="margin-bottom:1.5rem; padding: 1.25rem;">
                 <span id="live-niveau" style="font-size:1rem; text-transform:uppercase; color:#94a3b8; font-weight:bold; display:block;">Niveau 1</span>
                 <div id="live-blinds" style="font-size:2rem; font-weight:bold; color:#f8fafc; margin:0.25rem 0;">50 / 100 (Ante 50)</div>
@@ -214,7 +203,7 @@
     </main>
 
     <script>
-        let scriptUrl = localStorage.getItem('poker_script_url') || "https://script.google.com/macros/s/AKfycbwcTiiOjBeliTGBiuxZrMLTs9loMnftjKZ295N1_CzCjRC9e5_dB_0n5bbG_YLGV2fz/exec"; 
+        let scriptUrl = ""; 
         
         let myClientId = localStorage.getItem('poker_client_id');
         if (!myClientId) {
@@ -238,26 +227,23 @@
         let chronoTimer = null;
 
         window.onload = function() {
-            if (scriptUrl) {
-                document.getElementById('script-url').value = scriptUrl;
-                loadDataFromSheet();
-            } else {
-                document.getElementById('global-loader').style.display = 'none';
-                toggleConfig();
-            }
-            startBackgroundSync();
+            // Chargement préalable du fichier config.json
+            fetch('config.json')
+                .then(res => {
+                    if (!res.ok) throw new Error("Fichier config.json introuvable.");
+                    return res.json();
+                })
+                .then(config => {
+                    scriptUrl = config.scriptUrl;
+                    if (!scriptUrl) throw new Error("Propriété scriptUrl manquante dans config.json.");
+                    loadDataFromSheet();
+                    startBackgroundSync();
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('global-loader').innerHTML = `<div style="color:#f43f5e; text-align:center; padding:2rem;">Erreur de configuration : Impossible de charger le fichier <b>config.json</b> ou l'URL du script est invalide.<br><br>${err.message}</div>`;
+                });
         };
-
-        function toggleConfig() {
-            document.getElementById('tab-config').classList.toggle('hidden');
-        }
-
-        function saveConfig() {
-            scriptUrl = document.getElementById('script-url').value.trim();
-            localStorage.setItem('poker_script_url', scriptUrl);
-            document.getElementById('tab-config').classList.add('hidden');
-            loadDataFromSheet();
-        }
 
         function startBackgroundSync() {
             setInterval(() => {
@@ -272,25 +258,19 @@
                         
                         const remoteState = appData.allStates[activeTournoiId];
                         if (remoteState) {
-                            // Vérification stricte du Master Actif
                             if (remoteState.masterClientId && remoteState.masterClientId !== myClientId) {
-                                // Si on pensait être le master mais que le serveur indique un autre maître actif
-                                if (isMaster) {
-                                    isMaster = false;
-                                    lockLiveInterfaceForSpectator(true);
-                                }
-                            } else if (!remoteState.masterClientId || remoteState.masterClientId === myClientId) {
-                                if (!isMaster && remoteState.masterClientId === myClientId) {
-                                    isMaster = true;
-                                    lockLiveInterfaceForSpectator(false);
-                                }
+                                isMaster = false;
+                                lockLiveInterfaceForSpectator(true);
+                            } else {
+                                isMaster = true;
+                                lockLiveInterfaceForSpectator(false);
                             }
 
                             syncRemoteLiveState(remoteState);
                         }
                     })
                     .catch(err => console.error("Erreur sync arrière-plan:", err));
-            }, 6000); // 6 secondes pour une réactivité quasi-instantanée
+            }, 6000);
         }
 
         function syncRemoteLiveState(state) {
@@ -327,21 +307,17 @@
 
         function reprendreControleMaster() {
             isMaster = true;
-            // Déverrouillage visuel immédiat sur cet appareil
             lockLiveInterfaceForSpectator(false);
             
             if (scriptUrl && activeTournoiId) {
-                // Initialiser ou récupérer l'état distant pour ce tournoi
                 if (!appData.allStates) appData.allStates = {};
                 if (!appData.allStates[activeTournoiId]) appData.allStates[activeTournoiId] = {};
                 
                 let remoteState = appData.allStates[activeTournoiId];
-                remoteState.masterClientId = myClientId; // S'attribue le rôle
+                remoteState.masterClientId = myClientId;
 
-                // Enregistrement immédiat sur Google Sheets
                 saveGameStateToSheet();
                 
-                // Petit retour visuel discret
                 const btnMaster = document.querySelector('button[onclick="reprendreControleMaster()"]');
                 if(btnMaster) {
                     const originalText = btnMaster.innerText;
@@ -361,7 +337,6 @@
                     if (data.structures) appData.structures = data.structures;
                     populateDropdowns();
 
-                    // --- VÉRIFICATION IMMÉDIATE DU MASTER LOCK AU CHARGEMENT ---
                     const remoteState = (appData.allStates && activeTournoiId) ? appData.allStates[activeTournoiId] : null;
                     if (remoteState && remoteState.masterClientId && remoteState.masterClientId !== myClientId) {
                         isMaster = false;
@@ -370,7 +345,6 @@
                         isMaster = true;
                         lockLiveInterfaceForSpectator(false);
                     }
-                    // -----------------------------------------------------------
 
                     if (data.allStates && activeTournoiId && data.allStates[activeTournoiId]) {
                         restoreGameState(data.allStates[activeTournoiId]);
@@ -385,7 +359,7 @@
                 })
                 .catch(err => {
                     console.error(err);
-                    document.getElementById('global-loader').innerHTML = `<div style="color:#f43f5e;">Erreur de chargement. Veuillez vérifier l'URL Google Script.</div>`;
+                    document.getElementById('global-loader').innerHTML = `<div style="color:#f43f5e; text-align:center; padding:2rem;">Erreur de chargement des données depuis Google Apps Script.<br><br>${err.toString()}</div>`;
                 });
         }
 
