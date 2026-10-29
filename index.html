@@ -272,19 +272,25 @@
                         
                         const remoteState = appData.allStates[activeTournoiId];
                         if (remoteState) {
+                            // Vérification stricte du Master Actif
                             if (remoteState.masterClientId && remoteState.masterClientId !== myClientId) {
-                                isMaster = false;
-                                lockLiveInterfaceForSpectator(true);
-                            } else {
-                                isMaster = true;
-                                lockLiveInterfaceForSpectator(false);
+                                // Si on pensait être le master mais que le serveur indique un autre maître actif
+                                if (isMaster) {
+                                    isMaster = false;
+                                    lockLiveInterfaceForSpectator(true);
+                                }
+                            } else if (!remoteState.masterClientId || remoteState.masterClientId === myClientId) {
+                                if (!isMaster && remoteState.masterClientId === myClientId) {
+                                    isMaster = true;
+                                    lockLiveInterfaceForSpectator(false);
+                                }
                             }
 
                             syncRemoteLiveState(remoteState);
                         }
                     })
                     .catch(err => console.error("Erreur sync arrière-plan:", err));
-            }, 30000);
+            }, 6000); // 6 secondes pour une réactivité quasi-instantanée
         }
 
         function syncRemoteLiveState(state) {
@@ -321,15 +327,27 @@
 
         function reprendreControleMaster() {
             isMaster = true;
+            // Déverrouillage visuel immédiat sur cet appareil
             lockLiveInterfaceForSpectator(false);
             
             if (scriptUrl && activeTournoiId) {
-                let remoteState = appData.allStates[activeTournoiId] || {};
-                remoteState.masterClientId = myClientId;
-                appData.allStates[activeTournoiId] = remoteState;
+                // Initialiser ou récupérer l'état distant pour ce tournoi
+                if (!appData.allStates) appData.allStates = {};
+                if (!appData.allStates[activeTournoiId]) appData.allStates[activeTournoiId] = {};
+                
+                let remoteState = appData.allStates[activeTournoiId];
+                remoteState.masterClientId = myClientId; // S'attribue le rôle
 
+                // Enregistrement immédiat sur Google Sheets
                 saveGameStateToSheet();
-                alert("👑 Cet appareil a repris le contrôle en tant que Maître du Tournoi.");
+                
+                // Petit retour visuel discret
+                const btnMaster = document.querySelector('button[onclick="reprendreControleMaster()"]');
+                if(btnMaster) {
+                    const originalText = btnMaster.innerText;
+                    btnMaster.innerText = "👑 Maître !";
+                    setTimeout(() => btnMaster.innerText = originalText, 2000);
+                }
             }
         }
 
