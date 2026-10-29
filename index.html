@@ -429,12 +429,16 @@
             }
         }
 
+        // --- TRI ALPHABÉTIQUE SYSTÉMATIQUE DES INSCRITS ---
         function updateInscritsUI() {
             const list = document.getElementById('list-inscrits');
             list.innerHTML = '';
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
 
-            let inscritsNoms = Array.isArray(tournoiInsc) ? tournoiInsc : Object.keys(tournoiInsc);
+            let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
+            
+            // Tri alphabétique systématique
+            inscritsNoms.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 
             inscritsNoms.forEach(j => {
                 const info = (typeof tournoiInsc[j] === 'object' && tournoiInsc[j] !== null) ? tournoiInsc[j] : { present: false };
@@ -629,6 +633,7 @@
             }
         }
 
+        // --- NOUVELLE REPARTITION ALEATOIRE HARMONIEUSE DES PRÉSENTS ET ABSENTS SUR TOUTES LES TABLES ---
         function genererTables() {
             if (tablesGenerees !== null) return;
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
@@ -646,12 +651,8 @@
             presents.sort(() => Math.random() - 0.5);
             absents.sort(() => Math.random() - 0.5);
 
-            const totalJoueurs = presents.length;
-            if (totalJoueurs === 0) {
-                alert("Aucun joueur n'est marqué comme 'Présent' !");
-                return;
-            }
-
+            // Le nombre total de tables est calculé sur L'ENSEMBLE des inscrits (ex: 15 / 6 = 3 tables)
+            const totalJoueurs = inscritsNoms.length;
             totalJoueursInitial = totalJoueurs;
             const nbTables = Math.ceil(totalJoueurs / maxPerTable);
 
@@ -663,23 +664,43 @@
                 }
             }
 
-            let tableIndex = 1;
-            let seatIndex = 0;
+            // 1. Répartition homogène et équilibrée des PRÉSENTS sur toutes les tables
+            let currentTable = 1;
+            let currentSeatOffset = 0;
 
             presents.forEach(p => {
-                while (tables[tableIndex][seatIndex].player !== null) {
-                    tableIndex++;
-                    if (tableIndex > nbTables) { tableIndex = 1; seatIndex++; }
+                while (tables[currentTable][currentSeatOffset].player !== null) {
+                    currentTable++;
+                    if (currentTable > nbTables) {
+                        currentTable = 1;
+                        currentSeatOffset++;
+                    }
                 }
-                tables[tableIndex][seatIndex].player = p;
-                tableIndex++;
-                if (tableIndex > nbTables) { tableIndex = 1; seatIndex++; }
+                tables[currentTable][currentSeatOffset].player = p;
+                currentTable++;
+                if (currentTable > nbTables) {
+                    currentTable = 1;
+                    currentSeatOffset++;
+                }
+            });
+
+            // 2. Remplissage des places restantes avec les ABSENTS
+            absents.forEach(a => {
+                let placed = false;
+                for (let s = 0; s < maxPerTable && !placed; s++) {
+                    for (let t = 1; t <= nbTables && !placed; t++) {
+                        if (tables[t][s].player === null) {
+                            tables[t][s].player = a;
+                            placed = true;
+                        }
+                    }
+                }
             });
 
             tablesGenerees = tables;
             joueursEliminesHistorique = [];
             renderTablesUI();
-            document.getElementById('table-status-msg').innerText = `Tables générées avec succès (${nbTables} tables de ${maxPerTable} sièges max).`;
+            document.getElementById('table-status-msg').innerText = `Tables générées avec succès (${nbTables} tables réparties pour ${totalJoueurs} inscrits).`;
             checkTournoiLockStatus();
             saveGameStateToSheet();
         }
@@ -1024,7 +1045,6 @@
             }
         }
 
-        // --- CLASSEMENT GÉNÉRAL DE LA SAISON (AVEC POINTS TOUS & TRI CROISSANT) ---
         function renderClassementGeneralUI() {
             const container = document.getElementById('general-container');
             const data = appData.classementGeneral || [];
