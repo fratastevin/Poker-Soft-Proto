@@ -248,6 +248,41 @@
                 });
         };
 
+        function jouerBipChangementNiveau() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                const osc1 = audioCtx.createOscillator();
+                const gain1 = audioCtx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(880, audioCtx.currentTime);
+                gain1.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain1.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
+                
+                osc1.connect(gain1);
+                gain1.connect(audioCtx.destination);
+                osc1.start();
+                osc1.stop(audioCtx.currentTime + 0.15);
+
+                setTimeout(() => {
+                    const osc2 = audioCtx.createOscillator();
+                    const gain2 = audioCtx.createGain();
+                    osc2.type = 'sine';
+                    osc2.frequency.setValueAtTime(1760, audioCtx.currentTime);
+                    gain2.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain2.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.25);
+                    
+                    osc2.connect(gain2);
+                    gain2.connect(audioCtx.destination);
+                    osc2.start();
+                    osc2.stop(audioCtx.currentTime + 0.25);
+                }, 200);
+
+            } catch (e) {
+                console.log("Audio non supporté ou bloqué par le navigateur :", e);
+            }
+        }
+
         function startBackgroundSync() {
             setInterval(() => {
                 if (!scriptUrl || !activeTournoiId) return;
@@ -295,7 +330,14 @@
             if (!state) return;
             if (isMaster) return;
 
-            niveauActuel = state.niveauActuel || 1;
+            // Détecter si le niveau a changé pour déclencher le bip chez les spectateurs aussi
+            if (state.niveauActuel && state.niveauActuel !== niveauActuel) {
+                niveauActuel = state.niveauActuel;
+                jouerBipChangementNiveau();
+            } else {
+                niveauActuel = state.niveauActuel || 1;
+            }
+
             tablesGenerees = state.tablesGenerees || null;
             joueursEliminesHistorique = state.joueursEliminesHistorique || [];
             totalJoueursInitial = state.totalJoueursInitial || 0;
@@ -1345,6 +1387,9 @@
                         niveauActuel++;
                         dureeNiveauSec = structs[niveauActuel].duree;
                         secondesRestantes = dureeNiveauSec;
+                        
+                        jouerBipChangementNiveau();
+
                         startChronoLoop(true);
                     } else {
                         alert("🏁 Fin de la structure des niveaux !");
@@ -1468,6 +1513,8 @@
                     secondesRestantes = dureeNiveauSec;
                 }
                 
+                jouerBipChangementNiveau();
+
                 chronoEndTime = chronoIsRunning ? (Date.now() + (secondesRestantes * 1000)) : null;
                 updateChronoUI();
                 
