@@ -295,6 +295,22 @@
             totalJoueursInitial = state.totalJoueursInitial || 0;
             chronoIsRunning = state.chronoIsRunning || false;
 
+            // --- SYNCHRONISATION DES CONSIGNES LIVE POUR LE SPECTATEUR ---
+            const alertBox = document.getElementById('live-alertes');
+            if (alertBox && state.derniereAlerte) {
+                // On nettoie le bouton "Compris" pour les spectateurs s'il était présent dans le HTML brut
+                let consigneNettoyee = state.derniereAlerte.replace(/<button[^>]*>Compris<\/button>/gi, '');
+                alertBox.innerHTML = consigneNettoyee;
+                
+                // Si la consigne contient une alerte (cassage / rééquilibrage), on met le style alerte
+                if (consignesContiennentUneAlerte(state.derniereAlerte)) {
+                    alertBox.className = "alert alert-action";
+                } else {
+                    alertBox.className = "alert";
+                }
+            }
+            // -------------------------------------------------------------
+
             if (chronoIsRunning && state.chronoEndTime) {
                 chronoEndTime = state.chronoEndTime;
                 const now = Date.now();
@@ -333,6 +349,11 @@
                 document.getElementById('stat-total').innerText = totalJoueursInitial || tousJoueursActifs.length;
                 document.getElementById('stat-restants').innerText = tousJoueursActifs.length;
             }
+        }
+
+        // Petite fonction utilitaire pour détecter si le texte de l'alerte est une action requise
+        function consignesContiennentUneAlerte(htmlTexte) {
+            return htmlTexte.includes("CASSAGE") || htmlTexte.includes("RÉÉQUILIBRAGE") || htmlTexte.includes("⚠️") || htmlTexte.includes("🚨");
         }
 
         function lockLiveInterfaceForSpectator(lock) {
@@ -467,6 +488,10 @@
 
             isMaster = true;
 
+            // Récupérer le contenu actuel de la boîte d'alerte live
+            const alertBox = document.getElementById('live-alertes');
+            let consigneActuelle = alertBox ? alertBox.innerHTML : "";
+
             const state = {
                 masterClientId: myClientId,
                 tablesGenerees: tablesGenerees,
@@ -475,7 +500,8 @@
                 niveauActuel: niveauActuel,
                 secondesRestantes: secondesRestantes,
                 chronoEndTime: chronoEndTime,
-                chronoIsRunning: chronoIsRunning
+                chronoIsRunning: chronoIsRunning,
+                derniereAlerte: consigneActuelle // <-- Ajout de la consigne ici
             };
 
             fetch(scriptUrl, {
