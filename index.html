@@ -155,12 +155,16 @@
                     <div class="grid-2">
                         <div>
                             <label>Éliminer un joueur :</label>
-                            <select id="select-eliminer"></select>
+                            <select id="select-eliminer">
+                                <option value="" disabled selected>-- Sélectionnez un joueur --</option>
+                            </select>
                             <button onclick="eliminerJoueur()" id="btn-eliminer" class="btn-rose">Marquer comme Éliminé</button>
 
                             <div style="margin-top:1.5rem; border-top:1px solid #334155; padding-top:1rem;">
                                 <label style="color:#60a5fa;">Réintégrer un joueur éliminé par erreur :</label>
-                                <select id="select-reintegrer"></select>
+                                <select id="select-reintegrer">
+                                    <option value="" disabled selected>-- Sélectionnez un joueur --</option>
+                                </select>
                                 <button onclick="reintegrerJoueur()" id="btn-reintegrer" class="btn-blue">Réintégrer le joueur</button>
                             </div>
                         </div>
@@ -1013,16 +1017,14 @@
             document.getElementById('stat-tapis-moyen').innerText = avgStack.toLocaleString();
 
             const selElim = document.getElementById('select-eliminer');
-            selElim.innerHTML = '';
+            selElim.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
             tousJoueursActifs.sort((a,b) => a.localeCompare(b)).forEach(j => {
                 selElim.innerHTML += `<option value="${j}">${j}</option>`;
             });
 
             const selReint = document.getElementById('select-reintegrer');
-            selReint.innerHTML = '';
-            if (joueursEliminesHistorique.length === 0) {
-                selReint.innerHTML = `<option value="">Aucun joueur éliminé</option>`;
-            } else {
+            selReint.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
+            if (joueursEliminesHistorique.length > 0) {
                 [...joueursEliminesHistorique].reverse().forEach(item => {
                     selReint.innerHTML += `<option value="${item.joueur}">${item.joueur} (Place: ${item.classement})</option>`;
                 });
@@ -1476,7 +1478,10 @@
 
         function eliminerJoueur() {
             const joueur = document.getElementById('select-eliminer').value;
-            if (!joueur) return;
+            if (!joueur) {
+                alert("Veuillez sélectionner un joueur à éliminer.");
+                return;
+            }
 
             if (!confirm(`Confirmez-vous l'élimination définitive de ${joueur} ?`)) {
                 return;
@@ -1531,7 +1536,10 @@
 
         function reintegrerJoueur() {
             const joueur = document.getElementById('select-reintegrer').value;
-            if (!joueur) return;
+            if (!joueur) {
+                alert("Veuillez sélectionner un joueur à réintégrer.");
+                return;
+            }
 
             if (!confirm(`Voulez-vous vraiment réintégrer ${joueur} au tournoi ? Son classement sera annulé.`)) {
                 return;
