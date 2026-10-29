@@ -248,9 +248,6 @@
             setInterval(() => {
                 if (!scriptUrl || !activeTournoiId) return;
 
-                // Le Maître n'a pas besoin de se resynchroniser depuis l'extérieur en boucle
-                if (isMaster) return;
-
                 fetch(scriptUrl)
                     .then(res => res.json())
                     .then(data => {
@@ -260,26 +257,32 @@
                         
                         const remoteState = appData.allStates[activeTournoiId];
                         if (remoteState) {
+                            // --- SURVEILLANCE ACTIVE DU MASTER ---
                             if (remoteState.masterClientId && remoteState.masterClientId !== myClientId) {
+                                // Si le serveur indique un autre Maître que nous, on devient spectateur
                                 if (isMaster) {
                                     isMaster = false;
                                     lockLiveInterfaceForSpectator(true);
                                 }
-                            } else {
-                                if (!isMaster && remoteState.masterClientId === myClientId) {
+                            } else if (remoteState.masterClientId === myClientId) {
+                                // Si le serveur confirme que c'est bien nous le maître
+                                if (!isMaster) {
                                     isMaster = true;
                                     lockLiveInterfaceForSpectator(false);
                                 }
                             }
 
-                            syncRemoteLiveState(remoteState);
+                            // Si nous ne sommes PAS le maître, on synchronise l'état live (chrono, tables, etc.)
+                            if (!isMaster) {
+                                syncRemoteLiveState(remoteState);
+                            }
                         } else {
                             tablesGenerees = null;
                             renderTablesUI();
                         }
                     })
                     .catch(err => console.error("Erreur sync arrière-plan:", err));
-            }, 4000); // Polling toutes les 4 secondes pour une réactivité maximale
+            }, 4000); // Polling toutes les 4 secondes
         }
 
         function syncRemoteLiveState(state) {
