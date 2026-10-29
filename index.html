@@ -340,7 +340,19 @@
                 .then(res => res.json())
                 .then(data => {
                     appData = data;
+                    if (data.structures) appData.structures = data.structures;
                     populateDropdowns();
+
+                    // --- VÉRIFICATION IMMÉDIATE DU MASTER LOCK AU CHARGEMENT ---
+                    const remoteState = (appData.allStates && activeTournoiId) ? appData.allStates[activeTournoiId] : null;
+                    if (remoteState && remoteState.masterClientId && remoteState.masterClientId !== myClientId) {
+                        isMaster = false;
+                        lockLiveInterfaceForSpectator(true);
+                    } else {
+                        isMaster = true;
+                        lockLiveInterfaceForSpectator(false);
+                    }
+                    // -----------------------------------------------------------
 
                     if (data.allStates && activeTournoiId && data.allStates[activeTournoiId]) {
                         restoreGameState(data.allStates[activeTournoiId]);
