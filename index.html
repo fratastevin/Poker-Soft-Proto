@@ -227,7 +227,6 @@
         let chronoTimer = null;
 
         window.onload = function() {
-            // Chargement préalable du fichier config.json
             fetch('config.json')
                 .then(res => {
                     if (!res.ok) throw new Error("Fichier config.json introuvable.");
@@ -249,6 +248,9 @@
             setInterval(() => {
                 if (!scriptUrl || !activeTournoiId) return;
 
+                // Si nous sommes le Maître, nous n'interrogeons pas le serveur pour écraser notre propre état actif en cours
+                if (isMaster) return;
+
                 fetch(scriptUrl)
                     .then(res => res.json())
                     .then(data => {
@@ -261,7 +263,7 @@
                             if (remoteState.masterClientId && remoteState.masterClientId !== myClientId) {
                                 isMaster = false;
                                 lockLiveInterfaceForSpectator(true);
-                            } else {
+                            } else if (!remoteState.masterClientId || remoteState.masterClientId === myClientId) {
                                 isMaster = true;
                                 lockLiveInterfaceForSpectator(false);
                             }
@@ -270,21 +272,49 @@
                         }
                     })
                     .catch(err => console.error("Erreur sync arrière-plan:", err));
-            }, 6000);
+            }, 5000); // 5 secondes pour une réactivité optimale
         }
 
         function syncRemoteLiveState(state) {
             if (!state) return;
-            if (state.niveauActuel) niveauActuel = state.niveauActuel;
-            if (state.secondesRestantes !== undefined) secondesRestantes = state.secondesRestantes;
-            if (state.tablesGenerees) {
-                tablesGenerees = state.tablesGenerees;
-                renderTablesUI();
+            if (isMaster) return; // Sécurité : le maître ne se synchronise pas depuis l'extérieur
+
+            niveauActuel = state.niveauActuel || 1;
+            tablesGenerees = state.tablesGenerees || null;
+            joueursEliminesHistorique = state.joueursEliminesHistorique || [];
+            totalJoueursInitial = state.totalJoueursInitial || 0;
+            chronoIsRunning = state.chronoIsRunning || false;
+
+            // Synchronisation fine et instantanée du chrono et du bouton Start/Pause
+            if (chronoIsRunning && state.chronoEndTime) {
+                chronoEndTime = state.chronoEndTime;
+                const now = Date.now();
+                const diff = Math.ceil((chronoEndTime - now) / 1000);
+                if (diff > 0) {
+                    secondesRestantes = diff;
+                }
+                if (!chronoTimer) {
+                    startChronoLoop(false);
+                }
+            } else {
+                if (chronoTimer) clearInterval(chronoTimer);
+                chronoIsRunning = false;
+                chronoEndTime = null;
+                if (state.secondesRestantes !== undefined) {
+                    secondesRestantes = state.secondesRestantes;
+                }
+                const btn = document.getElementById('btn-chrono');
+                if (btn) {
+                    btn.innerText = "Start";
+                    btn.className = "btn-green";
+                }
             }
-            if (state.joueursEliminesHistorique) joueursEliminesHistorique = state.joueursEliminesHistorique;
-            if (state.totalJoueursInitial) totalJoueursInitial = state.totalJoueursInitial;
-            
+
             updateChronoUI();
+            renderTablesUI();
+            if (document.getElementById('tab-live') && !document.getElementById('tab-live').classList.contains('hidden')) {
+                initLive();
+            }
         }
 
         function lockLiveInterfaceForSpectator(lock) {
@@ -318,12 +348,14 @@
 
                 saveGameStateToSheet();
                 
+                // Petit retour visuel de confirmation de reprise du master
                 const btnMaster = document.querySelector('button[onclick="reprendreControleMaster()"]');
                 if(btnMaster) {
                     const originalText = btnMaster.innerText;
                     btnMaster.innerText = "👑 Maître !";
                     setTimeout(() => btnMaster.innerText = originalText, 2000);
                 }
+                alert("👑 Cet appareil a repris le contrôle en tant que Maître du Tournoi.");
             }
         }
 
@@ -1218,7 +1250,7 @@
             document.getElementById('live-chrono').innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
             
             const structs = appData.structures || {};
-            const currentStruct = structs[niveauActuel] || {label: `Niveau ${niveauActuel}`, sb: niveauActuel*25, bb: niveauActuel*50, ante: niveauActuel*25};
+            const currentStruct = structs[niveauActuel] || {label: `Niveau ${niveauActuel}`, sb: 0, bb: 0, ante: 0};
             
             document.getElementById('live-niveau').innerText = currentStruct.label;
             
@@ -1239,8 +1271,10 @@
         function startChronoLoop(save = true) {
             chronoIsRunning = true;
             const btn = document.getElementById('btn-chrono');
-            btn.innerText = "Pause";
-            btn.className = "btn-amber";
+            if (btn) {
+                btn.innerText = "Pause";
+                btn.className = "btn-amber";
+            }
 
             if (!chronoEndTime) {
                 chronoEndTime = Date.now() + (secondesRestantes * 1000);
@@ -1282,11 +1316,14 @@
                 chronoIsRunning = false;
                 chronoEndTime = null;
                 const btn = document.getElementById('btn-chrono');
-                btn.innerText = "Start";
-                btn.className = "btn-green";
+                if (btn) {
+                    btn.innerText = "Start";
+                    btn.className = "btn-green";
+                }
                 updateChronoUI();
                 saveGameStateToSheet();
             } else {
+                // Conserve précisément le temps restant actuel au moment de repartir
                 chronoEndTime = Date.now() + (secondesRestantes * 1000);
                 startChronoLoop(true);
             }
@@ -1310,8 +1347,10 @@
             secondesRestantes = dureeNiveauSec;
 
             const btn = document.getElementById('btn-chrono');
-            btn.innerText = "Start";
-            btn.className = "btn-green";
+            if (btn) {
+                btn.innerText = "Start";
+                btn.className = "btn-green";
+            }
             updateChronoUI();
 
             if (joueursEliminesHistorique.length > 0 && tablesGenerees) {
@@ -1341,6 +1380,7 @@
             renderTablesUI();
             checkTournoiLockStatus();
             initLive();
+            saveGameStateToSheet();
 
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
