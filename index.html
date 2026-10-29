@@ -252,31 +252,32 @@
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 
-                const osc1 = audioCtx.createOscillator();
-                const gain1 = audioCtx.createGain();
-                osc1.type = 'sine';
-                osc1.frequency.setValueAtTime(880, audioCtx.currentTime);
-                gain1.gain.setValueAtTime(0.2, audioCtx.currentTime);
-                gain1.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
-                
-                osc1.connect(gain1);
-                gain1.connect(audioCtx.destination);
-                osc1.start();
-                osc1.stop(audioCtx.currentTime + 0.15);
+                // Répétition intensive : 3 cycles de sirène stridente (soit environ 3 secondes d'alarme forte)
+                for (let cycle = 0; cycle < 3; cycle++) {
+                    let baseDelay = cycle * 1000;
 
-                setTimeout(() => {
-                    const osc2 = audioCtx.createOscillator();
-                    const gain2 = audioCtx.createGain();
-                    osc2.type = 'sine';
-                    osc2.frequency.setValueAtTime(1760, audioCtx.currentTime);
-                    gain2.gain.setValueAtTime(0.2, audioCtx.currentTime);
-                    gain2.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.25);
-                    
-                    osc2.connect(gain2);
-                    gain2.connect(audioCtx.destination);
-                    osc2.start();
-                    osc2.stop(audioCtx.currentTime + 0.25);
-                }, 200);
+                    setTimeout(() => {
+                        // Double bip strident et puissant par cycle
+                        [1200, 1800, 1200, 1800].forEach((freq, i) => {
+                            setTimeout(() => {
+                                const osc = audioCtx.createOscillator();
+                                const gain = audioCtx.createGain();
+                                
+                                osc.type = 'sawtooth'; // Onde en dents de scie (son plus perçant/agressif qu'un simple bip)
+                                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                                
+                                gain.gain.setValueAtTime(0.35, audioCtx.currentTime); // Volume élevé
+                                gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.22);
+                                
+                                osc.connect(gain);
+                                gain.connect(audioCtx.destination);
+                                
+                                osc.start();
+                                osc.stop(audioCtx.currentTime + 0.22);
+                            }, i * 200);
+                        });
+                    }, baseDelay);
+                }
 
             } catch (e) {
                 console.log("Audio non supporté ou bloqué par le navigateur :", e);
@@ -330,7 +331,6 @@
             if (!state) return;
             if (isMaster) return;
 
-            // Détecter si le niveau a changé pour déclencher le bip chez les spectateurs aussi
             if (state.niveauActuel && state.niveauActuel !== niveauActuel) {
                 niveauActuel = state.niveauActuel;
                 jouerBipChangementNiveau();
