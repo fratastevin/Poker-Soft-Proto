@@ -85,7 +85,7 @@
             <div class="card">
                 <h3 style="margin-top:0; color:#fde68a;">Configuration Google Sheet</h3>
                 <label>URL du Déploiement Web App Google Apps Script :</label>
-                <input type="text" id="script-url" placeholder="https://script.google.com/macros/s/AKfycbwcTiiOjBeliTGBiuxZrMLTs9loMnftjKZ295N1_CzCjRC9e5_dB_0n5bbG_YLGV2fz/exec">
+                <input type="text" id="script-url" placeholder="https://script.google.com/macros/s/.../exec">
                 <button onclick="saveConfig()" class="btn-green">Enregistrer & Charger les données</button>
             </div>
         </section>
@@ -143,23 +143,24 @@
             <div class="grid-3" style="margin-bottom:1.5rem;">
                 <div class="card text-center" style="margin-bottom:0;">
                     <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Niveau Actuel</span>
-                    <div id="live-niveau" style="font-size:1.875rem; font-weight:900; color:#fbbf24; margin:0.25rem 0;">Niveau 1</div>
-                    <span id="live-blinds" style="font-size:1rem; font-weight:600; color:#e2e8f0;">SB 5 / BB 10 (Ante 0)</span>
+                    <div id="live-niveau" style="font-size:1.5rem; font-weight:900; color:#fbbf24; margin:0.25rem 0;">Niveau 1</div>
+                    <div id="live-blinds" style="font-size:1.5rem; font-weight:bold; color:#f8fafc; margin:0.25rem 0;">50 / 100 (Ante 50)</div>
                 </div>
                 <div class="card text-center" style="margin-bottom:0;">
                     <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Chrono Restant</span>
                     <div id="live-chrono" class="font-mono" style="font-size:2.25rem; font-weight:bold; color:#34d399; margin:0.25rem 0;">20:00</div>
                     <div style="display:flex; gap:0.25rem; justify-content:center; margin-top:0.5rem; flex-wrap:wrap;">
-                        <button onclick="prevLevel()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau -</button>
+                        <button onclick="promptPrevLevel()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau -</button>
                         <button onclick="resetChrono()" id="btn-reset" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#e11d48; color:white;">Reset</button>
                         <button onclick="toggleChrono()" id="btn-chrono" class="btn-green" style="width:auto; padding:0.25rem 0.75rem; margin:0; font-size:0.75rem;">Start</button>
-                        <button onclick="nextLevel()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau +</button>
+                        <button onclick="promptNextLevel()" style="width:auto; padding:0.25rem 0.5rem; margin:0; font-size:0.75rem; background-color:#334155; color:white;">Niveau +</button>
                     </div>
                 </div>
                 <div class="card text-center" style="margin-bottom:0;">
-                    <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Statistiques</span>
+                    <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Statistiques (Suivant : <span id="stat-suivant" style="color:#fbbf24;">Niveau 2</span>)</span>
                     <div style="font-size:0.875rem; margin-top:0.5rem; line-height:1.5;">
                         <div>Restants : <span id="stat-restants" style="font-weight:bold;">0</span> / <span id="stat-total">0</span></div>
+                        <div>Tapis Moyen : <span id="stat-tapis-moyen" style="font-weight:bold; color:#60a5fa;">0</span></div>
                         <div>État Tables : <span id="stat-equilibre" style="font-weight:bold; color:#34d399;">OK</span></div>
                     </div>
                 </div>
@@ -209,7 +210,7 @@
 
     <script>
         let scriptUrl = localStorage.getItem('poker_script_url') || "https://script.google.com/macros/s/AKfycbwcTiiOjBeliTGBiuxZrMLTs9loMnftjKZ295N1_CzCjRC9e5_dB_0n5bbG_YLGV2fz/exec"; 
-        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6, allStates: {}, tournoisTermines: {}, classementGeneral: [] };
+        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6, startingStack: 20000, allStates: {}, tournoisTermines: {}, classementGeneral: [] };
         let activeTournoiId = null;
         let tablesGenerees = null;
         let totalJoueursInitial = 0;
@@ -223,12 +224,18 @@
         let chronoIsRunning = false;
         let chronoTimer = null;
 
+        // Structure standard par défaut (extensible / modifiable)
         const structures = {
-            1: {sb: 5, bb: 10, ante: 0}, 2: {sb: 10, bb: 20, ante: 0},
-            3: {sb: 15, bb: 30, ante: 0}, 4: {sb: 20, bb: 40, ante: 0},
-            5: {sb: 25, bb: 50, ante: 25}, 6: {sb: 30, bb: 60, ante: 30},
-            7: {sb: 40, bb: 80, ante: 40}, 8: {sb: 50, bb: 100, ante: 50},
-            9: {sb: 75, bb: 150, ante: 75}, 10: {sb: 100, bb: 200, ante: 100}
+            1: {label: "Niveau 1", sb: 25, bb: 50, ante: 25, duree: 1200},
+            2: {label: "Niveau 2", sb: 50, bb: 100, ante: 50, duree: 1200},
+            3: {label: "Niveau 3", sb: 75, bb: 150, ante: 75, duree: 1200},
+            4: {label: "Niveau 4", sb: 100, bb: 200, ante: 100, duree: 1200},
+            5: {label: "Pause", sb: 0, bb: 0, ante: 0, duree: 600, isPause: true},
+            6: {label: "Niveau 5", sb: 150, bb: 300, ante: 150, duree: 1200},
+            7: {label: "Niveau 6", sb: 200, bb: 400, ante: 200, duree: 1200},
+            8: {label: "Niveau 7", sb: 300, bb: 600, ante: 300, duree: 1200},
+            9: {label: "Niveau 8", sb: 400, bb: 800, ante: 400, duree: 1200},
+            10: {label: "Pause", sb: 0, bb: 0, ante: 0, duree: 600, isPause: true}
         };
 
         window.onload = function() {
@@ -283,7 +290,8 @@
             totalJoueursInitial = 0;
             joueursEliminesHistorique = [];
             niveauActuel = 1;
-            secondesRestantes = 1200;
+            dureeNiveauSec = structures[1] ? structures[1].duree : 1200;
+            secondesRestantes = dureeNiveauSec;
             chronoEndTime = null;
             chronoIsRunning = false;
             if (chronoTimer) clearInterval(chronoTimer);
@@ -298,7 +306,9 @@
             joueursEliminesHistorique = state.joueursEliminesHistorique || [];
             
             niveauActuel = state.niveauActuel || 1;
-            secondesRestantes = state.secondesRestantes || 1200;
+            const structActuelle = structures[niveauActuel] || {duree: 1200};
+            dureeNiveauSec = structActuelle.duree;
+            secondesRestantes = state.secondesRestantes || dureeNiveauSec;
             chronoEndTime = state.chronoEndTime || null;
             chronoIsRunning = state.chronoIsRunning || false;
 
@@ -313,6 +323,7 @@
                     let tempsEcouleAbsolu = Math.floor((now - (chronoEndTime - (secondesRestantes * 1000))) / 1000);
                     let niveauxPasses = Math.floor(tempsEcouleAbsolu / dureeNiveauSec);
                     niveauActuel = Math.min(25, niveauActuel + niveauxPasses);
+                    dureeNiveauSec = (structures[niveauActuel] ? structures[niveauActuel].duree : 1200);
                     secondesRestantes = dureeNiveauSec - (tempsEcouleAbsolu % dureeNiveauSec);
                     startChronoLoop(true);
                 }
@@ -429,15 +440,12 @@
             }
         }
 
-        // --- TRI ALPHABÉTIQUE SYSTÉMATIQUE DES INSCRITS ---
         function updateInscritsUI() {
             const list = document.getElementById('list-inscrits');
             list.innerHTML = '';
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
 
             let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
-            
-            // Tri alphabétique systématique
             inscritsNoms.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 
             inscritsNoms.forEach(j => {
@@ -467,7 +475,8 @@
                 return;
             }
 
-            const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
+            if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+            const tournoiInsc = appData.inscriptions[activeTournoiId];
             const isAlreadyInscrit = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
             
             if (isAlreadyInscrit) {
@@ -479,7 +488,6 @@
                     if (Array.isArray(tournoiInsc)) {
                         appData.inscriptions[activeTournoiId].push(joueur);
                     } else {
-                        if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
                         appData.inscriptions[activeTournoiId][joueur] = { present: false };
                     }
                     updateInscritsUI();
@@ -573,6 +581,15 @@
                 if (tIdx > nbTables) { tIdx = 1; sIdx++; }
             });
 
+            // Reshuffle interne par table pour éviter d'avoir les joueurs uniquement sur les premiers sièges
+            for (const tId of Object.keys(tables)) {
+                let joueursTable = tables[tId].map(s => s.player).filter(p => p !== null);
+                joueursTable.sort(() => Math.random() - 0.5);
+                tables[tId].forEach((s, idx) => {
+                    s.player = joueursTable[idx] !== undefined ? joueursTable[idx] : null;
+                });
+            }
+
             tablesGenerees = tables;
             renderTablesUI();
         }
@@ -618,7 +635,8 @@
         }
 
         function togglePresence(joueur) {
-            const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
+            if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+            const tournoiInsc = appData.inscriptions[activeTournoiId];
             if (tournoiInsc[joueur]) {
                 const currentPresent = tournoiInsc[joueur].present || false;
                 const newPresent = !currentPresent;
@@ -633,7 +651,7 @@
             }
         }
 
-        // --- NOUVELLE REPARTITION ALEATOIRE HARMONIEUSE DES PRÉSENTS ET ABSENTS SUR TOUTES LES TABLES ---
+        // --- GÉNÉRATION DE TABLES AVEC RESHUFFLE INDÉPENDANT PAR TABLE ---
         function genererTables() {
             if (tablesGenerees !== null) return;
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
@@ -651,7 +669,6 @@
             presents.sort(() => Math.random() - 0.5);
             absents.sort(() => Math.random() - 0.5);
 
-            // Le nombre total de tables est calculé sur L'ENSEMBLE des inscrits (ex: 15 / 6 = 3 tables)
             const totalJoueurs = inscritsNoms.length;
             totalJoueursInitial = totalJoueurs;
             const nbTables = Math.ceil(totalJoueurs / maxPerTable);
@@ -664,7 +681,7 @@
                 }
             }
 
-            // 1. Répartition homogène et équilibrée des PRÉSENTS sur toutes les tables
+            // 1. Répartition homogène des PRÉSENTS
             let currentTable = 1;
             let currentSeatOffset = 0;
 
@@ -684,7 +701,7 @@
                 }
             });
 
-            // 2. Remplissage des places restantes avec les ABSENTS
+            // 2. Remplissage avec les ABSENTS
             absents.forEach(a => {
                 let placed = false;
                 for (let s = 0; s < maxPerTable && !placed; s++) {
@@ -696,6 +713,15 @@
                     }
                 }
             });
+
+            // 3. Reshuffle indépendant de chaque table pour mélanger l'attribution des sièges
+            for (const tId of Object.keys(tables)) {
+                let joueursTable = tables[tId].map(s => s.player).filter(p => p !== null);
+                joueursTable.sort(() => Math.random() - 0.5);
+                tables[tId].forEach((s, idx) => {
+                    s.player = joueursTable[idx] !== undefined ? joueursTable[idx] : null;
+                });
+            }
 
             tablesGenerees = tables;
             joueursEliminesHistorique = [];
@@ -818,6 +844,13 @@
             document.getElementById('stat-total').innerText = totalJoueursInitial;
             document.getElementById('stat-restants').innerText = tousJoueursActifs.length;
             
+            // Calcul du Tapis Moyen (Starting Stack * Total Inscrits / Restants)
+            const restantsCount = tousJoueursActifs.length;
+            const starting = appData.startingStack || 20000;
+            const totalInscrits = totalJoueursInitial || restantsCount;
+            const avgStack = restantsCount > 0 ? Math.round((starting * totalInscrits) / restantsCount) : starting;
+            document.getElementById('stat-tapis-moyen').innerText = avgStack.toLocaleString();
+
             const selElim = document.getElementById('select-eliminer');
             selElim.innerHTML = '';
             tousJoueursActifs.sort((a,b) => a.localeCompare(b)).forEach(j => {
@@ -835,6 +868,7 @@
             }
 
             verifierEtReequilibrer();
+            updateChronoUI();
         }
 
         function marquerAlerteCompris() {
@@ -1088,14 +1122,29 @@
             container.innerHTML = html;
         }
 
+        // --- AFFICHAGE CHRONO & BLINDS AMÉLIORÉ ---
         function updateChronoUI() {
             let m = Math.floor(secondesRestantes / 60);
             let s = secondesRestantes % 60;
             document.getElementById('live-chrono').innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-            document.getElementById('live-niveau').innerText = `Niveau ${niveauActuel}`;
             
-            const b = structures[niveauActuel] || {sb: niveauActuel*100, bb: niveauActuel*200, ante: niveauActuel*50};
-            document.getElementById('live-blinds').innerText = `SB ${b.sb} / BB ${b.bb} (Ante ${b.ante})`;
+            const currentStruct = structures[niveauActuel] || {label: `Niveau ${niveauActuel}`, sb: niveauActuel*25, bb: niveauActuel*50, ante: niveauActuel*25};
+            
+            document.getElementById('live-niveau').innerText = currentStruct.label;
+            
+            if (currentStruct.isPause) {
+                document.getElementById('live-blinds').innerText = "PAUSE";
+            } else {
+                document.getElementById('live-blinds').innerText = `${currentStruct.sb} / ${currentStruct.bb} (Ante ${currentStruct.ante})`;
+            }
+
+            // Niveau suivant affiché en haut des statistiques
+            const nextStruct = structures[niveauActuel + 1];
+            if (nextStruct) {
+                document.getElementById('stat-suivant').innerText = nextStruct.label + (nextStruct.isPause ? "" : ` (${nextStruct.sb}/${nextStruct.bb})`);
+            } else {
+                document.getElementById('stat-suivant').innerText = "Dernier niveau";
+            }
         }
 
         function startChronoLoop(save = true) {
@@ -1121,7 +1170,16 @@
                     clearInterval(chronoTimer);
                     chronoIsRunning = false;
                     chronoEndTime = null;
-                    nextLevel();
+                    
+                    // Passage automatique au niveau suivant à la fin du chrono
+                    if (structures[niveauActuel + 1]) {
+                        niveauActuel++;
+                        dureeNiveauSec = structures[niveauActuel].duree;
+                        secondesRestantes = dureeNiveauSec;
+                        startChronoLoop(true);
+                    } else {
+                        alert("🏁 Fin de la structure des niveaux !");
+                    }
                 }
             }, 1000);
 
@@ -1151,14 +1209,15 @@
                 return;
             }
 
-            if (!confirm("⚠️ RESET COMPLET DU TOURNOI :\n\n- Le chrono repassera à 20:00 (Niveau 1).\n- Tous les joueurs éliminés seront réintégrés.\n- Leurs classements enregistrés sur Google Sheet seront effacés.\n- Les plans de table pourront être refaits.\n\nConfirmez-vous cette réinitialisation ?")) {
+            if (!confirm("⚠️ RESET COMPLET DU TOURNOI :\n\n- Le chrono repassera au début.\n- Tous les joueurs éliminés seront réintégrés.\n- Leurs classements enregistrés sur Google Sheet seront effacés.\n- Les plans de table pourront être refaits.\n\nConfirmez-vous cette réinitialisation ?")) {
                 return;
             }
             clearInterval(chronoTimer);
             chronoIsRunning = false;
             chronoEndTime = null;
-            secondesRestantes = dureeNiveauSec;
             niveauActuel = 1;
+            dureeNiveauSec = structures[1] ? structures[1].duree : 1200;
+            secondesRestantes = dureeNiveauSec;
 
             const btn = document.getElementById('btn-chrono');
             btn.innerText = "Start";
@@ -1205,22 +1264,41 @@
             }
         }
 
-        function nextLevel() {
-            if (niveauActuel < 25) niveauActuel++;
-            secondesRestantes = dureeNiveauSec;
-            chronoEndTime = chronoIsRunning ? (Date.now() + (secondesRestantes * 1000)) : null;
-            updateChronoUI();
-            if (chronoIsRunning) startChronoLoop(true);
-            else saveGameStateToSheet();
+        // --- GESTION INTERACTIVE DES BOUTONS NIVEAU + / NIVEAU - ---
+        function promptNextLevel() {
+            const choix = prompt("Changement de niveau :\n\n1. Conserver le compte à rebours actuel\n2. Remettre le chrono à zéro (pour le nouveau niveau)\n3. Annuler\n\nTapez 1, 2 ou 3 :", "2");
+            if (choix === "1") {
+                changeLevelBy(1, false);
+            } else if (choix === "2") {
+                changeLevelBy(1, true);
+            }
         }
 
-        function prevLevel() {
-            if (niveauActuel > 1) niveauActuel--;
-            secondesRestantes = dureeNiveauSec;
-            chronoEndTime = chronoIsRunning ? (Date.now() + (secondesRestantes * 1000)) : null;
-            updateChronoUI();
-            if (chronoIsRunning) startChronoLoop(true);
-            else saveGameStateToSheet();
+        function promptPrevLevel() {
+            const choix = prompt("Retour en arrière (Niveau -) :\n\n1. Conserver le compte à rebours actuel\n2. Remettre le chrono à zéro\n3. Annuler\n\nTapez 1, 2 ou 3 :", "2");
+            if (choix === "1") {
+                changeLevelBy(-1, false);
+            } else if (choix === "2") {
+                changeLevelBy(-1, true);
+            }
+        }
+
+        function changeLevelBy(delta, resetTime) {
+            const newNiveau = niveauActuel + delta;
+            if (newNiveau >= 1 && newNiveau <= 25) {
+                niveauActuel = newNiveau;
+                dureeNiveauSec = structures[niveauActuel] ? structures[niveauActuel].duree : 1200;
+                
+                if (resetTime) {
+                    secondesRestantes = dureeNiveauSec;
+                }
+                
+                chronoEndTime = chronoIsRunning ? (Date.now() + (secondesRestantes * 1000)) : null;
+                updateChronoUI();
+                
+                if (chronoIsRunning) startChronoLoop(true);
+                else saveGameStateToSheet();
+            }
         }
 
         function eliminerJoueur() {
