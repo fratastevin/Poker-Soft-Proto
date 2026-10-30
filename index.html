@@ -191,7 +191,7 @@
         <section id="tab-classement" class="hidden">
             <div class="card">
                 <h2 style="margin-top:0; color:#fde68a; font-size:1.125rem;">Classement du Tournoi en Cours</h2>
-                <p style="font-size:0.75rem; color:#94a3b8;">Glissez-déposez les joueurs éliminés pour réajuster leur ordre de classement si besoin. Le Google Sheet est mis à jour instantanément.</p>
+                <p style="font-size:0.75rem; color:#94a3b8;">Glissez-déposez les joueurs éliminés pour réajuster leur ordre de classement si besoin. Le classement se construit par le bas (du 1er éliminé vers le vainqueur).</p>
                 <div id="classement-container" style="margin-top:1rem;"></div>
             </div>
         </section>
@@ -455,8 +455,6 @@
 
             updateChronoUI();
             renderTablesUI();
-
-            // Mettre à jour immédiatement les statistiques (joueurs restants et tapis moyen) chez les spectateurs
             recalculerStatistiquesLive();
         }
 
@@ -535,8 +533,6 @@
                     renderClassementGeneralUI();
 
                     document.getElementById('global-loader').style.display = 'none';
-
-                    // Lancement du flux de synchronisation unique
                     startGlobalSync();
                 })
                 .catch(err => {
@@ -595,7 +591,6 @@
         function saveGameStateToSheet() {
             if (!scriptUrl || !activeTournoiId) return;
 
-            // Contrôle strict avant sauvegarde
             if (!checkMastershipBeforeAction()) return;
 
             isMaster = true;
@@ -1305,7 +1300,8 @@
             const container = document.getElementById('classement-container');
             container.innerHTML = '';
 
-            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => a.classement - b.classement);
+            // Tri pour afficher le premier éliminé (le pire classement) en premier
+            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
 
             if (eliminesTries.length === 0) {
                 container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucun joueur éliminé pour le moment.</p>`;
@@ -1334,12 +1330,17 @@
             if (dragClassementIndex === null || dragClassementIndex === targetIndex) return;
             if (!checkMastershipBeforeAction()) return;
 
-            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => a.classement - b.classement);
+            // Récupère la liste triée depuis le pire classement (premier éliminé) jusqu'au meilleur éliminé
+            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
             const movedItem = eliminesTries.splice(dragClassementIndex, 1)[0];
             eliminesTries.splice(targetIndex, 0, movedItem);
 
+            // CORRECTION CRUCIALE : La numérotation repart du nombre total de participants au départ (ex: 20ème place pour le 1er éliminé)
+            const baseClassementPire = totalJoueursInitial || (eliminesTries.length + 1);
+
             eliminesTries.forEach((item, idx) => {
-                item.classement = idx + 2;
+                // Le premier éliminé de la liste prend la pire place (ex: 20), le suivant (ex: 19), etc.
+                item.classement = baseClassementPire - idx;
             });
 
             joueursEliminesHistorique = eliminesTries;
