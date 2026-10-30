@@ -260,6 +260,32 @@
             return 1200;
         }
 
+        function recalculerStatistiquesLive() {
+            let tousJoueursActifs = [];
+            if (tablesGenerees) {
+                for (const seats of Object.values(tablesGenerees)) {
+                    seats.forEach(s => { if (s.player) tousJoueursActifs.push(s.player); });
+                }
+            }
+
+            if (totalJoueursInitial === 0 && tousJoueursActifs.length > 0) {
+                totalJoueursInitial = tousJoueursActifs.length + joueursEliminesHistorique.length;
+            }
+
+            const restantsCount = tousJoueursActifs.length;
+            const starting = appData.startingStack || 20000;
+            const totalInscrits = totalJoueursInitial || restantsCount;
+            const avgStack = restantsCount > 0 ? Math.round((starting * totalInscrits) / restantsCount) : starting;
+
+            const elTotal = document.getElementById('stat-total');
+            const elRestants = document.getElementById('stat-restants');
+            const elTapisMoyen = document.getElementById('stat-tapis-moyen');
+
+            if (elTotal) elTotal.innerText = totalInscrits;
+            if (elRestants) elRestants.innerText = restantsCount;
+            if (elTapisMoyen) elTapisMoyen.innerText = avgStack.toLocaleString();
+        }
+
         // --- SYNCHRONISATION GLOBALE ET UNIFIÉE EN UN SEUL FLUX ---
         function startGlobalSync() {
             if (globalSyncTimer) clearInterval(globalSyncTimer);
@@ -430,17 +456,8 @@
             updateChronoUI();
             renderTablesUI();
 
-            const tabLive = document.getElementById('tab-live');
-            if (tabLive && !tabLive.classList.contains('hidden')) {
-                let tousJoueursActifs = [];
-                if (tablesGenerees) {
-                    for (const seats of Object.values(tablesGenerees)) {
-                        seats.forEach(s => { if (s.player) tousJoueursActifs.push(s.player); });
-                    }
-                }
-                document.getElementById('stat-total').innerText = totalJoueursInitial || tousJoueursActifs.length;
-                document.getElementById('stat-restants').innerText = tousJoueursActifs.length;
-            }
+            // Mettre à jour immédiatement les statistiques (joueurs restants et tapis moyen) chez les spectateurs
+            recalculerStatistiquesLive();
         }
 
         function consignesContiennentUneAlerte(htmlTexte) {
@@ -1103,6 +1120,8 @@
                 return;
             }
 
+            recalculerStatistiquesLive();
+
             let tousJoueursActifs = [];
             for (const seats of Object.values(tablesGenerees)) {
                 seats.forEach(s => {
@@ -1110,31 +1129,22 @@
                 });
             }
 
-            if (totalJoueursInitial === 0) {
-                totalJoueursInitial = tousJoueursActifs.length + joueursEliminesHistorique.length;
+            const selElim = document.getElementById('select-eliminer');
+            if (selElim) {
+                selElim.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
+                tousJoueursActifs.sort((a,b) => a.localeCompare(b)).forEach(j => {
+                    selElim.innerHTML += `<option value="${j}">${j}</option>`;
+                });
             }
 
-            document.getElementById('stat-total').innerText = totalJoueursInitial;
-            document.getElementById('stat-restants').innerText = tousJoueursActifs.length;
-            
-            const restantsCount = tousJoueursActifs.length;
-            const starting = appData.startingStack || 20000;
-            const totalInscrits = totalJoueursInitial || restantsCount;
-            const avgStack = restantsCount > 0 ? Math.round((starting * totalInscrits) / restantsCount) : starting;
-            document.getElementById('stat-tapis-moyen').innerText = avgStack.toLocaleString();
-
-            const selElim = document.getElementById('select-eliminer');
-            selElim.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
-            tousJoueursActifs.sort((a,b) => a.localeCompare(b)).forEach(j => {
-                selElim.innerHTML += `<option value="${j}">${j}</option>`;
-            });
-
             const selReint = document.getElementById('select-reintegrer');
-            selReint.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
-            if (joueursEliminesHistorique.length > 0) {
-                [...joueursEliminesHistorique].reverse().forEach(item => {
-                    selReint.innerHTML += `<option value="${item.joueur}">${item.joueur} (Place: ${item.classement})</option>`;
-                });
+            if (selReint) {
+                selReint.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
+                if (joueursEliminesHistorique.length > 0) {
+                    [...joueursEliminesHistorique].reverse().forEach(item => {
+                        selReint.innerHTML += `<option value="${item.joueur}">${item.joueur} (Place: ${item.classement})</option>`;
+                    });
+                }
             }
 
             verifierEtReequilibrer();
