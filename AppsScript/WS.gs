@@ -1,4 +1,4 @@
-// --- GOOGLE APPS SCRIPT BACKEND (AVEC LECTURE DYNAMIQUE STRUCTURE CASE B2 & SÉCURITÉ MAÎTRE) ---
+// --- GOOGLE APPS HCRIPT BACKEND (AVEC LECTURE DYNAMIQUE STRUCTURE CASE B2, SÉCURITÉ MAÎTRE & LOCKSERVICE) ---
 
 function doGet(e) {
   try {
@@ -229,6 +229,18 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  // --- VERROU DE SÉCURITÉ CONCURRENCE (LOCKSERVICE) ---
+  const lock = LockService.getScriptLock();
+  try {
+    // Attend jusqu'à 10 secondes qu'un éventuel traitement en cours se termine
+    lock.waitLock(10000);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ 
+      status: "error", 
+      message: "Serveur occupé, veuillez réitérer l'action." 
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
   try {
     const data = JSON.parse(e.postData.contents);
     const tournoiId = data.tournoiId;
@@ -438,6 +450,9 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    // Libération garantie du verrou à la fin du traitement
+    lock.releaseLock();
   }
 }
 
