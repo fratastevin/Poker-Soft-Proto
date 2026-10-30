@@ -249,6 +249,23 @@
                 });
         };
 
+        // VÉRIFICATION DU MASTERSHIP AVANT TOUTE ACTION CRITIQUE
+        function checkMastershipBeforeAction() {
+            if (!activeTournoiId || !appData.allStates || !appData.allStates[activeTournoiId]) return true;
+
+            const remoteState = appData.allStates[activeTournoiId];
+            const currentMasterId = remoteState.masterClientId;
+
+            if (currentMasterId && currentMasterId !== myClientId) {
+                isMaster = false;
+                lockLiveInterfaceForSpectator(true);
+                syncRemoteLiveState(remoteState);
+                alert("⚠️ Action refusée : Un autre appareil a pris le rôle de Maître du Tournoi. Votre session est passée en Mode Spectateur.");
+                return false;
+            }
+            return true;
+        }
+
         function jouerBipChangementNiveau() {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -299,7 +316,6 @@
             }, 15000);
         }
 
-        // SYNCHRONISATION ARRIÈRE-PLAN DU LIVE (Ajustée à 15 secondes pour préserver les quotas)
         function startBackgroundSync() {
             setInterval(() => {
                 if (!scriptUrl || !activeTournoiId) return;
@@ -340,7 +356,7 @@
                         }
                     })
                     .catch(err => console.error("Erreur sync arrière-plan:", err));
-            }, 15000); // 15 secondes
+            }, 15000);
         }
 
         function syncRemoteLiveState(state) {
@@ -547,6 +563,9 @@
         function saveGameStateToSheet() {
             if (!scriptUrl || !activeTournoiId) return;
 
+            // Contrôle strict avant sauvegarde
+            if (!checkMastershipBeforeAction()) return;
+
             isMaster = true;
 
             const alertBox = document.getElementById('live-alertes');
@@ -701,6 +720,7 @@
                 desinscrireJoueurDirect(joueur);
             } else {
                 if (tablesGenerees !== null) {
+                    if (!checkMastershipBeforeAction()) return;
                     inscrireDerniereMinute(joueur);
                 } else {
                     if (Array.isArray(tournoiInsc)) {
@@ -828,6 +848,7 @@
             const isTournoiStarted = tablesGenerees !== null;
 
             if (isTournoiStarted) {
+                if (!checkMastershipBeforeAction()) return;
                 let trouveTable = false;
                 for (const [tId, seats] of Object.entries(tablesGenerees)) {
                     const seatObj = seats.find(s => s.player === joueur);
@@ -882,6 +903,7 @@
         }
 
         function genererTables() {
+            if (!checkMastershipBeforeAction()) return;
             if (tablesGenerees !== null) return;
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
             let inscritsNoms = Array.isArray(tournoiInsc) ? tournoiInsc : Object.keys(tournoiInsc);
@@ -1014,6 +1036,7 @@
             event.preventDefault();
             event.currentTarget.classList.remove('drag-over');
             if (!draggedData) return;
+            if (!checkMastershipBeforeAction()) return;
 
             const srcTable = draggedData.tableNum;
             const srcSeat = draggedData.seatNum;
@@ -1275,6 +1298,7 @@
             event.preventDefault();
             event.currentTarget.classList.remove('drag-over');
             if (dragClassementIndex === null || dragClassementIndex === targetIndex) return;
+            if (!checkMastershipBeforeAction()) return;
 
             let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => a.classement - b.classement);
             const movedItem = eliminesTries.splice(dragClassementIndex, 1)[0];
@@ -1421,6 +1445,8 @@
         }
 
         function toggleChrono() {
+            if (!checkMastershipBeforeAction()) return;
+
             if (chronoIsRunning) {
                 clearInterval(chronoTimer);
                 chronoIsRunning = false;
@@ -1439,6 +1465,8 @@
         }
 
         function resetChrono() {
+            if (!checkMastershipBeforeAction()) return;
+
             if (appData.tournoisTermines && appData.tournoisTermines[activeTournoiId]) {
                 alert("⚠️ Reset impossible : ce tournoi est terminé et son vainqueur est enregistré dans le classement.");
                 return;
@@ -1505,6 +1533,7 @@
         }
 
         function promptNextLevel() {
+            if (!checkMastershipBeforeAction()) return;
             const choix = prompt("Changement de niveau :\n\n1. Conserver le compte à rebours actuel\n2. Remettre le chrono à zéro (pour le nouveau niveau)\n3. Annuler\n\nTapez 1, 2 ou 3 :", "2");
             if (choix === "1") {
                 changeLevelBy(1, false);
@@ -1514,6 +1543,7 @@
         }
 
         function promptPrevLevel() {
+            if (!checkMastershipBeforeAction()) return;
             const choix = prompt("Retour en arrière (Niveau -) :\n\n1. Conserver le compte à rebours actuel\n2. Remettre le chrono à zéro\n3. Annuler\n\nTapez 1, 2 ou 3 :", "2");
             if (choix === "1") {
                 changeLevelBy(-1, false);
@@ -1523,6 +1553,7 @@
         }
 
         function changeLevelBy(delta, resetTime) {
+            if (!checkMastershipBeforeAction()) return;
             const newNiveau = niveauActuel + delta;
             const structs = appData.structures || {};
             if (newNiveau >= 1 && structs[newNiveau]) {
@@ -1545,6 +1576,7 @@
         }
 
         function eliminerJoueur() {
+            if (!checkMastershipBeforeAction()) return;
             const joueur = document.getElementById('select-eliminer').value;
             if (!joueur) {
                 alert("Veuillez sélectionner un joueur à éliminer.");
@@ -1603,6 +1635,7 @@
         }
 
         function reintegrerJoueur() {
+            if (!checkMastershipBeforeAction()) return;
             const joueur = document.getElementById('select-reintegrer').value;
             if (!joueur) {
                 alert("Veuillez sélectionner un joueur à réintégrer.");
