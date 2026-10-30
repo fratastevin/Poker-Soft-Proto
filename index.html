@@ -364,7 +364,6 @@
 
         function jouerBipChangementNiveau() {
             try {
-                // Remplacez 'bip.wav' par le nom de votre fichier audio .wav
                 const audio = new Audio('bip.wav');
                 audio.volume = 1;
                 audio.play().catch(e => {
@@ -489,12 +488,18 @@
                     populateDropdowns();
 
                     const remoteState = (appData.allStates && activeTournoiId) ? appData.allStates[activeTournoiId] : null;
-                    if (remoteState && remoteState.masterClientId && remoteState.masterClientId !== myClientId) {
-                        isMaster = false;
-                        lockLiveInterfaceForSpectator(true);
-                    } else {
+                    
+                    // Si aucun maître n'est défini ou si c'était déjà notre ID, on s'approprie / conserve le rôle sans bloquer
+                    if (!remoteState || !remoteState.masterClientId || remoteState.masterClientId === myClientId) {
                         isMaster = true;
                         lockLiveInterfaceForSpectator(false);
+                        if (remoteState && activeTournoiId) {
+                            remoteState.masterClientId = myClientId;
+                            saveGameStateToSheet();
+                        }
+                    } else {
+                        isMaster = false;
+                        lockLiveInterfaceForSpectator(true);
                     }
 
                     if (data.allStates && activeTournoiId && data.allStates[activeTournoiId]) {
