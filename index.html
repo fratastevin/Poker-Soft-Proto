@@ -241,7 +241,7 @@
                     if (!scriptUrl) throw new Error("Propriété scriptUrl manquante dans config.json.");
                     loadDataFromSheet();
                     startBackgroundSync();
-                    startInscriptionSync(); // Lancement de la synchro des inscrits toutes les 15s avant démarrage
+                    startInscriptionSync();
                 })
                 .catch(err => {
                     console.error(err);
@@ -283,10 +283,9 @@
             }
         }
 
-        // SYNCHRONISATION DES INSCRIPTIONS TOUTES LES 15 SECONDES (Tant que le tournoi n'a pas démarré)
         function startInscriptionSync() {
             setInterval(() => {
-                if (!scriptUrl || tablesGenerees !== null) return; // Stoppe si les tables sont déjà générées (tournoi démarré)
+                if (!scriptUrl || tablesGenerees !== null) return;
                 
                 fetch(scriptUrl)
                     .then(res => res.json())
@@ -300,6 +299,7 @@
             }, 15000);
         }
 
+        // SYNCHRONISATION ARRIÈRE-PLAN DU LIVE (Ajustée à 15 secondes pour préserver les quotas)
         function startBackgroundSync() {
             setInterval(() => {
                 if (!scriptUrl || !activeTournoiId) return;
@@ -340,7 +340,7 @@
                         }
                     })
                     .catch(err => console.error("Erreur sync arrière-plan:", err));
-            }, 4000);
+            }, 15000); // 15 secondes
         }
 
         function syncRemoteLiveState(state) {
@@ -498,7 +498,6 @@
             joueursEliminesHistorique = [];
             niveauActuel = 1;
             const structs = appData.structures || {};
-            // Lecture stricte de la durée depuis la structure (ex: B2 convertie en secondes depuis les minutes de la structure)
             const structActuelle = structs[1] || {};
             dureeNiveauSec = (structActuelle.dureeMinutes ? structActuelle.dureeMinutes * 60 : (structActuelle.duree || 1200));
             secondesRestantes = dureeNiveauSec;
