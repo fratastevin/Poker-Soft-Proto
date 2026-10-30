@@ -248,6 +248,18 @@
                 });
         };
 
+        function getDureeStructureSec(numNiveau) {
+            const structs = appData.structures || {};
+            const structActuelle = structs[numNiveau] || {};
+            if (structActuelle.duree && !isNaN(structActuelle.duree) && Number(structActuelle.duree) > 0) {
+                return parseFloat(structActuelle.duree);
+            }
+            if (structActuelle.dureeMinutes && !isNaN(structActuelle.dureeMinutes) && Number(structActuelle.dureeMinutes) > 0) {
+                return parseFloat(structActuelle.dureeMinutes) * 60;
+            }
+            return 1200;
+        }
+
         // --- SYNCHRONISATION GLOBALE ET UNIFIÉE EN UN SEUL FLUX ---
         function startGlobalSync() {
             if (globalSyncTimer) clearInterval(globalSyncTimer);
@@ -521,9 +533,7 @@
             totalJoueursInitial = 0;
             joueursEliminesHistorique = [];
             niveauActuel = 1;
-            const structs = appData.structures || {};
-            const structActuelle = structs[1] || {};
-            dureeNiveauSec = (structActuelle.dureeMinutes ? structActuelle.dureeMinutes * 60 : (structActuelle.duree || 1200));
+            dureeNiveauSec = getDureeStructureSec(1);
             secondesRestantes = dureeNiveauSec;
             chronoEndTime = null;
             chronoIsRunning = false;
@@ -539,9 +549,7 @@
             joueursEliminesHistorique = state.joueursEliminesHistorique || [];
             
             niveauActuel = state.niveauActuel || 1;
-            const structs = appData.structures || {};
-            const structActuelle = structs[niveauActuel] || {};
-            dureeNiveauSec = (structActuelle.dureeMinutes ? structActuelle.dureeMinutes * 60 : (structActuelle.duree || 1200));
+            dureeNiveauSec = getDureeStructureSec(niveauActuel);
             secondesRestantes = state.secondesRestantes || dureeNiveauSec;
             chronoEndTime = state.chronoEndTime || null;
             chronoIsRunning = state.chronoIsRunning || false;
@@ -557,8 +565,7 @@
                     let tempsEcouleAbsolu = Math.floor((now - (chronoEndTime - (secondesRestantes * 1000))) / 1000);
                     let niveauxPasses = Math.floor(tempsEcouleAbsolu / dureeNiveauSec);
                     niveauActuel = Math.min(25, niveauActuel + niveauxPasses);
-                    const structSuiv = structs[niveauActuel] || {};
-                    dureeNiveauSec = (structSuiv.dureeMinutes ? structSuiv.dureeMinutes * 60 : (structSuiv.duree || 1200));
+                    dureeNiveauSec = getDureeStructureSec(niveauActuel);
                     secondesRestantes = dureeNiveauSec - (tempsEcouleAbsolu % dureeNiveauSec);
                     startChronoLoop(true);
                 }
@@ -896,16 +903,25 @@
         function togglePresence(joueur) {
             if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
             const tournoiInsc = appData.inscriptions[activeTournoiId];
-            if (tournoiInsc[joueur]) {
-                const currentPresent = tournoiInsc[joueur].present || false;
-                const newPresent = !currentPresent;
-                tournoiInsc[joueur].present = newPresent;
-                updateInscritsUI();
 
+            if (typeof tournoiInsc[joueur] === 'undefined') {
+                tournoiInsc[joueur] = { present: true };
+            }
+
+            const currentPresent = tournoiInsc[joueur].present || false;
+            const newPresent = !currentPresent;
+            tournoiInsc[joueur].present = newPresent;
+            updateInscritsUI();
+
+            if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
                     mode: "no-cors",
                     body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: newPresent })
+                }).then(() => {
+                    if (tablesGenerees !== null && isMaster) {
+                        saveGameStateToSheet();
+                    }
                 });
             }
         }
@@ -1435,8 +1451,7 @@
                     const structs = appData.structures || {};
                     if (structs[niveauActuel + 1]) {
                         niveauActuel++;
-                        const structSuiv = structs[niveauActuel] || {};
-                        dureeNiveauSec = (structSuiv.dureeMinutes ? structSuiv.dureeMinutes * 60 : (structSuiv.duree || 1200));
+                        dureeNiveauSec = getDureeStructureSec(niveauActuel);
                         secondesRestantes = dureeNiveauSec;
                         
                         jouerBipChangementNiveau();
@@ -1487,9 +1502,7 @@
             chronoIsRunning = false;
             chronoEndTime = null;
             niveauActuel = 1;
-            const structs = appData.structures || {};
-            const struct1 = structs[1] || {};
-            dureeNiveauSec = (struct1.dureeMinutes ? struct1.dureeMinutes * 60 : (struct1.duree || 1200));
+            dureeNiveauSec = getDureeStructureSec(1);
             secondesRestantes = dureeNiveauSec;
 
             const btn = document.getElementById('btn-chrono');
@@ -1566,8 +1579,7 @@
             const structs = appData.structures || {};
             if (newNiveau >= 1 && structs[newNiveau]) {
                 niveauActuel = newNiveau;
-                const structActuelle = structs[niveauActuel] || {};
-                dureeNiveauSec = (structActuelle.dureeMinutes ? structActuelle.dureeMinutes * 60 : (structActuelle.duree || 1200));
+                dureeNiveauSec = getDureeStructureSec(niveauActuel);
                 
                 if (resetTime) {
                     secondesRestantes = dureeNiveauSec;
