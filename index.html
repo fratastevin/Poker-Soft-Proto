@@ -241,6 +241,7 @@
                     if (!scriptUrl) throw new Error("Propriété scriptUrl manquante dans config.json.");
                     loadDataFromSheet();
                     startBackgroundSync();
+                    startInscriptionSync(); // Lancement de la synchro des inscrits toutes les 15s avant démarrage
                 })
                 .catch(err => {
                     console.error(err);
@@ -252,21 +253,19 @@
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 
-                // Répétition intensive : 3 cycles de sirène stridente (soit environ 3 secondes d'alarme forte)
                 for (let cycle = 0; cycle < 3; cycle++) {
                     let baseDelay = cycle * 1000;
 
                     setTimeout(() => {
-                        // Double bip strident et puissant par cycle
                         [1200, 1800, 1200, 1800].forEach((freq, i) => {
                             setTimeout(() => {
                                 const osc = audioCtx.createOscillator();
                                 const gain = audioCtx.createGain();
                                 
-                                osc.type = 'sawtooth'; // Onde en dents de scie (son plus perçant/agressif qu'un simple bip)
+                                osc.type = 'sawtooth';
                                 osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
                                 
-                                gain.gain.setValueAtTime(0.35, audioCtx.currentTime); // Volume élevé
+                                gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
                                 gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.22);
                                 
                                 osc.connect(gain);
@@ -282,6 +281,23 @@
             } catch (e) {
                 console.log("Audio non supporté ou bloqué par le navigateur :", e);
             }
+        }
+
+        // SYNCHRONISATION DES INSCRIPTIONS TOUTES LES 15 SECONDES (Tant que le tournoi n'a pas démarré)
+        function startInscriptionSync() {
+            setInterval(() => {
+                if (!scriptUrl || tablesGenerees !== null) return; // Stoppe si les tables sont déjà générées (tournoi démarré)
+                
+                fetch(scriptUrl)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.inscriptions) {
+                            appData.inscriptions = data.inscriptions;
+                            updateInscritsUI();
+                        }
+                    })
+                    .catch(err => console.error("Erreur sync inscriptions:", err));
+            }, 15000);
         }
 
         function startBackgroundSync() {
@@ -482,7 +498,9 @@
             joueursEliminesHistorique = [];
             niveauActuel = 1;
             const structs = appData.structures || {};
-            dureeNiveauSec = structs[1] ? structs[1].duree : 1200;
+            // Lecture stricte de la durée depuis la structure (ex: B2 convertie en secondes depuis les minutes de la structure)
+            const structActuelle = structs[1] || {};
+            dureeNiveauSec = (structActuelle.dureeMinutes ? structActuelle.dureeMinutes * 60 : (structActuelle.duree || 1200));
             secondesRestantes = dureeNiveauSec;
             chronoEndTime = null;
             chronoIsRunning = false;
@@ -499,8 +517,8 @@
             
             niveauActuel = state.niveauActuel || 1;
             const structs = appData.structures || {};
-            const structActuelle = structs[niveauActuel] || {duree: 1200};
-            dureeNiveauSec = structActuelle.duree;
+            const structActuelle = structs[niveauActuel] || {};
+            dureeNiveauSec = (structActuelle.dureeMinutes ? structActuelle.dureeMinutes * 60 : (structActuelle.duree || 1200));
             secondesRestantes = state.secondesRestantes || dureeNiveauSec;
             chronoEndTime = state.chronoEndTime || null;
             chronoIsRunning = state.chronoIsRunning || false;
@@ -516,7 +534,8 @@
                     let tempsEcouleAbsolu = Math.floor((now - (chronoEndTime - (secondesRestantes * 1000))) / 1000);
                     let niveauxPasses = Math.floor(tempsEcouleAbsolu / dureeNiveauSec);
                     niveauActuel = Math.min(25, niveauActuel + niveauxPasses);
-                    dureeNiveauSec = (structs[niveauActuel] ? structs[niveauActuel].duree : 1200);
+                    const structSuiv = structs[niveauActuel] || {};
+                    dureeNiveauSec = (structSuiv.dureeMinutes ? structSuiv.dureeMinutes * 60 : (structSuiv.duree || 1200));
                     secondesRestantes = dureeNiveauSec - (tempsEcouleAbsolu % dureeNiveauSec);
                     startChronoLoop(true);
                 }
@@ -1385,7 +1404,8 @@
                     const structs = appData.structures || {};
                     if (structs[niveauActuel + 1]) {
                         niveauActuel++;
-                        dureeNiveauSec = structs[niveauActuel].duree;
+                        const structSuiv = structs[niveauActuel] || {};
+                        dureeNiveauSec = (structSuiv.dureeMinutes ? structSuiv.dureeMinutes * 60 : (structSuiv.duree || 1200));
                         secondesRestantes = dureeNiveauSec;
                         
                         jouerBipChangementNiveau();
@@ -1433,7 +1453,8 @@
             chronoEndTime = null;
             niveauActuel = 1;
             const structs = appData.structures || {};
-            dureeNiveauSec = structs[1] ? structs[1].duree : 1200;
+            const struct1 = structs[1] || {};
+            dureeNiveauSec = (struct1.dureeMinutes ? struct1.dureeMinutes * 60 : (struct1.duree || 1200));
             secondesRestantes = dureeNiveauSec;
 
             const btn = document.getElementById('btn-chrono');
@@ -1507,7 +1528,8 @@
             const structs = appData.structures || {};
             if (newNiveau >= 1 && structs[newNiveau]) {
                 niveauActuel = newNiveau;
-                dureeNiveauSec = structs[niveauActuel].duree;
+                const structActuelle = structs[niveauActuel] || {};
+                dureeNiveauSec = (structActuelle.dureeMinutes ? structActuelle.dureeMinutes * 60 : (structActuelle.duree || 1200));
                 
                 if (resetTime) {
                     secondesRestantes = dureeNiveauSec;
