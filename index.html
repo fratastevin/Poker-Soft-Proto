@@ -290,7 +290,6 @@
         function startGlobalSync() {
             if (globalSyncTimer) clearInterval(globalSyncTimer);
             
-            // 15 secondes si Maître, 30 secondes pour les spectateurs
             const interval = isMaster ? 15000 : 30000;
 
             globalSyncTimer = setInterval(() => {
@@ -304,7 +303,6 @@
                         appData.classementGeneral = data.classementGeneral || appData.classementGeneral;
                         if (data.structures) appData.structures = data.structures;
 
-                        // 1. Inscriptions : mise à jour UI si l'onglet est affiché et tables non générées
                         if (data.inscriptions) {
                             appData.inscriptions = data.inscriptions;
                             const tabInsc = document.getElementById('tab-inscriptions');
@@ -313,13 +311,11 @@
                             }
                         }
 
-                        // 2. Classement Général
                         const generalTab = document.getElementById('tab-general');
                         if (generalTab && !generalTab.classList.contains('hidden')) {
                             renderClassementGeneralUI();
                         }
 
-                        // 3. Gestion de l'état du Live & du Mastership
                         if (activeTournoiId) {
                             const remoteState = appData.allStates[activeTournoiId];
                             if (remoteState) {
@@ -327,13 +323,13 @@
                                     if (isMaster) {
                                         isMaster = false;
                                         lockLiveInterfaceForSpectator(true);
-                                        startGlobalSync(); // Re-planifie l'intervalle à 30s
+                                        startGlobalSync();
                                     }
                                 } else if (remoteState.masterClientId === myClientId) {
                                     if (!isMaster) {
                                         isMaster = true;
                                         lockLiveInterfaceForSpectator(false);
-                                        startGlobalSync(); // Re-planifie l'intervalle à 15s
+                                        startGlobalSync();
                                     }
                                 }
 
@@ -350,7 +346,6 @@
             }, interval);
         }
 
-        // VÉRIFICATION DU MASTERSHIP AVANT TOUTE ACTION CRITIQUE
         function checkMastershipBeforeAction() {
             if (!activeTournoiId || !appData.allStates || !appData.allStates[activeTournoiId]) return true;
 
@@ -369,35 +364,14 @@
 
         function jouerBipChangementNiveau() {
             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                
-                for (let cycle = 0; cycle < 3; cycle++) {
-                    let baseDelay = cycle * 1000;
-
-                    setTimeout(() => {
-                        [1200, 1800, 1200, 1800].forEach((freq, i) => {
-                            setTimeout(() => {
-                                const osc = audioCtx.createOscillator();
-                                const gain = audioCtx.createGain();
-                                
-                                osc.type = 'sawtooth';
-                                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                                
-                                gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
-                                gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.22);
-                                
-                                osc.connect(gain);
-                                gain.connect(audioCtx.destination);
-                                
-                                osc.start();
-                                osc.stop(audioCtx.currentTime + 0.22);
-                            }, i * 200);
-                        });
-                    }, baseDelay);
-                }
-
+                // Remplacez 'bip.wav' par le nom de votre fichier audio .wav
+                const audio = new Audio('bip.wav');
+                audio.volume = 1;
+                audio.play().catch(e => {
+                    console.log("Lecture audio bloquée ou fichier introuvable :", e);
+                });
             } catch (e) {
-                console.log("Audio non supporté ou bloqué par le navigateur :", e);
+                console.log("Erreur lors de la lecture du fichier audio :", e);
             }
         }
 
@@ -1300,7 +1274,6 @@
             const container = document.getElementById('classement-container');
             container.innerHTML = '';
 
-            // Tri pour afficher le premier éliminé (le pire classement) en premier
             let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
 
             if (eliminesTries.length === 0) {
@@ -1330,16 +1303,13 @@
             if (dragClassementIndex === null || dragClassementIndex === targetIndex) return;
             if (!checkMastershipBeforeAction()) return;
 
-            // Récupère la liste triée depuis le pire classement (premier éliminé) jusqu'au meilleur éliminé
             let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
             const movedItem = eliminesTries.splice(dragClassementIndex, 1)[0];
             eliminesTries.splice(targetIndex, 0, movedItem);
 
-            // CORRECTION CRUCIALE : La numérotation repart du nombre total de participants au départ (ex: 20ème place pour le 1er éliminé)
             const baseClassementPire = totalJoueursInitial || (eliminesTries.length + 1);
 
             eliminesTries.forEach((item, idx) => {
-                // Le premier éliminé de la liste prend la pire place (ex: 20), le suivant (ex: 19), etc.
                 item.classement = baseClassementPire - idx;
             });
 
