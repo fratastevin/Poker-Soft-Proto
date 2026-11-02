@@ -1,4 +1,4 @@
-// --- GOOGLE APPS SCRIPT BACKEND AVEC AUTHENTIFICATION (BUREAUVPC & CODE CLUB) ---
+// --- GOOGLE APPS SERVICE BACKEND SÉCURISÉ ---
 
 function doGet(e) {
   try {
@@ -247,7 +247,7 @@ function doPost(e) {
     const action = data.action;
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // --- 1. CONNEXION ADMIN (BureauVPC) ---
+    // --- 1. CONNEXION ADMIN (ADMIN_USER + MASTER_PASSWORD) ---
     if (action === "loginMaster") {
       const username = data.username;
       const password = data.password;
@@ -276,6 +276,28 @@ function doPost(e) {
       }
     }
 
+    // --- 1B. VÉRIFICATION DU CODE CLUB (CLUB_PASSWORD) ---
+    if (action === "verifyClubPassword") {
+      const clubPasswordSaisi = data.clubPassword;
+      const expectedClubPassword = PropertiesService.getScriptProperties().getProperty('CLUB_PASSWORD');
+
+      if (!expectedClubPassword) {
+        return ContentService.createTextOutput(JSON.stringify({ 
+          status: "error", 
+          message: "Propriété CLUB_PASSWORD non configurée dans Apps Script." 
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      if (clubPasswordSaisi === expectedClubPassword) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+      } else {
+        return ContentService.createTextOutput(JSON.stringify({ 
+          status: "error", 
+          message: "Code secret du club incorrect." 
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
     // --- 2. CONTRÔLE DE SÉCURITÉ POUR ACTIONS ADMIN ---
     const adminActions = ["saveState", "eliminer", "reintegrer", "updateClassementBatch", "resetTournament", "ajouterJoueur"];
     if (adminActions.includes(action)) {
@@ -285,7 +307,7 @@ function doPost(e) {
       if (!clientToken || clientToken !== serverToken) {
         return ContentService.createTextOutput(JSON.stringify({ 
           status: "error", 
-          message: "Accès refusé : Seul 'BureauVPC' (Admin) peut effectuer cette action." 
+          message: "Accès refusé : Authentification Administrateur requise." 
         })).setMimeType(ContentService.MimeType.JSON);
       }
     }

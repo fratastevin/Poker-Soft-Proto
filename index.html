@@ -215,6 +215,7 @@
             localStorage.setItem('poker_client_id', myClientId);
         }
         let isMaster = false;
+        let masterToken = null; // Stocke le token de session sécurisé
 
         let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6, startingStack: 20000, structures: {}, allStates: {}, tournoisTermines: {}, classementGeneral: [] };
         let activeTournoiId = null;
@@ -457,48 +458,55 @@
             });
         }
 
-        // --- AUTHENTIFICATION MASTER (Saisie du user ADMIN puis du mot de passe) ---
-        function tenterAuthentificationMaster() {
+        // --- AUTHENTIFICATION MASTER SÉCURISÉE CÔTÉ SERVEUR ---
+        async function tenterAuthentificationMaster() {
             const userSaisi = prompt("Nom d'utilisateur administrateur :");
-            if (userSaisi === null) return;
-            if (userSaisi.trim() !== "BureauVPC") { // Vous pouvez adapter le nom attendu ici
-                alert("❌ Nom d'utilisateur incorrect. Accès refusé.");
-                return;
-            }
+            if (userSaisi === null || userSaisi.trim() === "") return;
 
-            const pwdSaisi = prompt("Mot de passe :");
-            if (pwdSaisi === null) return;
-            
-            // Mettez ici votre mot de passe administrateur réel
-            const motDePasseAdminReel = "VOTRE_MASTER_PASSWORD"; 
+            const pwdSaisi = prompt("Mot de passe administrateur :");
+            if (pwdSaisi === null || pwdSaisi.trim() === "") return;
 
-            if (pwdSaisi !== motDePasseAdminReel) {
-                alert("❌ Mot de passe incorrect. Accès refusé.");
-                return;
-            }
+            try {
+                const response = await fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "loginMaster",
+                        username: userSaisi.trim(),
+                        password: pwdSaisi
+                    })
+                });
+                const result = await response.json();
 
-            // Authentification réussie
-            isMaster = true;
-            lockLiveInterfaceForSpectator(false);
+                if (result.status === "success") {
+                    masterToken = result.masterToken;
+                    isMaster = true;
+                    lockLiveInterfaceForSpectator(false);
 
-            if (scriptUrl && activeTournoiId) {
-                if (!appData.allStates) appData.allStates = {};
-                if (!appData.allStates[activeTournoiId]) appData.allStates[activeTournoiId] = {};
-                
-                let remoteState = appData.allStates[activeTournoiId];
-                remoteState.masterClientId = myClientId;
+                    if (scriptUrl && activeTournoiId) {
+                        if (!appData.allStates) appData.allStates = {};
+                        if (!appData.allStates[activeTournoiId]) appData.allStates[activeTournoiId] = {};
+                        
+                        let remoteState = appData.allStates[activeTournoiId];
+                        remoteState.masterClientId = myClientId;
 
-                saveGameStateToSheet();
-                
-                const btnMaster = document.querySelector('button[onclick="tenterAuthentificationMaster()"]');
-                if(btnMaster) {
-                    const originalText = btnMaster.innerText;
-                    btnMaster.innerText = "👑 Master Connecté";
-                    setTimeout(() => btnMaster.innerText = originalText, 3000);
+                        saveGameStateToSheet();
+                        
+                        const btnMaster = document.querySelector('button[onclick="tenterAuthentificationMaster()"]');
+                        if(btnMaster) {
+                            const originalText = btnMaster.innerText;
+                            btnMaster.innerText = "👑 Master Connecté";
+                            setTimeout(() => btnMaster.innerText = originalText, 3000);
+                        }
+                    }
+                    alert("👑 Authentification réussie : Vous êtes connecté en tant que Maître du Tournoi.");
+                    startGlobalSync();
+                } else {
+                    alert("❌ " + (result.message || "Identifiant ou mot de passe incorrect."));
                 }
+            } catch (err) {
+                console.error("Erreur d'authentification master:", err);
+                alert("Erreur de communication avec le serveur Google Apps Script.");
             }
-            alert("👑 Authentification réussie : Vous êtes connecté en tant que Maître du Tournoi.");
-            startGlobalSync();
         }
 
         function loadDataFromSheet() {
@@ -600,10 +608,10 @@
 
             fetch(scriptUrl, {
                 method: "POST",
-                mode: "no-cors",
                 body: JSON.stringify({
                     tournoiId: activeTournoiId,
                     action: "saveState",
+                    masterToken: masterToken,
                     state: state
                 })
             }).catch(err => console.error("Erreur saveState:", err));
@@ -642,8 +650,9 @@
             checkTournoiLockStatus();
         }
 
-        function ouvrirModalAjoutJoueur() {
-            if (!verifierClubPassword()) return;
+        async function ouvrirModalAjoutJoueur() {
+            const clubPassword = await verifierClubPasswordAsync();
+            if (!clubPassword) return;
 
             const nomNouveau = prompt("Entrez le pseudo du nouveau joueur :");
             if (!nomNouveau || nomNouveau.trim() === "") return;
@@ -659,13 +668,12 @@
             populateDropdowns();
 
             document.getElementById('select-joueur').value = cleanNom;
-            toggleInscription();
+            toggleInscriptionWithPassword(clubPassword);
 
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ action: "ajouterJoueur", joueur: cleanNom })
+                    body: JSON.stringify({ action: "ajouterJoueur", clubPassword: clubPassword, masterToken: masterToken, joueur: cleanNom })
                 }).catch(err => console.error("Erreur ajout joueur:", err));
             }
         }
@@ -722,22 +730,35 @@
             renderTablesUI();
         }
 
-        // --- AUTHENTIFICATION JOUEUR POUR INSCRIPTION / DÉSINSPECTION ---
-        function verifierClubPassword() {
-            const pwdSaisi = prompt("Mot de passe joueur :");
-            if (pwdSaisi === null) return false;
+        // --- AUTHENTIFICATION CLUB SÉCURISÉE CÔTÉ SERVEUR ---
+        async function verifierClubPasswordAsync() {
+            const pwdSaisi = prompt("Mot de passe joueur (Club) :");
+            if (pwdSaisi === null || pwdSaisi.trim() === "") return null;
 
-            // Mettez ici votre mot de passe joueur réel
-            const motDePasseJoueurReel = "VOTRE_CLUB_PASSWORD";
+            try {
+                const response = await fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "verifyClubPassword",
+                        clubPassword: pwdSaisi
+                    })
+                });
+                const result = await response.json();
 
-            if (pwdSaisi !== motDePasseJoueurReel) {
-                alert("❌ Mot de passe incorrect. Action refusée.");
-                return false;
+                if (result.status === "success") {
+                    return pwdSaisi; // Renvoie le mot de passe valide pour l'inclure dans les requêtes suivantes
+                } else {
+                    alert("❌ " + (result.message || "Code secret du club incorrect."));
+                    return null;
+                }
+            } catch (err) {
+                console.error("Erreur vérification code club:", err);
+                alert("Erreur de communication avec le serveur Google Apps Script.");
+                return null;
             }
-            return true;
         }
 
-        function toggleInscription() {
+        async function toggleInscription() {
             const joueur = document.getElementById('select-joueur').value;
             if (!joueur) {
                 alert("Veuillez sélectionner un joueur dans la liste.");
@@ -748,14 +769,15 @@
             const tournoiInsc = appData.inscriptions[activeTournoiId];
             const isAlreadyInscrit = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
             
-            if (isAlreadyInscrit) {
-                demanderAuthClubEtDesinscrire(joueur);
-            } else {
-                if (!verifierClubPassword()) return;
+            const clubPassword = await verifierClubPasswordAsync();
+            if (!clubPassword) return;
 
+            if (isAlreadyInscrit) {
+                desinscrireJoueurDirect(joueur, clubPassword);
+            } else {
                 if (tablesGenerees !== null) {
                     if (!checkMastershipBeforeAction()) return;
-                    inscrireDerniereMinute(joueur);
+                    inscrireDerniereMinute(joueur, clubPassword);
                 } else {
                     if (Array.isArray(tournoiInsc)) {
                         appData.inscriptions[activeTournoiId].push(joueur);
@@ -767,8 +789,7 @@
                     if (scriptUrl && activeTournoiId) {
                         fetch(scriptUrl, {
                             method: "POST",
-                            mode: "no-cors",
-                            body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire" })
+                            body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire", clubPassword: clubPassword })
                         });
                     }
                 }
@@ -776,9 +797,32 @@
             document.getElementById('select-joueur').selectedIndex = 0;
         }
 
-        function demanderAuthClubEtDesinscrire(joueur) {
-            if (!verifierClubPassword()) return;
-            desinscrireJoueurDirect(joueur);
+        async function toggleInscriptionWithPassword(clubPassword) {
+            const joueur = document.getElementById('select-joueur').value;
+            if (!joueur) return;
+
+            if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+            const tournoiInsc = appData.inscriptions[activeTournoiId];
+
+            if (Array.isArray(tournoiInsc)) {
+                appData.inscriptions[activeTournoiId].push(joueur);
+            } else {
+                appData.inscriptions[activeTournoiId][joueur] = { present: false };
+            }
+            updateInscritsUI();
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire", clubPassword: clubPassword })
+                });
+            }
+        }
+
+        async function demanderAuthClubEtDesinscrire(joueur) {
+            const clubPassword = await verifierClubPasswordAsync();
+            if (!clubPassword) return;
+            desinscrireJoueurDirect(joueur, clubPassword);
         }
 
         function togglePresenceSafe(joueur) {
@@ -786,7 +830,7 @@
             togglePresence(joueur);
         }
 
-        function inscrireDerniereMinute(joueur) {
+        function inscrireDerniereMinute(joueur, clubPassword) {
             const maxPerTable = appData.maxJoueursParTable || 6;
             
             if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
@@ -841,13 +885,11 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire" })
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire", clubPassword: clubPassword })
                 });
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: true })
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: true, masterToken: masterToken })
                 });
             }
         }
@@ -888,7 +930,7 @@
             renderTablesUI();
         }
 
-        function desinscrireJoueurDirect(joueur) {
+        function desinscrireJoueurDirect(joueur, clubPassword) {
             const isTournoiStarted = tablesGenerees !== null;
 
             if (isTournoiStarted) {
@@ -923,8 +965,7 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "desinscrire" })
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "desinscrire", clubPassword: clubPassword })
                 });
             }
         }
@@ -945,8 +986,7 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: newPresent })
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: newPresent, masterToken: masterToken })
                 }).then(() => {
                     if (tablesGenerees !== null && isMaster) {
                         saveGameStateToSheet();
@@ -1210,11 +1250,11 @@
                     if (scriptUrl && activeTournoiId) {
                         fetch(scriptUrl, {
                             method: "POST",
-                            mode: "no-cors",
                             body: JSON.stringify({
                                 tournoiId: activeTournoiId,
                                 joueur: dernierJoueur,
                                 action: "eliminer",
+                                masterToken: masterToken,
                                 classement: 1
                             })
                         }).catch(err => console.error("Erreur enregistrement vainqueur:", err));
@@ -1376,10 +1416,10 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
                     body: JSON.stringify({
                         tournoiId: activeTournoiId,
                         action: "updateClassementBatch",
+                        masterToken: masterToken,
                         classementMap: classementMap
                     })
                 }).catch(err => console.error("Erreur synchro classement:", err));
@@ -1575,10 +1615,10 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
                     body: JSON.stringify({
                         tournoiId: activeTournoiId,
-                        action: "resetTournament"
+                        action: "resetTournament",
+                        masterToken: masterToken
                     })
                 }).catch(err => console.error("Erreur reset:", err));
             }
@@ -1674,11 +1714,11 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
                     body: JSON.stringify({
                         tournoiId: activeTournoiId,
                         joueur: joueur,
                         action: "eliminer",
+                        masterToken: masterToken,
                         classement: classementAttribue
                     })
                 }).catch(err => console.error("Erreur elimination:", err));
@@ -1740,11 +1780,11 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
                     body: JSON.stringify({
                         tournoiId: activeTournoiId,
                         joueur: joueur,
                         action: "reintegrer",
+                        masterToken: masterToken,
                         eliminationsFutures: eliminationsFutures
                     })
                 }).catch(err => console.error("Erreur reintegration:", err));
