@@ -61,6 +61,13 @@
         .table-general th, .table-general td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #334155; }
         .table-general th { color: #fbbf24; background-color: #1e293b; font-weight: bold; }
         .table-general tr:hover { background-color: #1e293b; }
+
+        /* Fenêtres Modales pour masquer les mots de passe par des astérisques */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 10000; }
+        .modal-box { background: #1e293b; border: 1px solid #475569; padding: 1.5rem; border-radius: 0.5rem; width: 320px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); }
+        .modal-box h3 { margin-top: 0; color: #fbbf24; font-size: 1.1rem; }
+        .modal-box input { width: 100%; margin-bottom: 1rem; }
+        .modal-buttons { display: flex; gap: 0.5rem; justify-content: flex-end; }
     </style>
 </head>
 <body>
@@ -82,7 +89,7 @@
             <button onclick="switchTab('live')" id="btn-live" class="btn-tab">Live Tournoi</button>
             <button onclick="switchTab('classement')" id="btn-classement" class="btn-tab">Classement Tournoi</button>
             <button onclick="switchTab('general')" id="btn-general" class="btn-tab">Classement Général</button>
-            <button onclick="tenterAuthentificationMaster()" class="btn-tab btn-purple" title="S'authentifier en tant qu'Administrateur">👑 Master</button>
+            <button onclick="gererBoutonMaster()" id="btn-master-toggle" class="btn-tab btn-purple" title="S'authentifier ou se déconnecter du mode Master">👑 Master</button>
         </div>
     </header>
 
@@ -116,7 +123,7 @@
 
             <div class="card">
                 <h3 style="margin-top:0; color:#cbd5e1; font-size:1rem;">Liste des Inscrits & Appel (<span id="count-inscrits">0</span>)</h3>
-                <p style="font-size:0.75rem; color:#94a3b8; margin-top:0;">Inscriptions de dernière minute possibles. Gestion des présences ouverte (nécessite l'authentification Master).</p>
+                <p style="font-size:0.75rem; color:#94a3b8; margin-top:0;">Inscriptions de dernière minute possibles. Gestion des présences ouverte.</p>
                 <ul id="list-inscrits"></ul>
             </div>
         </section>
@@ -214,8 +221,9 @@
             myClientId = 'client_' + Math.random().toString(36).substr(2, 9);
             localStorage.setItem('poker_client_id', myClientId);
         }
-        let isMaster = false;
-        let masterToken = null; // Stocke le token de session sécurisé
+
+        let isMaster = sessionStorage.getItem('poker_is_master') === 'true';
+        let masterToken = sessionStorage.getItem('poker_master_token') || null;
 
         let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6, startingStack: 20000, structures: {}, allStates: {}, tournoisTermines: {}, classementGeneral: [] };
         let activeTournoiId = null;
@@ -233,6 +241,8 @@
         let globalSyncTimer = null;
 
         window.onload = function() {
+            mettreAJourBoutonMasterUI();
+
             fetch('config.json')
                 .then(res => {
                     if (!res.ok) throw new Error("Fichier config.json introuvable.");
@@ -319,20 +329,6 @@
                         if (activeTournoiId) {
                             const remoteState = appData.allStates[activeTournoiId];
                             if (remoteState) {
-                                if (remoteState.masterClientId && remoteState.masterClientId !== myClientId) {
-                                    if (isMaster) {
-                                        isMaster = false;
-                                        lockLiveInterfaceForSpectator(true);
-                                        startGlobalSync();
-                                    }
-                                } else if (remoteState.masterClientId === myClientId) {
-                                    if (!isMaster) {
-                                        isMaster = true;
-                                        lockLiveInterfaceForSpectator(false);
-                                        startGlobalSync();
-                                    }
-                                }
-
                                 if (!isMaster) {
                                     syncRemoteLiveState(remoteState);
                                 }
@@ -351,19 +347,6 @@
                 alert("⚠️ Action refusée : Vous devez d'abord vous authentifier en tant que Maître (bouton 👑 Master).");
                 return false;
             }
-
-            if (!activeTournoiId || !appData.allStates || !appData.allStates[activeTournoiId]) return true;
-
-            const remoteState = appData.allStates[activeTournoiId];
-            const currentMasterId = remoteState.masterClientId;
-
-            if (currentMasterId && currentMasterId !== myClientId) {
-                isMaster = false;
-                lockLiveInterfaceForSpectator(true);
-                syncRemoteLiveState(remoteState);
-                alert("⚠️ Action refusée : Un autre appareil a pris le rôle de Maître du Tournoi.");
-                return false;
-            }
             return true;
         }
 
@@ -371,17 +354,12 @@
             try {
                 const audio = new Audio('bip.wav');
                 audio.volume = 1;
-                audio.play().catch(e => {
-                    console.log("Lecture audio bloquée ou fichier introuvable :", e);
-                });
-            } catch (e) {
-                console.log("Erreur lors de la lecture du fichier audio :", e);
-            }
+                audio.play().catch(e => console.log("Lecture audio bloquée :", e));
+            } catch (e) {}
         }
 
         function syncRemoteLiveState(state) {
-            if (!state) return;
-            if (isMaster) return;
+            if (!state || isMaster) return;
 
             if (state.niveauActuel && state.niveauActuel !== niveauActuel) {
                 niveauActuel = state.niveauActuel;
@@ -399,36 +377,21 @@
             if (alertBox && state.derniereAlerte) {
                 let consigneNettoyee = state.derniereAlerte.replace(/<button[^>]*>Compris<\/button>/gi, '');
                 alertBox.innerHTML = consigneNettoyee;
-                
-                if (consignesContiennentUneAlerte(state.derniereAlerte)) {
-                    alertBox.className = "alert alert-action";
-                } else {
-                    alertBox.className = "alert";
-                }
+                alertBox.className = consignesContiennentUneAlerte(state.derniereAlerte) ? "alert alert-action" : "alert";
             }
 
             if (chronoIsRunning && state.chronoEndTime) {
                 chronoEndTime = state.chronoEndTime;
-                const now = Date.now();
-                const diff = Math.ceil((chronoEndTime - now) / 1000);
-                if (diff > 0) {
-                    secondesRestantes = diff;
-                }
-                if (!chronoTimer) {
-                    startChronoLoop(false);
-                }
+                const diff = Math.ceil((chronoEndTime - Date.now()) / 1000);
+                if (diff > 0) secondesRestantes = diff;
+                if (!chronoTimer) startChronoLoop(false);
             } else {
                 if (chronoTimer) clearInterval(chronoTimer);
                 chronoIsRunning = false;
                 chronoEndTime = null;
-                if (state.secondesRestantes !== undefined) {
-                    secondesRestantes = state.secondesRestantes;
-                }
+                if (state.secondesRestantes !== undefined) secondesRestantes = state.secondesRestantes;
                 const btn = document.getElementById('btn-chrono');
-                if (btn) {
-                    btn.innerText = "Start";
-                    btn.className = "btn-green";
-                }
+                if (btn) { btn.innerText = "Start"; btn.className = "btn-green"; }
             }
 
             updateChronoUI();
@@ -449,7 +412,7 @@
                 if (lock && !btn.classList.contains('allow-spectator')) {
                     btn.disabled = true;
                     btn.style.opacity = '0.5';
-                    btn.title = "Action réservée au Maître du tournoi (authentification Master requise).";
+                    btn.title = "Action réservée au Maître du tournoi.";
                 } else if (!lock) {
                     btn.disabled = false;
                     btn.style.opacity = '1';
@@ -458,20 +421,86 @@
             });
         }
 
-        // --- AUTHENTIFICATION MASTER SÉCURISÉE CÔTÉ SERVEUR ---
-        async function tenterAuthentificationMaster() {
-            const userSaisi = prompt("Nom d'utilisateur administrateur :");
-            if (userSaisi === null || userSaisi.trim() === "") return;
+        function mettreAJourBoutonMasterUI() {
+            const btnMaster = document.getElementById('btn-master-toggle');
+            if (!btnMaster) return;
 
-            const pwdSaisi = prompt("Mot de passe administrateur :");
-            if (pwdSaisi === null || pwdSaisi.trim() === "") return;
+            if (isMaster) {
+                btnMaster.innerText = "👑 Master (Déco)";
+                btnMaster.style.backgroundColor = "#059669";
+                lockLiveInterfaceForSpectator(false);
+            } else {
+                btnMaster.innerText = "👑 Master";
+                btnMaster.style.backgroundColor = "#7c3aed";
+                lockLiveInterfaceForSpectator(true);
+            }
+        }
+
+        function gererBoutonMaster() {
+            if (isMaster) {
+                if (confirm("Voulez-vous vous déconnecter du mode Administrateur (Master) ?")) {
+                    isMaster = false;
+                    masterToken = null;
+                    sessionStorage.removeItem('poker_is_master');
+                    sessionStorage.removeItem('poker_master_token');
+                    mettreAJourBoutonMasterUI();
+                    alert("🔓 Vous êtes déconnecté du mode Master (mode spectateur activé).");
+                }
+            } else {
+                ouvrirModalLoginMaster();
+            }
+        }
+
+        function ouvrirModalLoginMaster() {
+            const oldModal = document.getElementById('custom-modal-login');
+            if (oldModal) oldModal.remove();
+
+            const modalHtml = `
+                <div id="custom-modal-login" class="modal-overlay">
+                    <div class="modal-box">
+                        <h3>Connexion Administrateur</h3>
+                        <label>Identifiant :</label>
+                        <input type="text" id="modal-user" placeholder="Nom d'utilisateur" autocomplete="username">
+                        <label>Mot de passe :</label>
+                        <input type="password" id="modal-password" placeholder="••••••••" autocomplete="current-password">
+                        <div class="modal-buttons">
+                            <button onclick="fermerModalLogin()" style="background:#475569; width:auto; padding:0.5rem 1rem;">Annuler</button>
+                            <button onclick="validerLoginMaster()" class="btn-purple" style="width:auto; padding:0.5rem 1rem;">Connexion</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.getElementById('modal-user').focus();
+
+            const inputPwd = document.getElementById('modal-password');
+            inputPwd.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') validerLoginMaster();
+            });
+        }
+
+        function fermerModalLogin() {
+            const modal = document.getElementById('custom-modal-login');
+            if (modal) modal.remove();
+        }
+
+        async function validerLoginMaster() {
+            const userSaisi = document.getElementById('modal-user').value.trim();
+            const pwdSaisi = document.getElementById('modal-password').value;
+
+            if (!userSaisi || !pwdSaisi) {
+                alert("Veuillez remplir tous les champs.");
+                return;
+            }
+
+            fermerModalLogin();
 
             try {
                 const response = await fetch(scriptUrl, {
                     method: "POST",
                     body: JSON.stringify({
                         action: "loginMaster",
-                        username: userSaisi.trim(),
+                        username: userSaisi,
                         password: pwdSaisi
                     })
                 });
@@ -480,23 +509,17 @@
                 if (result.status === "success") {
                     masterToken = result.masterToken;
                     isMaster = true;
-                    lockLiveInterfaceForSpectator(false);
+                    
+                    sessionStorage.setItem('poker_is_master', 'true');
+                    sessionStorage.setItem('poker_master_token', masterToken);
+
+                    mettreAJourBoutonMasterUI();
 
                     if (scriptUrl && activeTournoiId) {
                         if (!appData.allStates) appData.allStates = {};
                         if (!appData.allStates[activeTournoiId]) appData.allStates[activeTournoiId] = {};
-                        
-                        let remoteState = appData.allStates[activeTournoiId];
-                        remoteState.masterClientId = myClientId;
-
+                        appData.allStates[activeTournoiId].masterClientId = myClientId;
                         saveGameStateToSheet();
-                        
-                        const btnMaster = document.querySelector('button[onclick="tenterAuthentificationMaster()"]');
-                        if(btnMaster) {
-                            const originalText = btnMaster.innerText;
-                            btnMaster.innerText = "👑 Master Connecté";
-                            setTimeout(() => btnMaster.innerText = originalText, 3000);
-                        }
                     }
                     alert("👑 Authentification réussie : Vous êtes connecté en tant que Maître du Tournoi.");
                     startGlobalSync();
@@ -506,6 +529,72 @@
             } catch (err) {
                 console.error("Erreur d'authentification master:", err);
                 alert("Erreur de communication avec le serveur Google Apps Script.");
+            }
+        }
+
+        function demanderMotDePasseClubAsync() {
+            return new Promise((resolve) => {
+                const oldModal = document.getElementById('custom-modal-club');
+                if (oldModal) oldModal.remove();
+
+                const modalHtml = `
+                    <div id="custom-modal-club" class="modal-overlay">
+                        <div class="modal-box">
+                            <h3>Code Secret du Club</h3>
+                            <label>Entrez le mot de passe joueur :</label>
+                            <input type="password" id="modal-club-password" placeholder="••••••••" autocomplete="current-password">
+                            <div class="modal-buttons">
+                                <button onclick="fermerModalClub(null)" style="background:#475569; width:auto; padding:0.5rem 1rem;">Annuler</button>
+                                <button onclick="soumettreModalClub()" class="btn-green" style="width:auto; padding:0.5rem 1rem;">Valider</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                const inputPwd = document.getElementById('modal-club-password');
+                inputPwd.focus();
+                inputPwd.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') soumettreModalClub();
+                });
+
+                window._resolveClubPrompt = resolve;
+            });
+        }
+
+        function fermerModalClub(valeur) {
+            const modal = document.getElementById('custom-modal-club');
+            if (modal) modal.remove();
+            if (window._resolveClubPrompt) {
+                window._resolveClubPrompt(valeur);
+                window._resolveClubPrompt = null;
+            }
+        }
+
+        async function soumettreModalClub() {
+            const pwdSaisi = document.getElementById('modal-club-password').value;
+            if (!pwdSaisi) {
+                alert("Veuillez entrer le mot de passe.");
+                return;
+            }
+
+            try {
+                const response = await fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "verifyClubPassword",
+                        clubPassword: pwdSaisi
+                    })
+                });
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    fermerModalClub(pwdSaisi);
+                } else {
+                    alert("❌ " + (result.message || "Code secret du club incorrect."));
+                }
+            } catch (err) {
+                console.error("Erreur vérification code club:", err);
+                alert("Erreur de communication avec le serveur.");
             }
         }
 
@@ -519,8 +608,7 @@
                     if (data.structures) appData.structures = data.structures;
                     populateDropdowns();
 
-                    isMaster = false;
-                    lockLiveInterfaceForSpectator(true);
+                    mettreAJourBoutonMasterUI();
 
                     if (data.allStates && activeTournoiId && data.allStates[activeTournoiId]) {
                         restoreGameState(data.allStates[activeTournoiId]);
@@ -588,8 +676,7 @@
         }
 
         function saveGameStateToSheet() {
-            if (!scriptUrl || !activeTournoiId) return;
-            if (!isMaster) return;
+            if (!scriptUrl || !activeTournoiId || !isMaster) return;
 
             const alertBox = document.getElementById('live-alertes');
             let consigneActuelle = alertBox ? alertBox.innerHTML : "";
@@ -651,7 +738,7 @@
         }
 
         async function ouvrirModalAjoutJoueur() {
-            const clubPassword = await verifierClubPasswordAsync();
+            const clubPassword = await demanderMotDePasseClubAsync();
             if (!clubPassword) return;
 
             const nomNouveau = prompt("Entrez le pseudo du nouveau joueur :");
@@ -730,34 +817,6 @@
             renderTablesUI();
         }
 
-        // --- AUTHENTIFICATION CLUB SÉCURISÉE CÔTÉ SERVEUR ---
-        async function verifierClubPasswordAsync() {
-            const pwdSaisi = prompt("Mot de passe joueur (Club) :");
-            if (pwdSaisi === null || pwdSaisi.trim() === "") return null;
-
-            try {
-                const response = await fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({
-                        action: "verifyClubPassword",
-                        clubPassword: pwdSaisi
-                    })
-                });
-                const result = await response.json();
-
-                if (result.status === "success") {
-                    return pwdSaisi; // Renvoie le mot de passe valide pour l'inclure dans les requêtes suivantes
-                } else {
-                    alert("❌ " + (result.message || "Code secret du club incorrect."));
-                    return null;
-                }
-            } catch (err) {
-                console.error("Erreur vérification code club:", err);
-                alert("Erreur de communication avec le serveur Google Apps Script.");
-                return null;
-            }
-        }
-
         async function toggleInscription() {
             const joueur = document.getElementById('select-joueur').value;
             if (!joueur) {
@@ -769,7 +828,7 @@
             const tournoiInsc = appData.inscriptions[activeTournoiId];
             const isAlreadyInscrit = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
             
-            const clubPassword = await verifierClubPasswordAsync();
+            const clubPassword = await demanderMotDePasseClubAsync();
             if (!clubPassword) return;
 
             if (isAlreadyInscrit) {
@@ -820,7 +879,7 @@
         }
 
         async function demanderAuthClubEtDesinscrire(joueur) {
-            const clubPassword = await verifierClubPasswordAsync();
+            const clubPassword = await demanderMotDePasseClubAsync();
             if (!clubPassword) return;
             desinscrireJoueurDirect(joueur, clubPassword);
         }
@@ -934,7 +993,6 @@
             const isTournoiStarted = tablesGenerees !== null;
 
             if (isTournoiStarted) {
-                if (!checkMastershipBeforeAction()) return;
                 let trouveTable = false;
                 for (const [tId, seats] of Object.entries(tablesGenerees)) {
                     const seatObj = seats.find(s => s.player === joueur);
@@ -944,9 +1002,7 @@
                         break;
                     }
                 }
-                if (trouveTable) {
-                    totalJoueursInitial--;
-                }
+                if (trouveTable) totalJoueursInitial--;
             }
 
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
@@ -957,7 +1013,7 @@
             }
 
             updateInscritsUI();
-            if (isTournoiStarted) {
+            if (isTournoiStarted && isMaster) {
                 verifierEtReequilibrer();
                 saveGameStateToSheet();
             }
@@ -1102,9 +1158,7 @@
                             <span>Table ${tNum}</span>
                             <span style="font-size:0.75rem; color:#94a3b8;">(${actifsCount} joueurs)</span>
                         </div>
-                        <div class="seat-list">
-                            ${seatsHtml}
-                        </div>
+                        <div class="seat-list">${seatsHtml}</div>
                     </div>
                 `;
             }
@@ -1116,20 +1170,13 @@
             event.dataTransfer.setData('text/plain', playerName);
         }
 
-        function onDragOver(event) {
-            event.preventDefault();
-            event.currentTarget.classList.add('drag-over');
-        }
-
-        function onDragLeave(event) {
-            event.currentTarget.classList.remove('drag-over');
-        }
+        function onDragOver(event) { event.preventDefault(); event.currentTarget.classList.add('drag-over'); }
+        function onDragLeave(event) { event.currentTarget.classList.remove('drag-over'); }
 
         function onDrop(event, targetTableNum, targetSeatNum) {
             event.preventDefault();
             event.currentTarget.classList.remove('drag-over');
-            if (!draggedData) return;
-            if (!checkMastershipBeforeAction()) return;
+            if (!draggedData || !checkMastershipBeforeAction()) return;
 
             const srcTable = draggedData.tableNum;
             const srcSeat = draggedData.seatNum;
@@ -1149,8 +1196,8 @@
 
         function switchTab(tab) {
             if ((tab === 'tables' || tab === 'live' || tab === 'classement') && !isMaster) {
-                alert("⚠️ Accès restreint : Vous devez vous authentifier en tant que Maître (bouton 👑 Master) pour accéder à cet onglet de gestion.");
-                tenterAuthentificationMaster();
+                alert("⚠️ Accès restreint : Veuillez vous authentifier en tant que Maître (bouton 👑 Master).");
+                gererBoutonMaster();
                 if (!isMaster) return; 
             }
 
@@ -1163,18 +1210,14 @@
             document.getElementById(`btn-${tab}`).style.backgroundColor = '#d97706';
             document.getElementById(`btn-${tab}`).style.color = '#ffffff';
 
-            if (tab === 'live') {
-                initLive();
-            } else if (tab === 'classement') {
-                renderClassementUI();
-            } else if (tab === 'general') {
-                renderClassementGeneralUI();
-            }
+            if (tab === 'live') initLive();
+            else if (tab === 'classement') renderClassementUI();
+            else if (tab === 'general') renderClassementGeneralUI();
         }
 
         function initLive() {
             if (!tablesGenerees) {
-                alert("Veuillez d'abord générer les plans de table dans l'onglet 'Plans de Table' avant de lancer le live !");
+                alert("Veuillez d'abord générer les plans de table !");
                 return;
             }
 
@@ -1182,9 +1225,7 @@
 
             let tousJoueursActifs = [];
             for (const seats of Object.values(tablesGenerees)) {
-                seats.forEach(s => {
-                    if (s.player) tousJoueursActifs.push(s.player);
-                });
+                seats.forEach(s => { if (s.player) tousJoueursActifs.push(s.player); });
             }
 
             const selElim = document.getElementById('select-eliminer');
@@ -1390,8 +1431,7 @@
         function onDropClassement(event, targetIndex) {
             event.preventDefault();
             event.currentTarget.classList.remove('drag-over');
-            if (dragClassementIndex === null || dragClassementIndex === targetIndex) return;
-            if (!checkMastershipBeforeAction()) return;
+            if (dragClassementIndex === null || dragClassementIndex === targetIndex || !checkMastershipBeforeAction()) return;
 
             let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
             const movedItem = eliminesTries.splice(dragClassementIndex, 1)[0];
@@ -1431,7 +1471,7 @@
             const data = appData.classementGeneral || [];
 
             if (data.length === 0) {
-                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune donnée de classement général disponible dans la feuille.</p>`;
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune donnée de classement général disponible.</p>`;
                 return;
             }
 
@@ -1478,12 +1518,7 @@
             const currentStruct = structs[niveauActuel] || {label: `Niveau ${niveauActuel}`, sb: 0, bb: 0, ante: 0};
             
             document.getElementById('live-niveau').innerText = currentStruct.label;
-            
-            if (currentStruct.isPause) {
-                document.getElementById('live-blinds').innerText = "PAUSE";
-            } else {
-                document.getElementById('live-blinds').innerText = `${currentStruct.sb} / ${currentStruct.bb} (Ante ${currentStruct.ante})`;
-            }
+            document.getElementById('live-blinds').innerText = currentStruct.isPause ? "PAUSE" : `${currentStruct.sb} / ${currentStruct.bb} (Ante ${currentStruct.ante})`;
 
             const nextStruct = structs[niveauActuel + 1];
             if (nextStruct) {
@@ -1496,21 +1531,13 @@
         function startChronoLoop(save = true) {
             chronoIsRunning = true;
             const btn = document.getElementById('btn-chrono');
-            if (btn) {
-                btn.innerText = "Pause";
-                btn.className = "btn-amber";
-            }
+            if (btn) { btn.innerText = "Pause"; btn.className = "btn-amber"; }
 
-            if (!chronoEndTime) {
-                chronoEndTime = Date.now() + (secondesRestantes * 1000);
-            }
-
+            if (!chronoEndTime) chronoEndTime = Date.now() + (secondesRestantes * 1000);
             if (chronoTimer) clearInterval(chronoTimer);
 
             chronoTimer = setInterval(() => {
-                const now = Date.now();
-                const diff = Math.ceil((chronoEndTime - now) / 1000);
-
+                const diff = Math.ceil((chronoEndTime - Date.now()) / 1000);
                 if (diff > 0) {
                     secondesRestantes = diff;
                     updateChronoUI();
@@ -1524,9 +1551,7 @@
                         niveauActuel++;
                         dureeNiveauSec = getDureeStructureSec(niveauActuel);
                         secondesRestantes = dureeNiveauSec;
-                        
                         jouerBipChangementNiveau();
-
                         startChronoLoop(true);
                     } else {
                         alert("🏁 Fin de la structure des niveaux !");
@@ -1546,10 +1571,7 @@
                 chronoIsRunning = false;
                 chronoEndTime = null;
                 const btn = document.getElementById('btn-chrono');
-                if (btn) {
-                    btn.innerText = "Start";
-                    btn.className = "btn-green";
-                }
+                if (btn) { btn.innerText = "Start"; btn.className = "btn-green"; }
                 updateChronoUI();
                 saveGameStateToSheet();
             } else {
@@ -1562,13 +1584,14 @@
             if (!checkMastershipBeforeAction()) return;
 
             if (appData.tournoisTermines && appData.tournoisTermines[activeTournoiId]) {
-                alert("⚠️ Reset impossible : ce tournoi est terminé et son vainqueur est enregistré dans le classement.");
+                alert("⚠️ Reset impossible : ce tournoi est terminé.");
                 return;
             }
 
             if (!confirm("⚠️ RESET COMPLET DU TOURNOI :\n\n- Le chrono repassera au début.\n- Tous les joueurs éliminés seront réintégrés.\n- Leurs classements enregistrés sur Google Sheet seront effacés.\n- Les plans de table pourront être refaits.\n\nConfirmez-vous cette réinitialisation ?")) {
                 return;
             }
+
             clearInterval(chronoTimer);
             chronoIsRunning = false;
             chronoEndTime = null;
@@ -1577,10 +1600,7 @@
             secondesRestantes = dureeNiveauSec;
 
             const btn = document.getElementById('btn-chrono');
-            if (btn) {
-                btn.innerText = "Start";
-                btn.className = "btn-green";
-            }
+            if (btn) { btn.innerText = "Start"; btn.className = "btn-green"; }
             updateChronoUI();
 
             if (joueursEliminesHistorique.length > 0 && tablesGenerees) {
@@ -1615,11 +1635,7 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({
-                        tournoiId: activeTournoiId,
-                        action: "resetTournament",
-                        masterToken: masterToken
-                    })
+                    body: JSON.stringify({ tournoiId: activeTournoiId, action: "resetTournament", masterToken: masterToken })
                 }).catch(err => console.error("Erreur reset:", err));
             }
         }
@@ -1627,37 +1643,26 @@
         function promptNextLevel() {
             if (!checkMastershipBeforeAction()) return;
             const choix = prompt("Changement de niveau :\n\n1. Conserver le compte à rebours actuel\n2. Remettre le chrono à zéro (pour le nouveau niveau)\n3. Annuler\n\nTapez 1, 2 ou 3 :", "2");
-            if (choix === "1") {
-                changeLevelBy(1, false);
-            } else if (choix === "2") {
-                changeLevelBy(1, true);
-            }
+            if (choix === "1") changeLevelBy(1, false);
+            else if (choix === "2") changeLevelBy(1, true);
         }
 
         function promptPrevLevel() {
             if (!checkMastershipBeforeAction()) return;
             const choix = prompt("Retour en arrière (Niveau -) :\n\n1. Conserver le compte à rebours actuel\n2. Remettre le chrono à zéro\n3. Annuler\n\nTapez 1, 2 ou 3 :", "2");
-            if (choix === "1") {
-                changeLevelBy(-1, false);
-            } else if (choix === "2") {
-                changeLevelBy(-1, true);
-            }
+            if (choix === "1") changeLevelBy(-1, false);
+            else if (choix === "2") changeLevelBy(-1, true);
         }
 
         function changeLevelBy(delta, resetTime) {
-            if (!checkMastershipBeforeAction()) return;
             const newNiveau = niveauActuel + delta;
             const structs = appData.structures || {};
             if (newNiveau >= 1 && structs[newNiveau]) {
                 niveauActuel = newNiveau;
                 dureeNiveauSec = getDureeStructureSec(niveauActuel);
-                
-                if (resetTime) {
-                    secondesRestantes = dureeNiveauSec;
-                }
+                if (resetTime) secondesRestantes = dureeNiveauSec;
                 
                 jouerBipChangementNiveau();
-
                 chronoEndTime = chronoIsRunning ? (Date.now() + (secondesRestantes * 1000)) : null;
                 updateChronoUI();
                 
@@ -1669,14 +1674,9 @@
         function eliminerJoueur() {
             if (!checkMastershipBeforeAction()) return;
             const joueur = document.getElementById('select-eliminer').value;
-            if (!joueur) {
-                alert("Veuillez sélectionner un joueur à éliminer.");
-                return;
-            }
+            if (!joueur) return;
 
-            if (!confirm(`Confirmez-vous l'élimination définitive de ${joueur} ?`)) {
-                return;
-            }
+            if (!confirm(`Confirmez-vous l'élimination définitive de ${joueur} ?`)) return;
 
             let restantsCount = 0;
             let origTableId = null, origSeat = null;
@@ -1686,23 +1686,14 @@
                     seats.forEach(s => {
                         if (s.player) {
                             restantsCount++;
-                            if (s.player === joueur) {
-                                origTableId = tId;
-                                origSeat = s.seat;
-                            }
+                            if (s.player === joueur) { origTableId = tId; origSeat = s.seat; }
                         }
                     });
                 }
             }
 
             const classementAttribue = restantsCount;
-
-            joueursEliminesHistorique.push({
-                joueur: joueur,
-                classement: classementAttribue,
-                origTableId: origTableId,
-                origSeat: origSeat
-            });
+            joueursEliminesHistorique.push({ joueur, classement: classementAttribue, origTableId, origSeat });
 
             if (tablesGenerees && origTableId) {
                 tablesGenerees[origTableId].find(s => s.seat == origSeat).player = null;
@@ -1714,13 +1705,7 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({
-                        tournoiId: activeTournoiId,
-                        joueur: joueur,
-                        action: "eliminer",
-                        masterToken: masterToken,
-                        classement: classementAttribue
-                    })
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur, action: "eliminer", masterToken: masterToken, classement: classementAttribue })
                 }).catch(err => console.error("Erreur elimination:", err));
             }
         }
@@ -1728,27 +1713,21 @@
         function reintegrerJoueur() {
             if (!checkMastershipBeforeAction()) return;
             const joueur = document.getElementById('select-reintegrer').value;
-            if (!joueur) {
-                alert("Veuillez sélectionner un joueur à réintégrer.");
-                return;
-            }
+            if (!joueur) return;
 
-            if (!confirm(`Voulez-vous vraiment réintégrer ${joueur} au tournoi ? Son classement sera annulé.`)) {
-                return;
-            }
+            if (!confirm(`Voulez-vous vraiment réintégrer ${joueur} au tournoi ? Son classement sera annulé.`)) return;
 
             const idx = joueursEliminesHistorique.findIndex(item => item.joueur === joueur);
             if (idx === -1) return;
 
             const elemReintegre = joueursEliminesHistorique[idx];
             const classementsAncien = elemReintegre.classement;
-
             joueursEliminesHistorique.splice(idx, 1);
 
             let eliminationsFutures = [];
             joueursEliminesHistorique.forEach(item => {
                 if (item.classement > classementsAncien) {
-                    item.classement = item.classement - 1;
+                    item.classement--;
                     eliminationsFutures.push({ joueur: item.joueur, nouveauClassement: item.classement });
                 }
             });
@@ -1780,13 +1759,7 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({
-                        tournoiId: activeTournoiId,
-                        joueur: joueur,
-                        action: "reintegrer",
-                        masterToken: masterToken,
-                        eliminationsFutures: eliminationsFutures
-                    })
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur, action: "reintegrer", masterToken: masterToken, eliminationsFutures })
                 }).catch(err => console.error("Erreur reintegration:", err));
             }
         }
