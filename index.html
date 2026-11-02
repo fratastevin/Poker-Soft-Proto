@@ -82,7 +82,7 @@
             <button onclick="switchTab('live')" id="btn-live" class="btn-tab">Live Tournoi</button>
             <button onclick="switchTab('classement')" id="btn-classement" class="btn-tab">Classement Tournoi</button>
             <button onclick="switchTab('general')" id="btn-general" class="btn-tab">Classement Général</button>
-            <button onclick="tenterAuthentificationMaster()" class="btn-tab btn-purple" title="S'authentifier en tant qu'Admin Master">👑 Master</button>
+            <button onclick="tenterAuthentificationMaster()" class="btn-tab btn-purple" title="S'authentifier en tant qu'Administrateur">👑 Master</button>
         </div>
     </header>
 
@@ -116,7 +116,7 @@
 
             <div class="card">
                 <h3 style="margin-top:0; color:#cbd5e1; font-size:1rem;">Liste des Inscrits & Appel (<span id="count-inscrits">0</span>)</h3>
-                <p style="font-size:0.75rem; color:#94a3b8; margin-top:0;">Inscriptions de dernière minute possibles. Gestion des présences ouverte (nécessite le mode Master).</p>
+                <p style="font-size:0.75rem; color:#94a3b8; margin-top:0;">Inscriptions de dernière minute possibles. Gestion des présences ouverte (nécessite l'authentification Master).</p>
                 <ul id="list-inscrits"></ul>
             </div>
         </section>
@@ -457,18 +457,23 @@
             });
         }
 
-        // --- AUTHENTIFICATION MASTER (ADMIN_USER & MASTER_PASSWORD) ---
+        // --- AUTHENTIFICATION MASTER (Saisie du user ADMIN puis du mot de passe) ---
         function tenterAuthentificationMaster() {
-            const userSaisi = prompt("Veuillez saisir le nom d'utilisateur ADMIN_USER :");
-            if (userSaisi !== "BureauVPC") { // Remplacez "BureauVPC" si ADMIN_USER est différent
+            const userSaisi = prompt("Nom d'utilisateur administrateur :");
+            if (userSaisi === null) return;
+            if (userSaisi.trim() !== "BureauVPC") { // Vous pouvez adapter le nom attendu ici
                 alert("❌ Nom d'utilisateur incorrect. Accès refusé.");
                 return;
             }
 
-            const pwdSaisi = prompt("Veuillez saisir le mot de passe MASTER_PASSWORD :");
-            // Remplacez 'VOTRE_MASTER_PASSWORD' par le mot de passe admin réel
-            if (pwdSaisi !== "VOTRE_MASTER_PASSWORD") {
-                alert("❌ Mot de passe Master incorrect. Accès refusé.");
+            const pwdSaisi = prompt("Mot de passe :");
+            if (pwdSaisi === null) return;
+            
+            // Mettez ici votre mot de passe administrateur réel
+            const motDePasseAdminReel = "VOTRE_MASTER_PASSWORD"; 
+
+            if (pwdSaisi !== motDePasseAdminReel) {
+                alert("❌ Mot de passe incorrect. Accès refusé.");
                 return;
             }
 
@@ -492,7 +497,7 @@
                     setTimeout(() => btnMaster.innerText = originalText, 3000);
                 }
             }
-            alert("👑 Authentification réussie : Vous êtes connecté en tant que Maître du Tournoi pour cet appareil.");
+            alert("👑 Authentification réussie : Vous êtes connecté en tant que Maître du Tournoi.");
             startGlobalSync();
         }
 
@@ -506,9 +511,6 @@
                     if (data.structures) appData.structures = data.structures;
                     populateDropdowns();
 
-                    const remoteState = (appData.allStates && activeTournoiId) ? appData.allStates[activeTournoiId] : null;
-                    
-                    // Par défaut au chargement, l'utilisateur est en mode spectateur sécurisé tant qu'il ne clique pas sur Master
                     isMaster = false;
                     lockLiveInterfaceForSpectator(true);
 
@@ -641,7 +643,6 @@
         }
 
         function ouvrirModalAjoutJoueur() {
-            // Nécessite également une authentification club/admin selon les besoins, ou club password
             if (!verifierClubPassword()) return;
 
             const nomNouveau = prompt("Entrez le pseudo du nouveau joueur :");
@@ -721,12 +722,16 @@
             renderTablesUI();
         }
 
-        // --- AUTHENTIFICATION CLUB POUR INSCRIPTION / DÉSINSPECTION (CLUB_PASSWORD) ---
+        // --- AUTHENTIFICATION JOUEUR POUR INSCRIPTION / DÉSINSPECTION ---
         function verifierClubPassword() {
-            const pwdSaisi = prompt("Veuillez saisir le mot de passe CLUB_PASSWORD pour valider cette action :");
-            // Remplacez 'VOTRE_CLUB_PASSWORD' par le mot de passe requis pour les inscriptions
-            if (pwdSaisi !== "VOTRE_CLUB_PASSWORD") {
-                alert("❌ CLUB_PASSWORD incorrect. Action refusée.");
+            const pwdSaisi = prompt("Mot de passe joueur :");
+            if (pwdSaisi === null) return false;
+
+            // Mettez ici votre mot de passe joueur réel
+            const motDePasseJoueurReel = "VOTRE_CLUB_PASSWORD";
+
+            if (pwdSaisi !== motDePasseJoueurReel) {
+                alert("❌ Mot de passe incorrect. Action refusée.");
                 return false;
             }
             return true;
@@ -746,7 +751,6 @@
             if (isAlreadyInscrit) {
                 demanderAuthClubEtDesinscrire(joueur);
             } else {
-                // Demande du CLUB_PASSWORD pour s'inscrire
                 if (!verifierClubPassword()) return;
 
                 if (tablesGenerees !== null) {
@@ -773,13 +777,11 @@
         }
 
         function demanderAuthClubEtDesinscrire(joueur) {
-            // Demande du CLUB_PASSWORD pour se désinscrire
             if (!verifierClubPassword()) return;
             desinscrireJoueurDirect(joueur);
         }
 
         function togglePresenceSafe(joueur) {
-            // La gestion des présences nécessite d'être Master
             if (!checkMastershipBeforeAction()) return;
             togglePresence(joueur);
         }
@@ -1106,11 +1108,10 @@
         }
 
         function switchTab(tab) {
-            // Pour accéder aux onglets Plans de Table ou Live, on vérifie l'authentification Master
             if ((tab === 'tables' || tab === 'live' || tab === 'classement') && !isMaster) {
                 alert("⚠️ Accès restreint : Vous devez vous authentifier en tant que Maître (bouton 👑 Master) pour accéder à cet onglet de gestion.");
                 tenterAuthentificationMaster();
-                if (!isMaster) return; // Stoppe le changement si l'authentification a échoué
+                if (!isMaster) return; 
             }
 
             ['inscriptions', 'tables', 'live', 'classement', 'general'].forEach(t => {
