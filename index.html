@@ -71,7 +71,7 @@
     </div>
 
     <div id="spectator-banner">
-        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Le Maître du tournoi gère les commandes. (Cliquez sur "👑 Master" pour reprendre le contrôle si c'est votre appareil).
+        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Le Maître du tournoi gère les commandes. (Cliquez sur "👑 Master" pour vous authentifier et reprendre le contrôle).
     </div>
 
     <header>
@@ -82,7 +82,7 @@
             <button onclick="switchTab('live')" id="btn-live" class="btn-tab">Live Tournoi</button>
             <button onclick="switchTab('classement')" id="btn-classement" class="btn-tab">Classement Tournoi</button>
             <button onclick="switchTab('general')" id="btn-general" class="btn-tab">Classement Général</button>
-            <button onclick="reprendreControleMaster()" class="btn-tab btn-purple" title="Forcer le statut de Maître du tournoi sur cet appareil">👑 Master</button>
+            <button onclick="tenterAuthentificationMaster()" class="btn-tab btn-purple" title="S'authentifier en tant qu'Admin Master">👑 Master</button>
         </div>
     </header>
 
@@ -116,7 +116,7 @@
 
             <div class="card">
                 <h3 style="margin-top:0; color:#cbd5e1; font-size:1rem;">Liste des Inscrits & Appel (<span id="count-inscrits">0</span>)</h3>
-                <p style="font-size:0.75rem; color:#94a3b8; margin-top:0;">Inscriptions de dernière minute possibles. Gestion des présences ouverte.</p>
+                <p style="font-size:0.75rem; color:#94a3b8; margin-top:0;">Inscriptions de dernière minute possibles. Gestion des présences ouverte (nécessite le mode Master).</p>
                 <ul id="list-inscrits"></ul>
             </div>
         </section>
@@ -286,7 +286,6 @@
             if (elTapisMoyen) elTapisMoyen.innerText = avgStack.toLocaleString();
         }
 
-        // --- SYNCHRONISATION GLOBALE ET UNIFIÉE EN UN SEUL FLUX ---
         function startGlobalSync() {
             if (globalSyncTimer) clearInterval(globalSyncTimer);
             
@@ -347,6 +346,11 @@
         }
 
         function checkMastershipBeforeAction() {
+            if (!isMaster) {
+                alert("⚠️ Action refusée : Vous devez d'abord vous authentifier en tant que Maître (bouton 👑 Master).");
+                return false;
+            }
+
             if (!activeTournoiId || !appData.allStates || !appData.allStates[activeTournoiId]) return true;
 
             const remoteState = appData.allStates[activeTournoiId];
@@ -356,7 +360,7 @@
                 isMaster = false;
                 lockLiveInterfaceForSpectator(true);
                 syncRemoteLiveState(remoteState);
-                alert("⚠️ Action refusée : Un autre appareil a pris le rôle de Maître du Tournoi. Votre session est passée en Mode Spectateur.");
+                alert("⚠️ Action refusée : Un autre appareil a pris le rôle de Maître du Tournoi.");
                 return false;
             }
             return true;
@@ -439,12 +443,12 @@
             const banner = document.getElementById('spectator-banner');
             banner.style.display = lock ? 'block' : 'none';
 
-            const liveButtons = document.querySelectorAll('#tab-live button, #tab-tables button');
+            const liveButtons = document.querySelectorAll('#tab-live button, #tab-tables button, #tab-inscriptions .badge');
             liveButtons.forEach(btn => {
                 if (lock && !btn.classList.contains('allow-spectator')) {
                     btn.disabled = true;
                     btn.style.opacity = '0.5';
-                    btn.title = "Action réservée au Maître du tournoi.";
+                    btn.title = "Action réservée au Maître du tournoi (authentification Master requise).";
                 } else if (!lock) {
                     btn.disabled = false;
                     btn.style.opacity = '1';
@@ -453,10 +457,25 @@
             });
         }
 
-        function reprendreControleMaster() {
+        // --- AUTHENTIFICATION MASTER (ADMIN_USER & MASTER_PASSWORD) ---
+        function tenterAuthentificationMaster() {
+            const userSaisi = prompt("Veuillez saisir le nom d'utilisateur ADMIN_USER :");
+            if (userSaisi !== "BureauVPC") { // Remplacez "BureauVPC" si ADMIN_USER est différent
+                alert("❌ Nom d'utilisateur incorrect. Accès refusé.");
+                return;
+            }
+
+            const pwdSaisi = prompt("Veuillez saisir le mot de passe MASTER_PASSWORD :");
+            // Remplacez 'VOTRE_MASTER_PASSWORD' par le mot de passe admin réel
+            if (pwdSaisi !== "VOTRE_MASTER_PASSWORD") {
+                alert("❌ Mot de passe Master incorrect. Accès refusé.");
+                return;
+            }
+
+            // Authentification réussie
             isMaster = true;
             lockLiveInterfaceForSpectator(false);
-            
+
             if (scriptUrl && activeTournoiId) {
                 if (!appData.allStates) appData.allStates = {};
                 if (!appData.allStates[activeTournoiId]) appData.allStates[activeTournoiId] = {};
@@ -466,14 +485,14 @@
 
                 saveGameStateToSheet();
                 
-                const btnMaster = document.querySelector('button[onclick="reprendreControleMaster()"]');
+                const btnMaster = document.querySelector('button[onclick="tenterAuthentificationMaster()"]');
                 if(btnMaster) {
                     const originalText = btnMaster.innerText;
-                    btnMaster.innerText = "👑 Maître !";
-                    setTimeout(() => btnMaster.innerText = originalText, 2000);
+                    btnMaster.innerText = "👑 Master Connecté";
+                    setTimeout(() => btnMaster.innerText = originalText, 3000);
                 }
-                alert("👑 Cet appareil a repris le contrôle en tant que Maître du Tournoi.");
             }
+            alert("👑 Authentification réussie : Vous êtes connecté en tant que Maître du Tournoi pour cet appareil.");
             startGlobalSync();
         }
 
@@ -489,17 +508,9 @@
 
                     const remoteState = (appData.allStates && activeTournoiId) ? appData.allStates[activeTournoiId] : null;
                     
-                    if (!remoteState || !remoteState.masterClientId || remoteState.masterClientId === myClientId) {
-                        isMaster = true;
-                        lockLiveInterfaceForSpectator(false);
-                        if (remoteState && activeTournoiId) {
-                            remoteState.masterClientId = myClientId;
-                            saveGameStateToSheet();
-                        }
-                    } else {
-                        isMaster = false;
-                        lockLiveInterfaceForSpectator(true);
-                    }
+                    // Par défaut au chargement, l'utilisateur est en mode spectateur sécurisé tant qu'il ne clique pas sur Master
+                    isMaster = false;
+                    lockLiveInterfaceForSpectator(true);
 
                     if (data.allStates && activeTournoiId && data.allStates[activeTournoiId]) {
                         restoreGameState(data.allStates[activeTournoiId]);
@@ -568,10 +579,7 @@
 
         function saveGameStateToSheet() {
             if (!scriptUrl || !activeTournoiId) return;
-
-            if (!checkMastershipBeforeAction()) return;
-
-            isMaster = true;
+            if (!isMaster) return;
 
             const alertBox = document.getElementById('live-alertes');
             let consigneActuelle = alertBox ? alertBox.innerHTML : "";
@@ -633,6 +641,9 @@
         }
 
         function ouvrirModalAjoutJoueur() {
+            // Nécessite également une authentification club/admin selon les besoins, ou club password
+            if (!verifierClubPassword()) return;
+
             const nomNouveau = prompt("Entrez le pseudo du nouveau joueur :");
             if (!nomNouveau || nomNouveau.trim() === "") return;
 
@@ -700,8 +711,8 @@
                     <li>
                         <span>${j}</span>
                         <div style="display:flex; gap:0.5rem; align-items:center;">
-                            <span class="${badgeClass}" onclick="togglePresence('${j}')">${badgeText}</span>
-                            <button onclick="demanderAuthentificationEtDesinscrire('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;" title="Désinscrire">✕</button>
+                            <span class="${badgeClass}" onclick="togglePresenceSafe('${j}')">${badgeText}</span>
+                            <button onclick="demanderAuthClubEtDesinscrire('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;" title="Désinscrire">✕</button>
                         </div>
                     </li>
                 `;
@@ -710,17 +721,12 @@
             renderTablesUI();
         }
 
-        // --- MÉCANISME D'AUTHENTIFICATION DEMANDÉ ---
-        function verifierAuthentificationBureauVPC() {
-            const userSaisi = prompt("Veuillez saisir le nom d'utilisateur (User) :");
-            if (userSaisi !== "BureauVPC") {
-                alert("❌ Utilisateur incorrect. Action refusée.");
-                return false;
-            }
-            const pwdSaisi = prompt("Veuillez saisir le mot de passe :");
-            // Remplacez 'VOTRE_MOT_DE_PASSE' par le mot de passe réel configuré ou attendu
-            if (pwdSaisi !== "VOTRE_MOT_DE_PASSE") {
-                alert("❌ Mot de passe incorrect. Action refusée.");
+        // --- AUTHENTIFICATION CLUB POUR INSCRIPTION / DÉSINSPECTION (CLUB_PASSWORD) ---
+        function verifierClubPassword() {
+            const pwdSaisi = prompt("Veuillez saisir le mot de passe CLUB_PASSWORD pour valider cette action :");
+            // Remplacez 'VOTRE_CLUB_PASSWORD' par le mot de passe requis pour les inscriptions
+            if (pwdSaisi !== "VOTRE_CLUB_PASSWORD") {
+                alert("❌ CLUB_PASSWORD incorrect. Action refusée.");
                 return false;
             }
             return true;
@@ -738,10 +744,10 @@
             const isAlreadyInscrit = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
             
             if (isAlreadyInscrit) {
-                demanderAuthentificationEtDesinscrire(joueur);
+                demanderAuthClubEtDesinscrire(joueur);
             } else {
-                // Authentification requise pour inscrire
-                if (!verifierAuthentificationBureauVPC()) return;
+                // Demande du CLUB_PASSWORD pour s'inscrire
+                if (!verifierClubPassword()) return;
 
                 if (tablesGenerees !== null) {
                     if (!checkMastershipBeforeAction()) return;
@@ -766,10 +772,16 @@
             document.getElementById('select-joueur').selectedIndex = 0;
         }
 
-        function demanderAuthentificationEtDesinscrire(joueur) {
-            // Authentification requise pour désinscrire
-            if (!verifierAuthentificationBureauVPC()) return;
+        function demanderAuthClubEtDesinscrire(joueur) {
+            // Demande du CLUB_PASSWORD pour se désinscrire
+            if (!verifierClubPassword()) return;
             desinscrireJoueurDirect(joueur);
+        }
+
+        function togglePresenceSafe(joueur) {
+            // La gestion des présences nécessite d'être Master
+            if (!checkMastershipBeforeAction()) return;
+            togglePresence(joueur);
         }
 
         function inscrireDerniereMinute(joueur) {
@@ -1094,6 +1106,13 @@
         }
 
         function switchTab(tab) {
+            // Pour accéder aux onglets Plans de Table ou Live, on vérifie l'authentification Master
+            if ((tab === 'tables' || tab === 'live' || tab === 'classement') && !isMaster) {
+                alert("⚠️ Accès restreint : Vous devez vous authentifier en tant que Maître (bouton 👑 Master) pour accéder à cet onglet de gestion.");
+                tenterAuthentificationMaster();
+                if (!isMaster) return; // Stoppe le changement si l'authentification a échoué
+            }
+
             ['inscriptions', 'tables', 'live', 'classement', 'general'].forEach(t => {
                 document.getElementById(`tab-${t}`).classList.add('hidden');
                 document.getElementById(`btn-${t}`).style.backgroundColor = '#334155';
@@ -1150,6 +1169,7 @@
         }
 
         function marquerAlerteCompris() {
+            if (!checkMastershipBeforeAction()) return;
             alerteIgnoree = true;
             const alertBox = document.getElementById('live-alertes');
             const eqSpan = document.getElementById('stat-equilibre');
