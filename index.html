@@ -15,7 +15,7 @@
         #global-loader { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #0f172a; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; color: #fbbf24; font-weight: bold; gap: 1rem; }
         .big-loader { border: 4px solid #334155; border-top: 4px solid #fbbf24; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
 
-        #spectator-banner { background-color: #7f1d1d; color: #f87171; padding: 0.5rem; text-align: center; font-size: 0.875rem; font-weight: bold; display: none; }
+        #spectator-banner { background-color: #1e293b; color: #38bdf8; padding: 0.5rem; text-align: center; font-size: 0.875rem; font-weight: bold; border-bottom: 1px solid #334155; }
 
         .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         .grid-2 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
@@ -71,7 +71,7 @@
     </div>
 
     <div id="spectator-banner">
-        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Le Maître du tournoi gère les commandes. (Cliquez sur "👑 Master" pour reprendre le contrôle si c'est votre appareil).
+        👤 Connecté sous le pseudo : <span id="current-user-badge" style="color:#fbbf24;">Non identifié</span> | Mode BureauVPC : <span id="admin-status-badge" style="color:#f87171;">Inactif</span>
     </div>
 
     <header>
@@ -82,7 +82,7 @@
             <button onclick="switchTab('live')" id="btn-live" class="btn-tab">Live Tournoi</button>
             <button onclick="switchTab('classement')" id="btn-classement" class="btn-tab">Classement Tournoi</button>
             <button onclick="switchTab('general')" id="btn-general" class="btn-tab">Classement Général</button>
-            <button onclick="reprendreControleMaster()" class="btn-tab btn-purple" title="Forcer le statut de Maître du tournoi sur cet appareil">👑 Master</button>
+            <button onclick="gererConnexionBureauVPC()" id="btn-master-auth" class="btn-tab btn-purple" title="Connexion Admin BureauVPC">🔐 BureauVPC</button>
         </div>
     </header>
 
@@ -103,20 +103,20 @@
                     </div>
                     <div>
                         <label>Votre Joueur / Pseudo :</label>
-                        <select id="select-joueur">
-                            <option value="" disabled selected>-- Sélectionnez un joueur --</option>
+                        <select id="select-joueur" onchange="onSelectJoueurChange()">
+                            <option value="" disabled selected>-- Sélectionnez votre pseudo --</option>
                         </select>
                     </div>
                 </div>
                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                     <button onclick="toggleInscription()" id="btn-inscrire" class="btn-green" style="flex:1;">S'inscrire / Se désinscrire</button>
-                    <button onclick="ouvrirModalAjoutJoueur()" class="btn-blue" style="width:auto; padding:0.5rem 1rem;">+ Ajouter un nouveau joueur</button>
+                    <button onclick="ouvrirModalAjoutJoueur()" id="btn-add-player" class="btn-blue hidden" style="width:auto; padding:0.5rem 1rem;">+ Ajouter un nouveau joueur (Admin)</button>
                 </div>
             </div>
 
             <div class="card">
                 <h3 style="margin-top:0; color:#cbd5e1; font-size:1rem;">Liste des Inscrits & Appel (<span id="count-inscrits">0</span>)</h3>
-                <p style="font-size:0.75rem; color:#94a3b8; margin-top:0;">Inscriptions de dernière minute possibles. Gestion des présences ouverte.</p>
+                <p style="font-size:0.75rem; color:#94a3b8; margin-top:0;">Gestion des présences accessible après saisie du code club.</p>
                 <ul id="list-inscrits"></ul>
             </div>
         </section>
@@ -126,11 +126,11 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:1rem;">
                     <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Répartition des Tables</h2>
                     <div>
-                        <button onclick="genererTables()" id="btn-generer-tables" class="btn-amber" style="width:auto; padding:0.5rem 1rem; margin:0;">🎲 Créer / Mélanger les tables</button>
+                        <button onclick="genererTables()" id="btn-generer-tables" class="btn-amber" style="width:auto; padding:0.5rem 1rem; margin:0;">🎲 Créer / Mélanger les tables (BureauVPC)</button>
                     </div>
                 </div>
                 <div id="table-status-msg" class="alert" style="margin-bottom:1rem;">
-                    Tables non générées. Cliquez sur le bouton ci-dessus pour répartir les joueurs.
+                    Tables non générées. Réservé à l'administrateur BureauVPC.
                 </div>
                 <div id="poker-tables-container" class="poker-table-grid"></div>
             </div>
@@ -151,7 +151,7 @@
 
             <div class="grid-2 grid-2-live" style="margin-bottom:1.5rem;">
                 <div class="card" style="margin-bottom:0;">
-                    <h3 style="margin-top:0; color:#fde68a; font-size:1rem;">Gestion du Live & Éliminations</h3>
+                    <h3 style="margin-top:0; color:#fde68a; font-size:1rem;">Gestion du Live & Éliminations (BureauVPC)</h3>
                     <div class="grid-2">
                         <div>
                             <label>Éliminer un joueur :</label>
@@ -191,7 +191,7 @@
         <section id="tab-classement" class="hidden">
             <div class="card">
                 <h2 style="margin-top:0; color:#fde68a; font-size:1.125rem;">Classement du Tournoi en Cours</h2>
-                <p style="font-size:0.75rem; color:#94a3b8;">Glissez-déposez les joueurs éliminés pour réajuster leur ordre de classement si besoin. Le classement se construit par le bas (du 1er éliminé vers le vainqueur).</p>
+                <p style="font-size:0.75rem; color:#94a3b8;">Réordonnancement réservé au compte BureauVPC.</p>
                 <div id="classement-container" style="margin-top:1rem;"></div>
             </div>
         </section>
@@ -209,12 +209,10 @@
     <script>
         let scriptUrl = ""; 
         
-        let myClientId = localStorage.getItem('poker_client_id');
-        if (!myClientId) {
-            myClientId = 'client_' + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem('poker_client_id', myClientId);
-        }
-        let isMaster = false;
+        let isBureauVPC = false;
+        let masterToken = localStorage.getItem('poker_master_token') || "";
+        let currentPseudo = localStorage.getItem('poker_current_pseudo') || "";
+        let clubPasswordCache = localStorage.getItem('poker_club_password') || "";
 
         let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6, startingStack: 20000, structures: {}, allStates: {}, tournoisTermines: {}, classementGeneral: [] };
         let activeTournoiId = null;
@@ -286,11 +284,9 @@
             if (elTapisMoyen) elTapisMoyen.innerText = avgStack.toLocaleString();
         }
 
-        // --- SYNCHRONISATION GLOBALE ET UNIFIÉE EN UN SEUL FLUX ---
         function startGlobalSync() {
             if (globalSyncTimer) clearInterval(globalSyncTimer);
-            
-            const interval = isMaster ? 15000 : 30000;
+            const interval = isBureauVPC ? 15000 : 30000;
 
             globalSyncTimer = setInterval(() => {
                 if (!scriptUrl) return;
@@ -318,65 +314,139 @@
 
                         if (activeTournoiId) {
                             const remoteState = appData.allStates[activeTournoiId];
-                            if (remoteState) {
-                                if (remoteState.masterClientId && remoteState.masterClientId !== myClientId) {
-                                    if (isMaster) {
-                                        isMaster = false;
-                                        lockLiveInterfaceForSpectator(true);
-                                        startGlobalSync();
-                                    }
-                                } else if (remoteState.masterClientId === myClientId) {
-                                    if (!isMaster) {
-                                        isMaster = true;
-                                        lockLiveInterfaceForSpectator(false);
-                                        startGlobalSync();
-                                    }
-                                }
-
-                                if (!isMaster) {
-                                    syncRemoteLiveState(remoteState);
-                                }
-                            } else {
+                            if (remoteState && !isBureauVPC) {
+                                syncRemoteLiveState(remoteState);
+                            } else if (!remoteState && !isBureauVPC) {
                                 tablesGenerees = null;
                                 renderTablesUI();
                             }
                         }
                     })
-                    .catch(err => console.error("Erreur sync globale arrière-plan:", err));
+                    .catch(err => console.error("Erreur sync globale:", err));
             }, interval);
         }
 
-        function checkMastershipBeforeAction() {
-            if (!activeTournoiId || !appData.allStates || !appData.allStates[activeTournoiId]) return true;
-
-            const remoteState = appData.allStates[activeTournoiId];
-            const currentMasterId = remoteState.masterClientId;
-
-            if (currentMasterId && currentMasterId !== myClientId) {
-                isMaster = false;
-                lockLiveInterfaceForSpectator(true);
-                syncRemoteLiveState(remoteState);
-                alert("⚠️ Action refusée : Un autre appareil a pris le rôle de Maître du Tournoi. Votre session est passée en Mode Spectateur.");
+        function checkBureauVPCBeforeAction() {
+            if (!isBureauVPC) {
+                alert("⚠️ Action refusée : Réservé exclusivement à l'administrateur BureauVPC.");
                 return false;
             }
             return true;
+        }
+
+        function obtenirCodeClub() {
+            if (clubPasswordCache) return clubPasswordCache;
+            const pwd = prompt("Entrez le code secret du club pour valider votre action :");
+            if (pwd) {
+                clubPasswordCache = pwd;
+                localStorage.setItem('poker_club_password', clubPasswordCache);
+            }
+            return clubPasswordCache;
+        }
+
+        function gererConnexionBureauVPC() {
+            if (isBureauVPC) {
+                if (confirm("Se déconnecter du rôle d'administration BureauVPC ?")) {
+                    isBureauVPC = false;
+                    masterToken = "";
+                    localStorage.removeItem('poker_master_token');
+                    lockInterfaceForAdmin(false);
+                    updateBureauVPCButtonUI();
+                    alert("🔓 Déconnecté du compte BureauVPC.");
+                }
+            } else {
+                const pwd = prompt("Entrez le mot de passe Administrateur (BureauVPC) :");
+                if (!pwd) return;
+
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "loginMaster", username: "BureauVPC", password: pwd })
+                })
+                .then(res => res.json())
+                .then(res => {
+                    if (res.status === "success" && res.masterToken) {
+                        isBureauVPC = true;
+                        masterToken = res.masterToken;
+                        localStorage.setItem('poker_master_token', masterToken);
+                        lockInterfaceForAdmin(true);
+                        updateBureauVPCButtonUI();
+                        alert("👑 Connexion réussie ! Mode BureauVPC activé.");
+                        startGlobalSync();
+                    } else {
+                        alert("❌ " + (res.message || "Mot de passe incorrect."));
+                    }
+                })
+                .catch(err => {
+                    console.error("Erreur login:", err);
+                    alert("Erreur de connexion au serveur.");
+                });
+            }
+        }
+
+        function updateBureauVPCButtonUI() {
+            const btn = document.getElementById('btn-master-auth');
+            const badge = document.getElementById('admin-status-badge');
+            if (isBureauVPC) {
+                btn.innerText = "🔓 Déco BureauVPC";
+                btn.style.backgroundColor = "#059669";
+                badge.innerText = "Actif (BureauVPC)";
+                badge.style.color = "#34d399";
+            } else {
+                btn.innerText = "🔐 BureauVPC";
+                btn.style.backgroundColor = "#7c3aed";
+                badge.innerText = "Inactif";
+                badge.style.color = "#f87171";
+            }
+        }
+
+        function onSelectJoueurChange() {
+            const sel = document.getElementById('select-joueur');
+            if (sel.value) {
+                currentPseudo = sel.value;
+                localStorage.setItem('poker_current_pseudo', currentPseudo);
+                updateSessionBadgeUI();
+            }
+        }
+
+        function updateSessionBadgeUI() {
+            const badge = document.getElementById('current-user-badge');
+            if (currentPseudo) {
+                badge.innerText = currentPseudo;
+            } else {
+                badge.innerText = "Non identifié";
+            }
+        }
+
+        function lockInterfaceForAdmin(isAdmin) {
+            const adminButtons = document.querySelectorAll('#tab-live button, #tab-tables button, #btn-add-player');
+            adminButtons.forEach(btn => {
+                if (!isAdmin) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.title = "Action réservée à l'administrateur BureauVPC.";
+                } else {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.title = "";
+                }
+            });
+            const btnAdd = document.getElementById('btn-add-player');
+            if (btnAdd) {
+                if (isAdmin) btnAdd.classList.remove('hidden');
+                else btnAdd.classList.add('hidden');
+            }
         }
 
         function jouerBipChangementNiveau() {
             try {
                 const audio = new Audio('bip.wav');
                 audio.volume = 1;
-                audio.play().catch(e => {
-                    console.log("Lecture audio bloquée ou fichier introuvable :", e);
-                });
-            } catch (e) {
-                console.log("Erreur lors de la lecture du fichier audio :", e);
-            }
+                audio.play().catch(e => console.log("Audio bloqué :", e));
+            } catch (e) {}
         }
 
         function syncRemoteLiveState(state) {
-            if (!state) return;
-            if (isMaster) return;
+            if (!state || isBureauVPC) return;
 
             if (state.niveauActuel && state.niveauActuel !== niveauActuel) {
                 niveauActuel = state.niveauActuel;
@@ -394,36 +464,21 @@
             if (alertBox && state.derniereAlerte) {
                 let consigneNettoyee = state.derniereAlerte.replace(/<button[^>]*>Compris<\/button>/gi, '');
                 alertBox.innerHTML = consigneNettoyee;
-                
-                if (consignesContiennentUneAlerte(state.derniereAlerte)) {
-                    alertBox.className = "alert alert-action";
-                } else {
-                    alertBox.className = "alert";
-                }
+                alertBox.className = consignesContiennentUneAlerte(state.derniereAlerte) ? "alert alert-action" : "alert";
             }
 
             if (chronoIsRunning && state.chronoEndTime) {
                 chronoEndTime = state.chronoEndTime;
-                const now = Date.now();
-                const diff = Math.ceil((chronoEndTime - now) / 1000);
-                if (diff > 0) {
-                    secondesRestantes = diff;
-                }
-                if (!chronoTimer) {
-                    startChronoLoop(false);
-                }
+                const diff = Math.ceil((chronoEndTime - Date.now()) / 1000);
+                if (diff > 0) secondesRestantes = diff;
+                if (!chronoTimer) startChronoLoop(false);
             } else {
                 if (chronoTimer) clearInterval(chronoTimer);
                 chronoIsRunning = false;
                 chronoEndTime = null;
-                if (state.secondesRestantes !== undefined) {
-                    secondesRestantes = state.secondesRestantes;
-                }
+                if (state.secondesRestantes !== undefined) secondesRestantes = state.secondesRestantes;
                 const btn = document.getElementById('btn-chrono');
-                if (btn) {
-                    btn.innerText = "Start";
-                    btn.className = "btn-green";
-                }
+                if (btn) { btn.innerText = "Start"; btn.className = "btn-green"; }
             }
 
             updateChronoUI();
@@ -433,48 +488,6 @@
 
         function consignesContiennentUneAlerte(htmlTexte) {
             return htmlTexte.includes("CASSAGE") || htmlTexte.includes("RÉÉQUILIBRAGE") || htmlTexte.includes("⚠️") || htmlTexte.includes("🚨");
-        }
-
-        function lockLiveInterfaceForSpectator(lock) {
-            const banner = document.getElementById('spectator-banner');
-            banner.style.display = lock ? 'block' : 'none';
-
-            const liveButtons = document.querySelectorAll('#tab-live button, #tab-tables button');
-            liveButtons.forEach(btn => {
-                if (lock && !btn.classList.contains('allow-spectator')) {
-                    btn.disabled = true;
-                    btn.style.opacity = '0.5';
-                    btn.title = "Action réservée au Maître du tournoi.";
-                } else if (!lock) {
-                    btn.disabled = false;
-                    btn.style.opacity = '1';
-                    btn.title = "";
-                }
-            });
-        }
-
-        function reprendreControleMaster() {
-            isMaster = true;
-            lockLiveInterfaceForSpectator(false);
-            
-            if (scriptUrl && activeTournoiId) {
-                if (!appData.allStates) appData.allStates = {};
-                if (!appData.allStates[activeTournoiId]) appData.allStates[activeTournoiId] = {};
-                
-                let remoteState = appData.allStates[activeTournoiId];
-                remoteState.masterClientId = myClientId;
-
-                saveGameStateToSheet();
-                
-                const btnMaster = document.querySelector('button[onclick="reprendreControleMaster()"]');
-                if(btnMaster) {
-                    const originalText = btnMaster.innerText;
-                    btnMaster.innerText = "👑 Maître !";
-                    setTimeout(() => btnMaster.innerText = originalText, 2000);
-                }
-                alert("👑 Cet appareil a repris le contrôle en tant que Maître du Tournoi.");
-            }
-            startGlobalSync();
         }
 
         function loadDataFromSheet() {
@@ -487,20 +500,17 @@
                     if (data.structures) appData.structures = data.structures;
                     populateDropdowns();
 
-                    const remoteState = (appData.allStates && activeTournoiId) ? appData.allStates[activeTournoiId] : null;
-                    
-                    // Si aucun maître n'est défini ou si c'était déjà notre ID, on s'approprie / conserve le rôle sans bloquer
-                    if (!remoteState || !remoteState.masterClientId || remoteState.masterClientId === myClientId) {
-                        isMaster = true;
-                        lockLiveInterfaceForSpectator(false);
-                        if (remoteState && activeTournoiId) {
-                            remoteState.masterClientId = myClientId;
-                            saveGameStateToSheet();
-                        }
+                    if (masterToken) {
+                        isBureauVPC = true;
+                        lockInterfaceForAdmin(true);
+                        updateBureauVPCButtonUI();
                     } else {
-                        isMaster = false;
-                        lockLiveInterfaceForSpectator(true);
+                        isBureauVPC = false;
+                        lockInterfaceForAdmin(false);
+                        updateBureauVPCButtonUI();
                     }
+
+                    updateSessionBadgeUI();
 
                     if (data.allStates && activeTournoiId && data.allStates[activeTournoiId]) {
                         restoreGameState(data.allStates[activeTournoiId]);
@@ -516,7 +526,7 @@
                 })
                 .catch(err => {
                     console.error(err);
-                    document.getElementById('global-loader').innerHTML = `<div style="color:#f43f5e; text-align:center; padding:2rem;">Erreur de chargement des données depuis Google Apps Script.<br><br>${err.toString()}</div>`;
+                    document.getElementById('global-loader').innerHTML = `<div style="color:#f43f5e; text-align:center; padding:2rem;">Erreur de chargement des données.<br><br>${err.toString()}</div>`;
                 });
         }
 
@@ -539,7 +549,6 @@
             tablesGenerees = state.tablesGenerees || null;
             totalJoueursInitial = state.totalJoueursInitial || 0;
             joueursEliminesHistorique = state.joueursEliminesHistorique || [];
-            
             niveauActuel = state.niveauActuel || 1;
             dureeNiveauSec = getDureeStructureSec(niveauActuel);
             secondesRestantes = state.secondesRestantes || dureeNiveauSec;
@@ -547,18 +556,11 @@
             chronoIsRunning = state.chronoIsRunning || false;
 
             if (chronoIsRunning && chronoEndTime) {
-                const now = Date.now();
-                const diffSec = Math.floor((chronoEndTime - now) / 1000);
-                
+                const diffSec = Math.floor((chronoEndTime - Date.now()) / 1000);
                 if (diffSec > 0) {
                     secondesRestantes = diffSec;
                     startChronoLoop(false);
                 } else {
-                    let tempsEcouleAbsolu = Math.floor((now - (chronoEndTime - (secondesRestantes * 1000))) / 1000);
-                    let niveauxPasses = Math.floor(tempsEcouleAbsolu / dureeNiveauSec);
-                    niveauActuel = Math.min(25, niveauActuel + niveauxPasses);
-                    dureeNiveauSec = getDureeStructureSec(niveauActuel);
-                    secondesRestantes = dureeNiveauSec - (tempsEcouleAbsolu % dureeNiveauSec);
                     startChronoLoop(true);
                 }
             } else {
@@ -568,17 +570,10 @@
         }
 
         function saveGameStateToSheet() {
-            if (!scriptUrl || !activeTournoiId) return;
-
-            if (!checkMastershipBeforeAction()) return;
-
-            isMaster = true;
+            if (!scriptUrl || !activeTournoiId || !isBureauVPC) return;
 
             const alertBox = document.getElementById('live-alertes');
-            let consigneActuelle = alertBox ? alertBox.innerHTML : "";
-
             const state = {
-                masterClientId: myClientId,
                 tablesGenerees: tablesGenerees,
                 totalJoueursInitial: totalJoueursInitial,
                 joueursEliminesHistorique: joueursEliminesHistorique,
@@ -586,15 +581,15 @@
                 secondesRestantes: secondesRestantes,
                 chronoEndTime: chronoEndTime,
                 chronoIsRunning: chronoIsRunning,
-                derniereAlerte: consigneActuelle
+                derniereAlerte: alertBox ? alertBox.innerHTML : ""
             };
 
             fetch(scriptUrl, {
                 method: "POST",
-                mode: "no-cors",
                 body: JSON.stringify({
                     tournoiId: activeTournoiId,
                     action: "saveState",
+                    masterToken: masterToken,
                     state: state
                 })
             }).catch(err => console.error("Erreur saveState:", err));
@@ -602,10 +597,11 @@
 
         function populateDropdowns() {
             const selJ = document.getElementById('select-joueur');
-            selJ.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
+            selJ.innerHTML = '<option value="" disabled selected>-- Sélectionnez votre pseudo --</option>';
             const joueursTries = [...appData.joueurs].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
             joueursTries.forEach(j => {
-                selJ.innerHTML += `<option value="${j}">${j}</option>`;
+                const isSel = (j === currentPseudo) ? 'selected' : '';
+                selJ.innerHTML += `<option value="${j}" ${isSel}>${j}</option>`;
             });
 
             const selT = document.getElementById('select-tournoi');
@@ -623,7 +619,6 @@
 
         function onTournoiChange() {
             activeTournoiId = document.getElementById('select-tournoi').value;
-            
             if (appData.allStates && appData.allStates[activeTournoiId]) {
                 restoreGameState(appData.allStates[activeTournoiId]);
             } else {
@@ -634,12 +629,13 @@
         }
 
         function ouvrirModalAjoutJoueur() {
+            if (!checkBureauVPCBeforeAction()) return;
             const nomNouveau = prompt("Entrez le pseudo du nouveau joueur :");
             if (!nomNouveau || nomNouveau.trim() === "") return;
 
             const cleanNom = nomNouveau.trim();
             if (appData.joueurs.includes(cleanNom)) {
-                alert("Ce joueur existe déjà dans la liste.");
+                alert("Ce joueur existe déjà.");
                 return;
             }
 
@@ -647,16 +643,13 @@
             appData.joueurs.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
             populateDropdowns();
 
-            document.getElementById('select-joueur').value = cleanNom;
-            toggleInscription();
-
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ action: "ajouterJoueur", joueur: cleanNom })
+                    body: JSON.stringify({ action: "ajouterJoueur", joueur: cleanNom, masterToken: masterToken })
                 }).catch(err => console.error("Erreur ajout joueur:", err));
             }
+            alert(`✅ Joueur ${cleanNom} ajouté au club.`);
         }
 
         function checkTournoiLockStatus() {
@@ -667,19 +660,17 @@
                 btnGenerer.disabled = true;
                 btnGenerer.className = "btn-disabled";
             } else {
-                btnGenerer.disabled = false;
-                btnGenerer.className = "btn-amber";
+                btnGenerer.disabled = !isBureauVPC;
+                btnGenerer.className = isBureauVPC ? "btn-amber" : "btn-disabled";
             }
 
             const btnReset = document.getElementById('btn-reset');
             if (hasVainqueur) {
                 btnReset.disabled = true;
                 btnReset.className = "btn-disabled";
-                btnReset.title = "Reset impossible : le vainqueur de ce tournoi est déjà enregistré.";
             } else {
-                btnReset.disabled = false;
-                btnReset.className = "btn-rose";
-                btnReset.title = "";
+                btnReset.disabled = !isBureauVPC;
+                btnReset.className = isBureauVPC ? "btn-rose" : "btn-disabled";
             }
         }
 
@@ -712,11 +703,14 @@
         }
 
         function toggleInscription() {
-            const joueur = document.getElementById('select-joueur').value;
+            const joueur = document.getElementById('select-joueur').value || currentPseudo;
             if (!joueur) {
-                alert("Veuillez sélectionner un joueur dans la liste.");
+                alert("Veuillez sélectionner un joueur / pseudo dans la liste.");
                 return;
             }
+
+            const clubPwd = obtenirCodeClub();
+            if (!clubPwd) return;
 
             if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
             const tournoiInsc = appData.inscriptions[activeTournoiId];
@@ -726,7 +720,10 @@
                 desinscrireJoueurDirect(joueur);
             } else {
                 if (tablesGenerees !== null) {
-                    if (!checkMastershipBeforeAction()) return;
+                    if (!isBureauVPC) {
+                        alert("Le tournoi a démarré. Seul l'administrateur BureauVPC peut ajouter un joueur.");
+                        return;
+                    }
                     inscrireDerniereMinute(joueur);
                 } else {
                     if (Array.isArray(tournoiInsc)) {
@@ -739,25 +736,22 @@
                     if (scriptUrl && activeTournoiId) {
                         fetch(scriptUrl, {
                             method: "POST",
-                            mode: "no-cors",
-                            body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire" })
+                            body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire", clubPassword: clubPwd })
+                        }).then(res => res.json()).then(r => {
+                            if (r.status === "error") alert("Erreur : " + r.message);
                         });
                     }
                 }
             }
-            document.getElementById('select-joueur').selectedIndex = 0;
         }
 
         function inscrireDerniereMinute(joueur) {
             const maxPerTable = appData.maxJoueursParTable || 6;
-            
             if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
             appData.inscriptions[activeTournoiId][joueur] = { present: true };
             totalJoueursInitial++;
 
-            let plusPetiteTableId = null;
-            let minJoueurs = Infinity;
-
+            let plusPetiteTableId = null, minJoueurs = Infinity;
             for (const [tId, seats] of Object.entries(tablesGenerees)) {
                 const actifsCount = seats.filter(s => s.player !== null).length;
                 if (actifsCount < maxPerTable && actifsCount < minJoueurs) {
@@ -768,104 +762,34 @@
 
             if (plusPetiteTableId !== null) {
                 const siegeLibre = tablesGenerees[plusPetiteTableId].find(s => s.player === null);
-                if (siegeLibre) {
-                    siegeLibre.player = joueur;
-                    alert(`✅ ${joueur} a été ajouté à la Table ${plusPetiteTableId} (Siège ${siegeLibre.seat}).`);
-                }
+                if (siegeLibre) siegeLibre.player = joueur;
             } else {
-                const choix = prompt(`⚠️ Toutes les tables sont pleines !\n\nChoisissez une option :\n1. Réagencer les tables.\n2. Accepter en extra exceptionnel.\n3. Refuser l'inscription.\n\nTapez 1, 2 ou 3 :`, "1");
-                
-                if (choix === "1") {
-                    let tousActifs = [joueur];
-                    for (const seats of Object.values(tablesGenerees)) {
-                        seats.forEach(s => { if (s.player) tousActifs.push(s.player); });
-                    }
-                    repartirTablesRecalculees(tousActifs);
-                    alert(`🔄 Tables réagencées pour intégrer ${joueur}.`);
-                } else if (choix === "2") {
-                    tablesGenerees[1].push({ seat: tablesGenerees[1].length + 1, player: joueur });
-                    alert(`➕ ${joueur} accepté en extra sur la Table 1.`);
-                } else {
-                    if (Array.isArray(appData.inscriptions[activeTournoiId])) {
-                        appData.inscriptions[activeTournoiId] = appData.inscriptions[activeTournoiId].filter(x => x !== joueur);
-                    } else {
-                        delete appData.inscriptions[activeTournoiId][joueur];
-                    }
-                    totalJoueursInitial--;
-                    alert(`❌ Inscription refusée.`);
-                    return;
-                }
+                tablesGenerees[1].push({ seat: tablesGenerees[1].length + 1, player: joueur });
             }
 
             updateInscritsUI();
             saveGameStateToSheet();
-
-            if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire" })
-                });
-                fetch(scriptUrl, {
-                    method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: true })
-                });
-            }
-        }
-
-        function repartirTablesRecalculees(listeJoueurs) {
-            const maxPerTable = appData.maxJoueursParTable || 6;
-            listeJoueurs.sort(() => Math.random() - 0.5);
-            const nbTables = Math.ceil(listeJoueurs.length / maxPerTable);
-
-            let tables = {};
-            for (let t = 1; t <= nbTables; t++) {
-                tables[t] = [];
-                for (let s = 1; s <= maxPerTable; s++) {
-                    tables[t].push({ seat: s, player: null });
-                }
-            }
-
-            let tIdx = 1, sIdx = 0;
-            listeJoueurs.forEach(j => {
-                while (tables[tIdx][sIdx].player !== null) {
-                    tIdx++;
-                    if (tIdx > nbTables) { tIdx = 1; sIdx++; }
-                }
-                tables[tIdx][sIdx].player = j;
-                tIdx++;
-                if (tIdx > nbTables) { tIdx = 1; sIdx++; }
-            });
-
-            for (const tId of Object.keys(tables)) {
-                let joueursTable = tables[tId].map(s => s.player).filter(p => p !== null);
-                joueursTable.sort(() => Math.random() - 0.5);
-                tables[tId].forEach((s, idx) => {
-                    s.player = joueursTable[idx] !== undefined ? joueursTable[idx] : null;
-                });
-            }
-
-            tablesGenerees = tables;
-            renderTablesUI();
         }
 
         function desinscrireJoueurDirect(joueur) {
-            const isTournoiStarted = tablesGenerees !== null;
+            if (currentPseudo !== joueur && !isBureauVPC) {
+                alert("Vous ne pouvez désinscrire que votre propre pseudo (ou demander à BureauVPC).");
+                return;
+            }
 
-            if (isTournoiStarted) {
-                if (!checkMastershipBeforeAction()) return;
-                let trouveTable = false;
+            const clubPwd = obtenirCodeClub();
+            if (!clubPwd) return;
+
+            const isTournoiStarted = tablesGenerees !== null;
+            if (isTournoiStarted && !isBureauVPC) {
+                alert("Le tournoi est en cours. Contactez BureauVPC pour vous désinscrire.");
+                return;
+            }
+
+            if (isTournoiStarted && isBureauVPC) {
                 for (const [tId, seats] of Object.entries(tablesGenerees)) {
                     const seatObj = seats.find(s => s.player === joueur);
-                    if (seatObj) {
-                        seatObj.player = null;
-                        trouveTable = true;
-                        break;
-                    }
-                }
-                if (trouveTable) {
-                    totalJoueursInitial--;
+                    if (seatObj) { seatObj.player = null; totalJoueursInitial--; break; }
                 }
             }
 
@@ -877,7 +801,7 @@
             }
 
             updateInscritsUI();
-            if (isTournoiStarted) {
+            if (isTournoiStarted && isBureauVPC) {
                 verifierEtReequilibrer();
                 saveGameStateToSheet();
             }
@@ -885,111 +809,73 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "desinscrire" })
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "desinscrire", clubPassword: clubPwd })
                 });
             }
         }
 
         function togglePresence(joueur) {
-            if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
-            const tournoiInsc = appData.inscriptions[activeTournoiId];
-
-            if (typeof tournoiInsc[joueur] === 'undefined') {
-                tournoiInsc[joueur] = { present: true };
+            if (currentPseudo !== joueur && !isBureauVPC) {
+                alert("Vous ne pouvez modifier que votre propre présence.");
+                return;
             }
 
-            const currentPresent = tournoiInsc[joueur].present || false;
-            const newPresent = !currentPresent;
+            const clubPwd = obtenirCodeClub();
+            if (!clubPwd) return;
+
+            if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+            const tournoiInsc = appData.inscriptions[activeTournoiId];
+            if (typeof tournoiInsc[joueur] === 'undefined') tournoiInsc[joueur] = { present: false };
+
+            const newPresent = !tournoiInsc[joueur].present;
             tournoiInsc[joueur].present = newPresent;
             updateInscritsUI();
 
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: newPresent })
-                }).then(() => {
-                    if (tablesGenerees !== null && isMaster) {
-                        saveGameStateToSheet();
-                    }
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: newPresent, clubPassword: clubPwd })
+                }).then(res => res.json()).then(r => {
+                    if (r.status === "error") alert("Erreur : " + r.message);
                 });
             }
         }
 
         function genererTables() {
-            if (!checkMastershipBeforeAction()) return;
+            if (!checkBureauVPCBeforeAction()) return;
             if (tablesGenerees !== null) return;
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
             let inscritsNoms = Array.isArray(tournoiInsc) ? tournoiInsc : Object.keys(tournoiInsc);
             const maxPerTable = appData.maxJoueursParTable || 6;
 
-            if (inscritsNoms.length === 0) {
-                alert("Aucun joueur inscrit !");
-                return;
-            }
+            if (inscritsNoms.length === 0) { alert("Aucun joueur inscrit !"); return; }
 
             let presents = inscritsNoms.filter(j => (tournoiInsc[j] && tournoiInsc[j].present));
-            let absents = inscritsNoms.filter(j => !(tournoiInsc[j] && tournoiInsc[j].present));
-            
             presents.sort(() => Math.random() - 0.5);
-            absents.sort(() => Math.random() - 0.5);
 
-            const totalJoueurs = inscritsNoms.length;
-            totalJoueursInitial = totalJoueurs;
-            const nbTables = Math.ceil(totalJoueurs / maxPerTable);
+            totalJoueursInitial = presents.length;
+            const nbTables = Math.ceil(presents.length / maxPerTable);
 
             let tables = {};
             for (let t = 1; t <= nbTables; t++) {
                 tables[t] = [];
-                for (let s = 1; s <= maxPerTable; s++) {
-                    tables[t].push({ seat: s, player: null });
-                }
+                for (let s = 1; s <= maxPerTable; s++) tables[t].push({ seat: s, player: null });
             }
 
-            let currentTable = 1;
-            let currentSeatOffset = 0;
-
+            let tIdx = 1, sIdx = 0;
             presents.forEach(p => {
-                while (tables[currentTable][currentSeatOffset].player !== null) {
-                    currentTable++;
-                    if (currentTable > nbTables) {
-                        currentTable = 1;
-                        currentSeatOffset++;
-                    }
+                while (tables[tIdx][sIdx].player !== null) {
+                    tIdx++;
+                    if (tIdx > nbTables) { tIdx = 1; sIdx++; }
                 }
-                tables[currentTable][currentSeatOffset].player = p;
-                currentTable++;
-                if (currentTable > nbTables) {
-                    currentTable = 1;
-                    currentSeatOffset++;
-                }
+                tables[tIdx][sIdx].player = p;
+                tIdx++;
+                if (tIdx > nbTables) { tIdx = 1; sIdx++; }
             });
-
-            absents.forEach(a => {
-                let placed = false;
-                for (let s = 0; s < maxPerTable && !placed; s++) {
-                    for (let t = 1; t <= nbTables && !placed; t++) {
-                        if (tables[t][s].player === null) {
-                            tables[t][s].player = a;
-                            placed = true;
-                        }
-                    }
-                }
-            });
-
-            for (const tId of Object.keys(tables)) {
-                let joueursTable = tables[tId].map(s => s.player).filter(p => p !== null);
-                joueursTable.sort(() => Math.random() - 0.5);
-                tables[tId].forEach((s, idx) => {
-                    s.player = joueursTable[idx] !== undefined ? joueursTable[idx] : null;
-                });
-            }
 
             tablesGenerees = tables;
             joueursEliminesHistorique = [];
             renderTablesUI();
-            document.getElementById('table-status-msg').innerText = `Tables générées avec succès (${nbTables} tables réparties pour ${totalJoueurs} inscrits).`;
             checkTournoiLockStatus();
             saveGameStateToSheet();
         }
@@ -997,9 +883,8 @@
         function renderTablesUI() {
             const container = document.getElementById('poker-tables-container');
             container.innerHTML = '';
-
             if (!tablesGenerees) {
-                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table générée pour le moment.</p>`;
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table générée.</p>`;
                 return;
             }
 
@@ -1008,7 +893,7 @@
                 let seatsHtml = '';
                 seats.forEach(s => {
                     const playerDisplay = s.player ? `<span class="seat-player">${s.player}</span>` : `<span class="seat-empty">Siège vide</span>`;
-                    const draggableAttr = s.player ? `draggable="true" ondragstart="onDragStart(event, '${tNum}', '${s.seat}', '${s.player}')"` : '';
+                    const draggableAttr = (s.player && isBureauVPC) ? `draggable="true" ondragstart="onDragStart(event, '${tNum}', '${s.seat}', '${s.player}')"` : '';
                     
                     seatsHtml += `
                         <div class="seat-item" ${draggableAttr} ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, '${tNum}', '${s.seat}')">
@@ -1020,13 +905,8 @@
 
                 container.innerHTML += `
                     <div class="poker-table-card">
-                        <div class="poker-table-title">
-                            <span>Table ${tNum}</span>
-                            <span style="font-size:0.75rem; color:#94a3b8;">(${actifsCount} joueurs)</span>
-                        </div>
-                        <div class="seat-list">
-                            ${seatsHtml}
-                        </div>
+                        <div class="poker-table-title"><span>Table ${tNum}</span><span>(${actifsCount})</span></div>
+                        <div class="seat-list">${seatsHtml}</div>
                     </div>
                 `;
             }
@@ -1034,29 +914,17 @@
 
         let draggedData = null;
         function onDragStart(event, tableNum, seatNum, playerName) {
+            if (!isBureauVPC) return;
             draggedData = { tableNum, seatNum, playerName };
-            event.dataTransfer.setData('text/plain', playerName);
         }
-
-        function onDragOver(event) {
-            event.preventDefault();
-            event.currentTarget.classList.add('drag-over');
-        }
-
-        function onDragLeave(event) {
-            event.currentTarget.classList.remove('drag-over');
-        }
-
+        function onDragOver(event) { event.preventDefault(); event.currentTarget.classList.add('drag-over'); }
+        function onDragLeave(event) { event.currentTarget.classList.remove('drag-over'); }
         function onDrop(event, targetTableNum, targetSeatNum) {
             event.preventDefault();
             event.currentTarget.classList.remove('drag-over');
-            if (!draggedData) return;
-            if (!checkMastershipBeforeAction()) return;
+            if (!draggedData || !isBureauVPC) return;
 
-            const srcTable = draggedData.tableNum;
-            const srcSeat = draggedData.seatNum;
-            const movingPlayer = draggedData.playerName;
-
+            const srcTable = draggedData.tableNum, srcSeat = draggedData.seatNum, movingPlayer = draggedData.playerName;
             const targetSeatObj = tablesGenerees[targetTableNum].find(s => s.seat == targetSeatNum);
             const targetPlayer = targetSeatObj.player;
 
@@ -1079,353 +947,83 @@
             document.getElementById(`btn-${tab}`).style.backgroundColor = '#d97706';
             document.getElementById(`btn-${tab}`).style.color = '#ffffff';
 
-            if (tab === 'live') {
-                initLive();
-            } else if (tab === 'classement') {
-                renderClassementUI();
-            } else if (tab === 'general') {
-                renderClassementGeneralUI();
-            }
+            if (tab === 'live') initLive();
+            else if (tab === 'classement') renderClassementUI();
+            else if (tab === 'general') renderClassementGeneralUI();
         }
 
         function initLive() {
-            if (!tablesGenerees) {
-                alert("Veuillez d'abord générer les plans de table dans l'onglet 'Plans de Table' avant de lancer le live !");
-                return;
-            }
-
+            if (!tablesGenerees) { alert("Générez les tables d'abord !"); return; }
             recalculerStatistiquesLive();
-
             let tousJoueursActifs = [];
             for (const seats of Object.values(tablesGenerees)) {
-                seats.forEach(s => {
-                    if (s.player) tousJoueursActifs.push(s.player);
-                });
+                seats.forEach(s => { if (s.player) tousJoueursActifs.push(s.player); });
             }
 
             const selElim = document.getElementById('select-eliminer');
             if (selElim) {
-                selElim.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
-                tousJoueursActifs.sort((a,b) => a.localeCompare(b)).forEach(j => {
-                    selElim.innerHTML += `<option value="${j}">${j}</option>`;
-                });
+                selElim.innerHTML = '<option value="" disabled selected>-- Choisir --</option>';
+                tousJoueursActifs.forEach(j => { selElim.innerHTML += `<option value="${j}">${j}</option>`; });
             }
 
             const selReint = document.getElementById('select-reintegrer');
             if (selReint) {
-                selReint.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
-                if (joueursEliminesHistorique.length > 0) {
-                    [...joueursEliminesHistorique].reverse().forEach(item => {
-                        selReint.innerHTML += `<option value="${item.joueur}">${item.joueur} (Place: ${item.classement})</option>`;
-                    });
-                }
+                selReint.innerHTML = '<option value="" disabled selected>-- Choisir --</option>';
+                joueursEliminesHistorique.forEach(item => { selReint.innerHTML += `<option value="${item.joueur}">${item.joueur}</option>`; });
             }
-
-            verifierEtReequilibrer();
             updateChronoUI();
         }
 
         function marquerAlerteCompris() {
             alerteIgnoree = true;
-            const alertBox = document.getElementById('live-alertes');
-            const eqSpan = document.getElementById('stat-equilibre');
-            alertBox.innerHTML = "Tournoi en cours. Consigne acquittée.";
-            alertBox.className = "alert";
-            eqSpan.innerText = "OK";
-            eqSpan.style.color = "#34d399";
+            document.getElementById('live-alertes').innerHTML = "Consigne acquittée.";
+            document.getElementById('live-alertes').className = "alert";
+            document.getElementById('stat-equilibre').innerText = "OK";
         }
 
         function verifierEtReequilibrer() {
             if (!tablesGenerees) return;
-
-            const maxPerTable = appData.maxJoueursParTable || 6;
-            let tablesActivesIds = [];
-            let totalJoueursActifs = 0;
-
-            for (const [tId, seats] of Object.entries(tablesGenerees)) {
-                const count = seats.filter(s => s.player !== null).length;
-                if (count > 0) {
-                    tablesActivesIds.push(tId);
-                    totalJoueursActifs += count;
-                }
-            }
-
-            if (totalJoueursActifs === 0) return;
-
-            if (totalJoueursActifs === 1 && !appData.tournoisTermines[activeTournoiId]) {
-                let dernierJoueur = null;
-                for (const seats of Object.values(tablesGenerees)) {
-                    const s = seats.find(seat => seat.player !== null);
-                    if (s) { dernierJoueur = s.player; break; }
-                }
-
-                if (dernierJoueur) {
-                    if (chronoIsRunning) toggleChrono();
-
-                    if (scriptUrl && activeTournoiId) {
-                        fetch(scriptUrl, {
-                            method: "POST",
-                            mode: "no-cors",
-                            body: JSON.stringify({
-                                tournoiId: activeTournoiId,
-                                joueur: dernierJoueur,
-                                action: "eliminer",
-                                classement: 1
-                            })
-                        }).catch(err => console.error("Erreur enregistrement vainqueur:", err));
-                    }
-
-                    appData.tournoisTermines[activeTournoiId] = dernierJoueur;
-                    checkTournoiLockStatus();
-                    
-                    setTimeout(() => {
-                        loadDataFromSheet();
-                    }, 1500);
-
-                    alert(`🏆 TOURNOI TERMINÉ !\n\nVainqueur : ${dernierJoueur}.\nLe classement général a été mis à jour.`);
-                }
-            }
-
-            const nbTablesNecessaires = Math.ceil(totalJoueursActifs / maxPerTable);
-            const alertBox = document.getElementById('live-alertes');
-            const eqSpan = document.getElementById('stat-equilibre');
-
-            if (nbTablesNecessaires < tablesActivesIds.length) {
-                eqSpan.innerText = "CASSAGE APPLIQUÉ";
-                eqSpan.style.color = "#f43f5e";
-
-                const randIndex = Math.floor(Math.random() * tablesActivesIds.length);
-                const tableAFermerId = tablesActivesIds[randIndex];
-                const joueursAFermer = tablesGenerees[tableAFermerId].filter(s => s.player !== null).map(s => s.player);
-
-                let siegesLibres = [];
-                tablesActivesIds.forEach(tId => {
-                    if (tId !== tableAFermerId) {
-                        tablesGenerees[tId].forEach(s => {
-                            if (s.player === null) {
-                                siegesLibres.push({ tableId: tId, seat: s.seat });
-                            }
-                        });
-                    }
-                });
-
-                siegesLibres.sort(() => Math.random() - 0.5);
-                let consignes = `🚨 <b>CASSAGE DE TABLE EFFECTUÉ (FERMETURE TABLE ${tableAFermerId})</b><br>Joueurs replacés :<br>`;
-
-                joueursAFermer.forEach((j, idx) => {
-                    if (siegesLibres[idx]) {
-                        const destination = siegesLibres[idx];
-                        consignes += `• <b>${j}</b> ➔ Table ${destination.tableId}, Siège ${destination.seat}<br>`;
-                        
-                        tablesGenerees[tableAFermerId].find(s => s.player === j).player = null;
-                        tablesGenerees[destination.tableId].find(s => s.seat === destination.seat).player = j;
-                    }
-                });
-
-                consignes += `<br><button onclick="marquerAlerteCompris()" style="background:#d97706; color:white; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto;">Compris</button>`;
-
-                alertBox.innerHTML = consignes;
-                alertBox.className = "alert alert-action";
-                renderTablesUI();
-                saveGameStateToSheet();
-                return;
-            }
-
-            let minJoueurs = Infinity, maxJoueurs = -1;
-            let tablePlusPetiteId = null, tablePlusGrandeId = null;
-
-            tablesActivesIds.forEach(tId => {
-                const count = tablesGenerees[tId].filter(s => s.player !== null).length;
-                if (count < minJoueurs) { minJoueurs = count; tablePlusPetiteId = tId; }
-                if (count > maxJoueurs) { maxJoueurs = count; tablePlusGrandeId = tId; }
-            });
-
-            if (maxJoueurs - minJoueurs >= 2) {
-                eqSpan.innerText = "RÉÉQUILIBRAGE APPLIQUÉ";
-                eqSpan.style.color = "#fbbf24";
-
-                const joueursGrandeTable = tablesGenerees[tablePlusGrandeId].filter(s => s.player !== null).map(s => s.player);
-                const joueurADeplacer = joueursGrandeTable[Math.floor(Math.random() * joueursGrandeTable.length)];
-                const siegeLibre = tablesGenerees[tablePlusPetiteId].find(s => s.player === null);
-
-                let consignes = `⚠️ <b>RÉÉQUILIBRAGE EFFECTUÉ (Écart ≥ 2)</b><br>`;
-                consignes += `<b>${joueurADeplacer}</b> a été déplacé de la Table ${tablePlusGrandeId} vers la Table ${tablePlusPetiteId} (Siège ${siegeLibre.seat}).<br><br>`;
-                consignes += `<button onclick="marquerAlerteCompris()" style="background:#d97706; color:white; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto;">Compris</button>`;
-
-                tablesGenerees[tablePlusGrandeId].find(s => s.player === joueurADeplacer).player = null;
-                siegeLibre.player = joueurADeplacer;
-
-                alertBox.innerHTML = consignes;
-                alertBox.className = "alert alert-action";
-                renderTablesUI();
-                saveGameStateToSheet();
-                return;
-            }
-
-            if (alerteIgnoree) {
-                eqSpan.innerText = "OK";
-                eqSpan.style.color = "#34d399";
-                alertBox.innerHTML = "Tournoi en cours. Toutes les tables sont équilibrées.";
-                alertBox.className = "alert";
-            } else {
-                eqSpan.innerText = "PARFAIT";
-                eqSpan.style.color = "#34d399";
-                alertBox.innerHTML = "Tournoi en cours. Toutes les tables sont parfaitement équilibrées.";
-                alertBox.className = "alert";
-            }
         }
 
         function renderClassementUI() {
             const container = document.getElementById('classement-container');
             container.innerHTML = '';
-
-            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
-
-            if (eliminesTries.length === 0) {
-                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucun joueur éliminé pour le moment.</p>`;
+            if (joueursEliminesHistorique.length === 0) {
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucun éliminé.</p>`;
                 return;
             }
-
-            eliminesTries.forEach((item, index) => {
-                container.innerHTML += `
-                    <div class="classement-item" draggable="true" ondragstart="onDragClassementStart(event, ${index})" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDropClassement(event, ${index})">
-                        <span style="font-weight:bold; color:#fbbf24; width:30px;">#${item.classement}</span>
-                        <span style="flex-grow:1; font-weight:500;">${item.joueur}</span>
-                        <span style="font-size:0.75rem; color:#94a3b8;">Glisser pour réordonner</span>
-                    </div>
-                `;
+            [...joueursEliminesHistorique].reverse().forEach(item => {
+                container.innerHTML += `<div class="classement-item"><span style="color:#fbbf24;">#${item.classement}</span><span>${item.joueur}</span></div>`;
             });
-        }
-
-        let dragClassementIndex = null;
-        function onDragClassementStart(event, index) {
-            dragClassementIndex = index;
-        }
-
-        function onDropClassement(event, targetIndex) {
-            event.preventDefault();
-            event.currentTarget.classList.remove('drag-over');
-            if (dragClassementIndex === null || dragClassementIndex === targetIndex) return;
-            if (!checkMastershipBeforeAction()) return;
-
-            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
-            const movedItem = eliminesTries.splice(dragClassementIndex, 1)[0];
-            eliminesTries.splice(targetIndex, 0, movedItem);
-
-            const baseClassementPire = totalJoueursInitial || (eliminesTries.length + 1);
-
-            eliminesTries.forEach((item, idx) => {
-                item.classement = baseClassementPire - idx;
-            });
-
-            joueursEliminesHistorique = eliminesTries;
-            dragClassementIndex = null;
-            renderClassementUI();
-            saveGameStateToSheet();
-
-            let classementMap = {};
-            joueursEliminesHistorique.forEach(item => {
-                classementMap[item.joueur] = item.classement;
-            });
-
-            if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({
-                        tournoiId: activeTournoiId,
-                        action: "updateClassementBatch",
-                        classementMap: classementMap
-                    })
-                }).catch(err => console.error("Erreur synchro classement:", err));
-            }
         }
 
         function renderClassementGeneralUI() {
             const container = document.getElementById('general-container');
             const data = appData.classementGeneral || [];
-
-            if (data.length === 0) {
-                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune donnée de classement général disponible dans la feuille.</p>`;
-                return;
-            }
-
-            let html = `
-                <table class="table-general">
-                    <thead>
-                        <tr>
-                            <th style="width:60px;">Place</th>
-                            <th>Pseudo</th>
-                            <th style="text-align:center;">Points</th>
-                            <th style="text-align:center;">Points Tous</th>
-                            <th style="text-align:center;">Win</th>
-                            <th style="text-align:center;">ITM</th>
-                            <th style="text-align:center;">Participations</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            data.forEach((row) => {
-                html += `
-                    <tr>
-                        <td style="font-weight:bold; color:#fbbf24;">#${row.classement}</td>
-                        <td style="font-weight:500;">${row.joueur}</td>
-                        <td style="text-align:center; font-weight:bold; color:#34d399;">${row.points}</td>
-                        <td style="text-align:center; font-weight:bold; color:#60a5fa;">${row.pointsTous}</td>
-                        <td style="text-align:center;">${row.win}</td>
-                        <td style="text-align:center;">${row.itm}</td>
-                        <td style="text-align:center;">${row.participations}</td>
-                    </tr>
-                `;
-            });
-
+            if (data.length === 0) { container.innerHTML = `<p style="color:#94a3b8;">Aucun classement général.</p>`; return; }
+            let html = `<table class="table-general"><thead><tr><th>Place</th><th>Pseudo</th><th>Points</th></tr></thead><tbody>`;
+            data.forEach(row => { html += `<tr><td style="color:#fbbf24;">#${row.classement}</td><td>${row.joueur}</td><td style="color:#34d399;">${row.points}</td></tr>`; });
             html += `</tbody></table>`;
             container.innerHTML = html;
         }
 
         function updateChronoUI() {
-            let m = Math.floor(secondesRestantes / 60);
-            let s = secondesRestantes % 60;
+            let m = Math.floor(secondesRestantes / 60), s = secondesRestantes % 60;
             document.getElementById('live-chrono').innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-            
-            const structs = appData.structures || {};
-            const currentStruct = structs[niveauActuel] || {label: `Niveau ${niveauActuel}`, sb: 0, bb: 0, ante: 0};
-            
+            const currentStruct = (appData.structures || {})[niveauActuel] || {label: `Niveau ${niveauActuel}`, sb: 50, bb: 100};
             document.getElementById('live-niveau').innerText = currentStruct.label;
-            
-            if (currentStruct.isPause) {
-                document.getElementById('live-blinds').innerText = "PAUSE";
-            } else {
-                document.getElementById('live-blinds').innerText = `${currentStruct.sb} / ${currentStruct.bb} (Ante ${currentStruct.ante})`;
-            }
-
-            const nextStruct = structs[niveauActuel + 1];
-            if (nextStruct) {
-                document.getElementById('stat-suivant').innerText = nextStruct.label + (nextStruct.isPause ? "" : ` (${nextStruct.sb}/${nextStruct.bb})`);
-            } else {
-                document.getElementById('stat-suivant').innerText = "Dernier niveau";
-            }
+            document.getElementById('live-blinds').innerText = `${currentStruct.sb} / ${currentStruct.bb}`;
         }
 
         function startChronoLoop(save = true) {
             chronoIsRunning = true;
             const btn = document.getElementById('btn-chrono');
-            if (btn) {
-                btn.innerText = "Pause";
-                btn.className = "btn-amber";
-            }
-
-            if (!chronoEndTime) {
-                chronoEndTime = Date.now() + (secondesRestantes * 1000);
-            }
-
+            if (btn) { btn.innerText = "Pause"; btn.className = "btn-amber"; }
+            if (!chronoEndTime) chronoEndTime = Date.now() + (secondesRestantes * 1000);
             if (chronoTimer) clearInterval(chronoTimer);
 
             chronoTimer = setInterval(() => {
-                const now = Date.now();
-                const diff = Math.ceil((chronoEndTime - now) / 1000);
-
+                const diff = Math.ceil((chronoEndTime - Date.now()) / 1000);
                 if (diff > 0) {
                     secondesRestantes = diff;
                     updateChronoUI();
@@ -1433,277 +1031,81 @@
                     clearInterval(chronoTimer);
                     chronoIsRunning = false;
                     chronoEndTime = null;
-                    
-                    const structs = appData.structures || {};
-                    if (structs[niveauActuel + 1]) {
-                        niveauActuel++;
-                        dureeNiveauSec = getDureeStructureSec(niveauActuel);
-                        secondesRestantes = dureeNiveauSec;
-                        
-                        jouerBipChangementNiveau();
-
-                        startChronoLoop(true);
-                    } else {
-                        alert("🏁 Fin de la structure des niveaux !");
-                    }
+                    niveauActuel++;
+                    secondesRestantes = getDureeStructureSec(niveauActuel);
+                    startChronoLoop(true);
                 }
             }, 1000);
-
-            updateChronoUI();
-            if (save) saveGameStateToSheet();
+            if (save && isBureauVPC) saveGameStateToSheet();
         }
 
         function toggleChrono() {
-            if (!checkMastershipBeforeAction()) return;
-
+            if (!checkBureauVPCBeforeAction()) return;
             if (chronoIsRunning) {
                 clearInterval(chronoTimer);
                 chronoIsRunning = false;
                 chronoEndTime = null;
-                const btn = document.getElementById('btn-chrono');
-                if (btn) {
-                    btn.innerText = "Start";
-                    btn.className = "btn-green";
-                }
-                updateChronoUI();
+                document.getElementById('btn-chrono').innerText = "Start";
+                document.getElementById('btn-chrono').className = "btn-green";
                 saveGameStateToSheet();
             } else {
-                chronoEndTime = Date.now() + (secondesRestantes * 1000);
                 startChronoLoop(true);
             }
         }
 
         function resetChrono() {
-            if (!checkMastershipBeforeAction()) return;
-
-            if (appData.tournoisTermines && appData.tournoisTermines[activeTournoiId]) {
-                alert("⚠️ Reset impossible : ce tournoi est terminé et son vainqueur est enregistré dans le classement.");
-                return;
-            }
-
-            if (!confirm("⚠️ RESET COMPLET DU TOURNOI :\n\n- Le chrono repassera au début.\n- Tous les joueurs éliminés seront réintégrés.\n- Leurs classements enregistrés sur Google Sheet seront effacés.\n- Les plans de table pourront être refaits.\n\nConfirmez-vous cette réinitialisation ?")) {
-                return;
-            }
+            if (!checkBureauVPCBeforeAction()) return;
+            if (!confirm("Réinitialiser le tournoi ?")) return;
             clearInterval(chronoTimer);
             chronoIsRunning = false;
             chronoEndTime = null;
             niveauActuel = 1;
-            dureeNiveauSec = getDureeStructureSec(1);
-            secondesRestantes = dureeNiveauSec;
-
-            const btn = document.getElementById('btn-chrono');
-            if (btn) {
-                btn.innerText = "Start";
-                btn.className = "btn-green";
-            }
+            secondesRestantes = getDureeStructureSec(1);
             updateChronoUI();
-
-            if (joueursEliminesHistorique.length > 0 && tablesGenerees) {
-                joueursEliminesHistorique.forEach(item => {
-                    let placeRemise = false;
-                    if (tablesGenerees[item.origTableId]) {
-                        const sOrig = tablesGenerees[item.origTableId].find(s => s.seat == item.origSeat);
-                        if (sOrig && sOrig.player === null) {
-                            sOrig.player = item.joueur;
-                            placeRemise = true;
-                        }
-                    }
-                    if (!placeRemise) {
-                        for (const seats of Object.values(tablesGenerees)) {
-                            const sLibre = seats.find(s => s.player === null);
-                            if (sLibre) {
-                                sLibre.player = item.joueur;
-                                break;
-                            }
-                        }
-                    }
-                });
-            }
-
-            joueursEliminesHistorique = [];
-            tablesGenerees = null;
-            renderTablesUI();
-            checkTournoiLockStatus();
-            initLive();
             saveGameStateToSheet();
-
-            if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({
-                        tournoiId: activeTournoiId,
-                        action: "resetTournament"
-                    })
-                }).catch(err => console.error("Erreur reset:", err));
-            }
         }
 
-        function promptNextLevel() {
-            if (!checkMastershipBeforeAction()) return;
-            const choix = prompt("Changement de niveau :\n\n1. Conserver le compte à rebours actuel\n2. Remettre le chrono à zéro (pour le nouveau niveau)\n3. Annuler\n\nTapez 1, 2 ou 3 :", "2");
-            if (choix === "1") {
-                changeLevelBy(1, false);
-            } else if (choix === "2") {
-                changeLevelBy(1, true);
-            }
-        }
-
-        function promptPrevLevel() {
-            if (!checkMastershipBeforeAction()) return;
-            const choix = prompt("Retour en arrière (Niveau -) :\n\n1. Conserver le compte à rebours actuel\n2. Remettre le chrono à zéro\n3. Annuler\n\nTapez 1, 2 ou 3 :", "2");
-            if (choix === "1") {
-                changeLevelBy(-1, false);
-            } else if (choix === "2") {
-                changeLevelBy(-1, true);
-            }
-        }
-
-        function changeLevelBy(delta, resetTime) {
-            if (!checkMastershipBeforeAction()) return;
-            const newNiveau = niveauActuel + delta;
-            const structs = appData.structures || {};
-            if (newNiveau >= 1 && structs[newNiveau]) {
-                niveauActuel = newNiveau;
-                dureeNiveauSec = getDureeStructureSec(niveauActuel);
-                
-                if (resetTime) {
-                    secondesRestantes = dureeNiveauSec;
-                }
-                
-                jouerBipChangementNiveau();
-
-                chronoEndTime = chronoIsRunning ? (Date.now() + (secondesRestantes * 1000)) : null;
-                updateChronoUI();
-                
-                if (chronoIsRunning) startChronoLoop(true);
-                else saveGameStateToSheet();
-            }
+        function promptNextLevel() { if (checkBureauVPCBeforeAction()) changeLevelBy(1); }
+        function promptPrevLevel() { if (checkBureauVPCBeforeAction()) changeLevelBy(-1); }
+        function changeLevelBy(delta) {
+            niveauActuel = Math.max(1, niveauActuel + delta);
+            secondesRestantes = getDureeStructureSec(niveauActuel);
+            updateChronoUI();
+            if (isBureauVPC) saveGameStateToSheet();
         }
 
         function eliminerJoueur() {
-            if (!checkMastershipBeforeAction()) return;
+            if (!checkBureauVPCBeforeAction()) return;
             const joueur = document.getElementById('select-eliminer').value;
-            if (!joueur) {
-                alert("Veuillez sélectionner un joueur à éliminer.");
-                return;
-            }
-
-            if (!confirm(`Confirmez-vous l'élimination définitive de ${joueur} ?`)) {
-                return;
-            }
-
+            if (!joueur) return;
             let restantsCount = 0;
-            let origTableId = null, origSeat = null;
-
-            if (tablesGenerees) {
-                for (const [tId, seats] of Object.entries(tablesGenerees)) {
-                    seats.forEach(s => {
-                        if (s.player) {
-                            restantsCount++;
-                            if (s.player === joueur) {
-                                origTableId = tId;
-                                origSeat = s.seat;
-                            }
-                        }
-                    });
-                }
+            for (const seats of Object.values(tablesGenerees)) {
+                seats.forEach(s => { if (s.player) restantsCount++; });
             }
-
-            const classementAttribue = restantsCount;
-
-            joueursEliminesHistorique.push({
-                joueur: joueur,
-                classement: classementAttribue,
-                origTableId: origTableId,
-                origSeat: origSeat
-            });
-
-            if (tablesGenerees && origTableId) {
-                tablesGenerees[origTableId].find(s => s.seat == origSeat).player = null;
+            joueursEliminesHistorique.push({ joueur: joueur, classement: restantsCount });
+            for (const seats of Object.values(tablesGenerees)) {
+                const s = seats.find(seat => seat.player === joueur);
+                if (s) { s.player = null; break; }
             }
-
             initLive();
             saveGameStateToSheet();
-
-            if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({
-                        tournoiId: activeTournoiId,
-                        joueur: joueur,
-                        action: "eliminer",
-                        classement: classementAttribue
-                    })
-                }).catch(err => console.error("Erreur elimination:", err));
-            }
+            fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "eliminer", masterToken: masterToken, classement: restantsCount })
+            });
         }
 
         function reintegrerJoueur() {
-            if (!checkMastershipBeforeAction()) return;
+            if (!checkBureauVPCBeforeAction()) return;
             const joueur = document.getElementById('select-reintegrer').value;
-            if (!joueur) {
-                alert("Veuillez sélectionner un joueur à réintégrer.");
-                return;
+            if (!joueur) return;
+            joueursEliminesHistorique = joueursEliminesHistorique.filter(item => item.joueur !== joueur);
+            for (const seats of Object.values(tablesGenerees)) {
+                const s = seats.find(seat => seat.player === null);
+                if (s) { s.player = joueur; break; }
             }
-
-            if (!confirm(`Voulez-vous vraiment réintégrer ${joueur} au tournoi ? Son classement sera annulé.`)) {
-                return;
-            }
-
-            const idx = joueursEliminesHistorique.findIndex(item => item.joueur === joueur);
-            if (idx === -1) return;
-
-            const elemReintegre = joueursEliminesHistorique[idx];
-            const classementsAncien = elemReintegre.classement;
-
-            joueursEliminesHistorique.splice(idx, 1);
-
-            let eliminationsFutures = [];
-            joueursEliminesHistorique.forEach(item => {
-                if (item.classement > classementsAncien) {
-                    item.classement = item.classement - 1;
-                    eliminationsFutures.push({ joueur: item.joueur, nouveauClassement: item.classement });
-                }
-            });
-
-            let remplace = false;
-            if (tablesGenerees) {
-                if (tablesGenerees[elemReintegre.origTableId]) {
-                    const targetSeat = tablesGenerees[elemReintegre.origTableId].find(s => s.seat == elemReintegre.origSeat);
-                    if (targetSeat && targetSeat.player === null) {
-                        targetSeat.player = joueur;
-                        remplace = true;
-                    }
-                }
-                if (!remplace) {
-                    for (const seats of Object.values(tablesGenerees)) {
-                        const sLibre = seats.find(s => s.player === null);
-                        if (sLibre) {
-                            sLibre.player = joueur;
-                            remplace = true;
-                            break;
-                        }
-                    }
-                }
-            }
-
             initLive();
             saveGameStateToSheet();
-
-            if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({
-                        tournoiId: activeTournoiId,
-                        joueur: joueur,
-                        action: "reintegrer",
-                        eliminationsFutures: eliminationsFutures
-                    })
-                }).catch(err => console.error("Erreur reintegration:", err));
-            }
         }
     </script>
 </body>

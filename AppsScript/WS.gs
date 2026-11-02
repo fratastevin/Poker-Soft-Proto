@@ -1,4 +1,4 @@
-// --- GOOGLE APPS HCRIPT BACKEND (AVEC LECTURE DYNAMIQUE STRUCTURE CASE B2, SÉCURITÉ MAÎTRE & LOCKSERVICE) ---
+// --- GOOGLE APPS SCRIPT BACKEND AVEC AUTHENTIFICATION (BUREAUVPC & CODE CLUB) ---
 
 function doGet(e) {
   try {
@@ -6,59 +6,63 @@ function doGet(e) {
     
     // 1. Récupération des joueurs
     const sheetJoueurs = ss.getSheetByName("Joueurs");
-    const dataJoueurs = sheetJoueurs.getRange("A2:A" + sheetJoueurs.getLastRow()).getValues();
-    const joueurs = dataJoueurs.map(row => row[0]).filter(j => j !== "" && j !== undefined);
+    let joueurs = [];
+    if (sheetJoueurs && sheetJoueurs.getLastRow() >= 2) {
+      const dataJoueurs = sheetJoueurs.getRange("A2:A" + sheetJoueurs.getLastRow()).getValues();
+      joueurs = dataJoueurs.map(row => row[0]).filter(j => j !== "" && j !== undefined);
+    }
 
     // 2. Récupération du calendrier
     const sheetCal = ss.getSheetByName("Calendrier");
-    const lastRowCal = sheetCal.getLastRow();
     const tournois = [];
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
     let prochainTournoiId = null;
-    let minDiff = Infinity;
 
-    for (let i = 2; i <= lastRowCal; i++) {
-      const num = sheetCal.getRange(i, 1).getValue();
-      const dateStr = sheetCal.getRange(i, 2).getDisplayValue().trim();
-      const intitule = sheetCal.getRange(i, 3).getValue();
+    if (sheetCal) {
+      const lastRowCal = sheetCal.getLastRow();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      let minDiff = Infinity;
 
-      if (num !== "" && intitule !== "") {
-        let dateObj = null;
-        let dateFormatted = "";
+      for (let i = 2; i <= lastRowCal; i++) {
+        const num = sheetCal.getRange(i, 1).getValue();
+        const dateStr = sheetCal.getRange(i, 2).getDisplayValue().trim();
+        const intitule = sheetCal.getRange(i, 3).getValue();
 
-        if (dateStr.includes('/')) {
-          const parts = dateStr.split('/');
-          if (parts.length === 3) {
-            const day = parseInt(parts[0], 10);
-            const month = parseInt(parts[1], 10) - 1;
-            let year = parseInt(parts[2], 10);
-            if (year < 100) year += 2000;
-            dateObj = new Date(year, month, day);
-            dateFormatted = dateStr;
+        if (num !== "" && intitule !== "") {
+          let dateObj = null;
+          let dateFormatted = "";
+
+          if (dateStr.includes('/')) {
+            const parts = dateStr.split('/');
+            if (parts.length === 3) {
+              const day = parseInt(parts[0], 10);
+              const month = parseInt(parts[1], 10) - 1;
+              let year = parseInt(parts[2], 10);
+              if (year < 100) year += 2000;
+              dateObj = new Date(year, month, day);
+              dateFormatted = dateStr;
+            }
           }
-        }
 
-        if (dateObj && !isNaN(dateObj.getTime())) {
-          dateObj.setHours(0, 0, 0, 0);
-          const diff = dateObj.getTime() - today.getTime();
-          
-          if (diff >= 0 && diff < minDiff) {
-            minDiff = diff;
-            prochainTournoiId = num.toString();
+          if (dateObj && !isNaN(dateObj.getTime())) {
+            dateObj.setHours(0, 0, 0, 0);
+            const diff = dateObj.getTime() - today.getTime();
+            
+            if (diff >= 0 && diff < minDiff) {
+              minDiff = diff;
+              prochainTournoiId = num.toString();
+            }
           }
+
+          const displayStr = dateFormatted ? `${intitule} - ${dateFormatted}` : `${intitule} (Date non définie)`;
+
+          tournois.push({
+            id: num.toString(),
+            intitule: intitule,
+            date: dateFormatted,
+            displayLabel: displayStr
+          });
         }
-
-        const displayStr = dateFormatted ? `${intitule} - ${dateFormatted}` : `${intitule} (Date non définie)`;
-
-        tournois.push({
-          id: num.toString(),
-          intitule: intitule,
-          date: dateFormatted,
-          displayLabel: displayStr
-        });
       }
     }
 
@@ -66,7 +70,7 @@ function doGet(e) {
       prochainTournoiId = tournois[0].id;
     }
 
-    // 3. Paramètres Structure (Max joueurs I3, Starting Stack, Durée B2 & Blinds depuis l'onglet Structure)
+    // 3. Paramètres Structure
     let maxJoueursParTable = 6;
     let startingStack = 20000;
     let dureeNiveauMinutesDefaut = 20;
@@ -74,54 +78,52 @@ function doGet(e) {
 
     try {
       const sheetStruct = ss.getSheetByName("Structure");
-      
-      // Récupération de la durée globale des niveaux dans la case B2
-      const valB2 = sheetStruct.getRange("B2").getValue();
-      if (valB2 !== "" && !isNaN(valB2) && Number(valB2) > 0) {
-        dureeNiveauMinutesDefaut = parseFloat(valB2);
-      }
+      if (sheetStruct) {
+        const valB2 = sheetStruct.getRange("B2").getValue();
+        if (valB2 !== "" && !isNaN(valB2) && Number(valB2) > 0) {
+          dureeNiveauMinutesDefaut = parseFloat(valB2);
+        }
 
-      const valI3 = sheetStruct.getRange("I3").getValue();
-      if (valI3 !== "" && !isNaN(valI3)) {
-        maxJoueursParTable = parseInt(valI3, 10);
-      }
+        const valI3 = sheetStruct.getRange("I3").getValue();
+        if (valI3 !== "" && !isNaN(valI3)) {
+          maxJoueursParTable = parseInt(valI3, 10);
+        }
 
-      const structData = sheetStruct.getDataRange().getValues();
-      for (let r = 0; r < structData.length; r++) {
-        for (let c = 0; c < structData[r].length; c++) {
-          const cellStr = String(structData[r][c]).toLowerCase();
-          if (cellStr.includes("starting stack") || cellStr.includes("jetons départ") || cellStr.includes("stack départ")) {
-            if (c + 1 < structData[r].length && !isNaN(structData[r][c+1]) && structData[r][c+1] !== "") {
-              startingStack = parseFloat(structData[r][c+1]);
+        const structData = sheetStruct.getDataRange().getValues();
+        for (let r = 0; r < structData.length; r++) {
+          for (let c = 0; c < structData[r].length; c++) {
+            const cellStr = String(structData[r][c]).toLowerCase();
+            if (cellStr.includes("starting stack") || cellStr.includes("jetons départ") || cellStr.includes("stack départ")) {
+              if (c + 1 < structData[r].length && !isNaN(structData[r][c+1]) && structData[r][c+1] !== "") {
+                startingStack = parseFloat(structData[r][c+1]);
+              }
             }
           }
         }
-      }
 
-      // Lecture dynamique des niveaux à partir de la ligne 5 (Index 4)
-      for (let i = 4; i < structData.length; i++) {
-        const row = structData[i];
-        const valNiveau = String(row[0]).trim();
-        if (valNiveau === "" || valNiveau.toLowerCase() === "total" || valNiveau.toLowerCase() === "moyenne") break;
+        for (let i = 4; i < structData.length; i++) {
+          const row = structData[i];
+          const valNiveau = String(row[0]).trim();
+          if (valNiveau === "" || valNiveau.toLowerCase() === "total" || valNiveau.toLowerCase() === "moyenne") break;
 
-        const isPause = valNiveau.toLowerCase().includes("pause") || valNiveau.toLowerCase().includes("break");
-        const sb = parseFloat(row[1]) || 0;
-        const bb = parseFloat(row[2]) || 0;
-        const ante = parseFloat(row[3]) || 0;
-        
-        let indexNiveau = i - 3; // Niveau 1, 2, 3...
-        structuresDynamiques[indexNiveau] = {
-          label: isPause ? "Pause" : `Niveau ${valNiveau}`,
-          sb: sb,
-          bb: bb,
-          ante: ante,
-          duree: dureeNiveauMinutesDefaut * 60, // En secondes (basé sur la case B2)
-          isPause: isPause
-        };
+          const isPause = valNiveau.toLowerCase().includes("pause") || valNiveau.toLowerCase().includes("break");
+          const sb = parseFloat(row[1]) || 0;
+          const bb = parseFloat(row[2]) || 0;
+          const ante = parseFloat(row[3]) || 0;
+          
+          let indexNiveau = i - 3;
+          structuresDynamiques[indexNiveau] = {
+            label: isPause ? "Pause" : `Niveau ${valNiveau}`,
+            sb: sb,
+            bb: bb,
+            ante: ante,
+            duree: dureeNiveauMinutesDefaut * 60,
+            isPause: isPause
+          };
+        }
       }
     } catch (err) {}
 
-    // Fallback si structure vide
     if (Object.keys(structuresDynamiques).length === 0) {
       structuresDynamiques[1] = { label: "Niveau 1", sb: 25, bb: 50, ante: 25, duree: dureeNiveauMinutesDefaut * 60 };
     }
@@ -146,7 +148,7 @@ function doGet(e) {
       }
     }
 
-    // 5. Récupération du Classement Général (Ligne 5 à fin)
+    // 5. Classement Général
     let classementGeneral = [];
     const sheetClassement = ss.getSheetByName("Classement MTT");
     const tournoisTermines = {};
@@ -196,7 +198,7 @@ function doGet(e) {
       });
     }
 
-    // 6. États persistants (onglet State)
+    // 6. États persistants
     let allStates = {};
     let sheetState = ss.getSheetByName("State");
     if (sheetState) {
@@ -229,10 +231,8 @@ function doGet(e) {
 }
 
 function doPost(e) {
-  // --- VERROU DE SÉCURITÉ CONCURRENCE (LOCKSERVICE) ---
   const lock = LockService.getScriptLock();
   try {
-    // Attend jusqu'à 10 secondes qu'un éventuel traitement en cours se termine
     lock.waitLock(10000);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ 
@@ -245,28 +245,66 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const tournoiId = data.tournoiId;
     const action = data.action;
-
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // Fonction utilitaire interne pour vérifier le rôle de maître (Sécurité anti-spectateur)[cite: 1]
-    function verifierMastership() {
-      let sheetState = ss.getSheetByName("State");
-      if (!sheetState) return true;
-      let allStates = {};
-      let raw = sheetState.getRange("A1").getValue();
-      if (raw) { try { allStates = JSON.parse(raw); } catch (e) {} }
+    // --- 1. CONNEXION ADMIN (BureauVPC) ---
+    if (action === "loginMaster") {
+      const username = data.username;
+      const password = data.password;
+      const expectedUser = PropertiesService.getScriptProperties().getProperty('ADMIN_USER') || "BureauVPC";
+      const expectedPassword = PropertiesService.getScriptProperties().getProperty('MASTER_PASSWORD');
 
-      const currentState = allStates[tournoiId];
-      const incomingMaster = data.state ? data.state.masterClientId : data.masterClientId;
-
-      if (currentState && currentState.masterClientId && incomingMaster) {
-        if (currentState.masterClientId !== incomingMaster) {
-          return false; // Ce n'est pas le maître légitime
-        }
+      if (!expectedPassword) {
+        return ContentService.createTextOutput(JSON.stringify({ 
+          status: "error", 
+          message: "Propriété MASTER_PASSWORD non configurée dans Apps Script." 
+        })).setMimeType(ContentService.MimeType.JSON);
       }
-      return true;
+
+      if (username === expectedUser && password === expectedPassword) {
+        const masterToken = 'token_master_' + Math.random().toString(36).substr(2, 12);
+        PropertiesService.getScriptProperties().setProperty('ACTIVE_MASTER_TOKEN', masterToken);
+        return ContentService.createTextOutput(JSON.stringify({ 
+          status: "success", 
+          masterToken: masterToken 
+        })).setMimeType(ContentService.MimeType.JSON);
+      } else {
+        return ContentService.createTextOutput(JSON.stringify({ 
+          status: "error", 
+          message: "Identifiant ou mot de passe Administrateur incorrect." 
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
     }
 
+    // --- 2. CONTRÔLE DE SÉCURITÉ POUR ACTIONS ADMIN ---
+    const adminActions = ["saveState", "eliminer", "reintegrer", "updateClassementBatch", "resetTournament", "ajouterJoueur"];
+    if (adminActions.includes(action)) {
+      const clientToken = data.masterToken;
+      const serverToken = PropertiesService.getScriptProperties().getProperty('ACTIVE_MASTER_TOKEN');
+
+      if (!clientToken || clientToken !== serverToken) {
+        return ContentService.createTextOutput(JSON.stringify({ 
+          status: "error", 
+          message: "Accès refusé : Seul 'BureauVPC' (Admin) peut effectuer cette action." 
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // --- 3. CONTRÔLE DE SÉCURITÉ CODE CLUB POUR LES JOUEURS ---
+    const playerActions = ["inscrire", "desinscrire", "present"];
+    if (playerActions.includes(action)) {
+      const clubPasswordSaisi = data.clubPassword;
+      const expectedClubPassword = PropertiesService.getScriptProperties().getProperty('CLUB_PASSWORD');
+
+      if (expectedClubPassword && clubPasswordSaisi !== expectedClubPassword) {
+        return ContentService.createTextOutput(JSON.stringify({ 
+          status: "error", 
+          message: "Code secret du club incorrect. Action refusée." 
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // --- EXECUTION DES ACTIONS ---
     if (action === "ajouterJoueur") {
       const nouveauJoueur = data.joueur;
       let sheetJoueurs = ss.getSheetByName("Joueurs");
@@ -285,9 +323,6 @@ function doPost(e) {
     }
 
     if (action === "updateClassementBatch") {
-      if (!verifierMastership()) {
-        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Action rejetée : Vous n'êtes plus le Maître du tournoi." })).setMimeType(ContentService.MimeType.JSON);
-      }
       const classementMap = data.classementMap || {};
       const sheetClassement = ss.getSheetByName("Classement MTT");
       if (sheetClassement) {
@@ -315,9 +350,6 @@ function doPost(e) {
     }
 
     if (action === "resetTournament") {
-      if (!verifierMastership()) {
-        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Action rejetée : Vous n'êtes plus le Maître du tournoi." })).setMimeType(ContentService.MimeType.JSON);
-      }
       let sheetState = ss.getSheetByName("State");
       if (sheetState) {
         let allStates = {};
@@ -353,10 +385,6 @@ function doPost(e) {
     }
 
     if (action === "saveState") {
-      if (!verifierMastership()) {
-        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Action rejetée : Vous n'êtes plus le Maître du tournoi." })).setMimeType(ContentService.MimeType.JSON);
-      }
-
       let sheetState = ss.getSheetByName("State");
       if (!sheetState) sheetState = ss.insertSheet("State");
       
@@ -370,17 +398,11 @@ function doPost(e) {
     }
 
     if (action === "eliminer") {
-      if (!verifierMastership()) {
-        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Action rejetée : Vous n'êtes plus le Maître du tournoi." })).setMimeType(ContentService.MimeType.JSON);
-      }
       updateClassementSheet(ss, tournoiId, data.joueur, data.classement);
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
     if (action === "reintegrer") {
-      if (!verifierMastership()) {
-        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Action rejetée : Vous n'êtes plus le Maître du tournoi." })).setMimeType(ContentService.MimeType.JSON);
-      }
       const joueur = data.joueur;
       const eliminationsFutures = data.eliminationsFutures || [];
 
@@ -451,7 +473,6 @@ function doPost(e) {
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
   } finally {
-    // Libération garantie du verrou à la fin du traitement
     lock.releaseLock();
   }
 }
