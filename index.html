@@ -65,7 +65,7 @@
     </div>
 
     <div id="spectator-banner">
-        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Les actions d'administration sont désactivées. (Cliquez sur "👑 Master" pour vous authentifier).
+        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Les actions d'administration (génération, chronomètre) sont réservées au Master. (Cliquez sur "👑 Master" pour vous authentifier).
     </div>
 
     <header>
@@ -103,7 +103,7 @@
                         <select id="select-joueur-mtt"></select>
                     </div>
                 </div>
-                <button onclick="toggleInscriptionMTT()" class="btn-green master-action">S'inscrire / Se désinscrire</button>
+                <button onclick="toggleInscriptionMTT()" class="btn-green">S'inscrire / Se désinscrire</button>
                 <ul id="list-inscrits-mtt" style="margin-top:1rem;"></ul>
             </div>
 
@@ -183,7 +183,7 @@
                         <select id="select-joueur-sng"></select>
                     </div>
                 </div>
-                <button onclick="toggleInscriptionSNG()" class="btn-green master-action">S'inscrire / Se désinscrire</button>
+                <button onclick="toggleInscriptionSNG()" class="btn-green">S'inscrire / Se désinscrire</button>
                 <ul id="list-inscrits-sng" style="margin-top:1rem;"></ul>
             </div>
 
@@ -256,8 +256,8 @@
         let appData = {};
         let activeTournoiMTTId = null;
         let activeTournoiSNGId = null;
-        let tablesGenereesMTT = {}; // Stockage par ID de tournoi MTT
-        let tablesGenereesSNG = {}; // Stockage par ID de tournoi SNG
+        let tablesGenereesMTT = {};
+        let tablesGenereesSNG = {};
         let tournoiCommenceMTT = false;
         let chronoIntervalMTT = null;
         let secondesRestantesMTT = 1200;
@@ -292,15 +292,18 @@
         }
 
         function populateDropdowns() {
-            activeTournoiMTTId = appData.prochainTournoiMTTId || (appData.tournoisMTT && appData.tournoisMTT[0] ? appData.tournoisMTT[0].id : null);
-            activeTournoiSNGId = appData.prochainTournoiSNGId || (appData.tournoisSNG && appData.tournoisSNG[0] ? appData.tournoisSNG[0].id : null);
+            const listMTT = appData.tournoisMTT || appData.tournois_mtt || appData.calendrierMTT || [];
+            const listSNG = appData.tournoisSNG || appData.tournois_sng || appData.calendrierSNG || [];
+
+            activeTournoiMTTId = appData.prochainTournoiMTTId || (listMTT[0] ? listMTT[0].id : null);
+            activeTournoiSNGId = appData.prochainTournoiSNGId || (listSNG[0] ? listSNG[0].id : null);
 
             [1, 2, 3, 4].forEach(i => {
                 const sel = document.getElementById(`select-tournoi-mtt-${i}`);
                 if (sel) {
                     sel.innerHTML = '';
-                    (appData.tournoisMTT || []).forEach(t => {
-                        sel.innerHTML += `<option value="${t.id}">${t.displayLabel}</option>`;
+                    listMTT.forEach(t => {
+                        sel.innerHTML += `<option value="${t.id}">${t.displayLabel || t.nom || t.id}</option>`;
                     });
                     sel.value = activeTournoiMTTId;
                 }
@@ -310,8 +313,8 @@
                 const sel = document.getElementById(`select-tournoi-sng-${i}`);
                 if (sel) {
                     sel.innerHTML = '';
-                    (appData.tournoisSNG || []).forEach(t => {
-                        sel.innerHTML += `<option value="${t.id}">${t.displayLabel}</option>`;
+                    listSNG.forEach(t => {
+                        sel.innerHTML += `<option value="${t.id}">${t.displayLabel || t.nom || t.id}</option>`;
                     });
                     sel.value = activeTournoiSNGId;
                 }
@@ -428,6 +431,8 @@
                         sessionStorage.setItem('poker_is_master', 'true');
                         sessionStorage.setItem('poker_master_token', masterToken);
                         mettreAJourBoutonMasterUI();
+                        updateInscritsMTTUI();
+                        updateInscritsSNGUI();
                         alert("👑 Connexion Administrateur réussie.");
                     } else {
                         alert("❌ " + data.message);
@@ -517,7 +522,7 @@
                         <span>${j}</span>
                         <div style="display:flex; gap:0.5rem; align-items:center;">
                             <span class="${badgeClass}" onclick="togglePresenceMTT('${j}')">${badgeText}</span>
-                            ${isMaster ? `<button onclick="desinscrireMTT('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>` : ''}
+                            <button onclick="desinscrireMTT('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>
                         </div>
                     </li>
                 `;
@@ -536,7 +541,6 @@
         }
 
         function toggleInscriptionMTT() {
-            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
             const joueur = document.getElementById('select-joueur-mtt').value;
             if (!joueur) { alert("Veuillez sélectionner un joueur."); return; }
             if (!appData.inscriptionsMTT[activeTournoiMTTId]) appData.inscriptionsMTT[activeTournoiMTTId] = {};
@@ -566,7 +570,6 @@
         }
 
         function desinscrireMTT(joueur) {
-            if (!isMaster) return;
             if (!appData.inscriptionsMTT[activeTournoiMTTId]) return;
             const tournoiInsc = appData.inscriptionsMTT[activeTournoiMTTId];
             if (Array.isArray(tournoiInsc)) {
@@ -584,7 +587,6 @@
         }
 
         function togglePresenceMTT(joueur) {
-            if (!isMaster) return;
             const tournoiInsc = appData.inscriptionsMTT[activeTournoiMTTId];
             if (!tournoiInsc || !tournoiInsc[joueur]) return;
             tournoiInsc[joueur].present = !tournoiInsc[joueur].present;
@@ -671,7 +673,6 @@
             
             renderTablesUIMTT();
             
-            // Sauvegarde persistante dans l'onglet State via l'API Apps Script
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
@@ -748,7 +749,7 @@
                         <span>${j}</span>
                         <div style="display:flex; gap:0.5rem; align-items:center;">
                             <span class="${badgeClass}" onclick="togglePresenceSNG('${j}')">${badgeText}</span>
-                            ${isMaster ? `<button onclick="desinscrireSNG('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>` : ''}
+                            <button onclick="desinscrireSNG('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>
                         </div>
                     </li>
                 `;
@@ -757,7 +758,6 @@
         }
 
         function toggleInscriptionSNG() {
-            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
             const joueur = document.getElementById('select-joueur-sng').value;
             if (!joueur) { alert("Veuillez sélectionner un joueur."); return; }
             if (!appData.inscriptionsSNG[activeTournoiSNGId]) appData.inscriptionsSNG[activeTournoiSNGId] = {};
@@ -787,7 +787,6 @@
         }
 
         function desinscrireSNG(joueur) {
-            if (!isMaster) return;
             if (!appData.inscriptionsSNG[activeTournoiSNGId]) return;
             const tournoiInsc = appData.inscriptionsSNG[activeTournoiSNGId];
             if (Array.isArray(tournoiInsc)) {
@@ -805,7 +804,6 @@
         }
 
         function togglePresenceSNG(joueur) {
-            if (!isMaster) return;
             const tournoiInsc = appData.inscriptionsSNG[activeTournoiSNGId];
             if (!tournoiInsc || !tournoiInsc[joueur]) return;
             tournoiInsc[joueur].present = !tournoiInsc[joueur].present;
@@ -902,7 +900,6 @@
             tablesGenereesSNG[activeTournoiSNGId] = tables;
             renderTablesUISNG();
 
-            // Sauvegarde persistante dans l'onglet State via l'API Apps Script
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
