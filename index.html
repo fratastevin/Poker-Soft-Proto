@@ -33,7 +33,7 @@
         .font-mono { font-family: monospace; }
         ul { list-style: none; padding: 0; margin: 0; }
         li { padding: 0.5rem 0; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; }
-        .badge { font-size: 0.75rem; background-color: #064e3b; color: #6ee7b7; padding: 0.125rem 0.5rem; border-radius: 9999px; cursor: pointer; }
+        .badge { font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 9999px; cursor: pointer; font-weight: bold; }
         .badge-absent { background-color: #475569; color: #cbd5e1; }
         .badge-present { background-color: #059669; color: white; }
         .alert { background-color: #0f172a; border: 1px solid #334155; padding: 0.75rem; border-radius: 0.375rem; font-size: 0.875rem; font-family: monospace; color: #fde68a; line-height: 1.4; }
@@ -159,7 +159,7 @@
             </div>
 
             <div id="subtab-sng-inscriptions" class="card hidden">
-                <h2>Inscriptions SNG</h2>
+                <h2>Inscriptions SNG & Appel</h2>
                 <label>Sélectionner le SNG :</label>
                 <select id="select-tournoi-sng" onchange="onTournoiSNGChange()"></select>
                 <div class="grid-2">
@@ -174,7 +174,7 @@
 
             <div id="subtab-sng-tables" class="card hidden">
                 <h2>Plans de Table SNG (Fixes et Indépendants)</h2>
-                <button onclick="genererTablesSNGFixed()" class="btn-amber">Figer les tables SNG</button>
+                <button onclick="genererTablesSNGFixed()" class="btn-amber">🎲 Figer / Créer les tables SNG</button>
                 <div id="tables-container-sng" class="poker-table-grid" style="margin-top:1rem;"></div>
             </div>
 
@@ -432,27 +432,95 @@
             }
         }
 
-        // --- FONCTIONS MTT ---
+        // --- FONCTIONS MTT (AVEC PRÉSENCE) ---
         function onTournoiMTTChange() { activeTournoiMTTId = document.getElementById('select-tournoi-mtt').value; updateInscritsMTTUI(); }
+        
         function updateInscritsMTTUI() {
             const list = document.getElementById('list-inscrits-mtt');
             if (!list) return;
             list.innerHTML = '';
-            const inscrits = (appData.inscriptionsMTT || {})[activeTournoiMTTId] || {};
-            Object.keys(inscrits).forEach(j => {
-                list.innerHTML += `<li><span>${j}</span><span class="badge badge-present">Inscrit</span></li>`;
+            const tournoiInsc = (appData.inscriptionsMTT || {})[activeTournoiMTTId] || {};
+            
+            let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
+            inscritsNoms.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+
+            inscritsNoms.forEach(j => {
+                const info = (typeof tournoiInsc[j] === 'object' && tournoiInsc[j] !== null) ? tournoiInsc[j] : { present: false };
+                const isPresent = info.present;
+                const badgeClass = isPresent ? "badge badge-present" : "badge badge-absent";
+                const badgeText = isPresent ? "Présent" : "Absent";
+                
+                list.innerHTML += `
+                    <li>
+                        <span>${j}</span>
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <span class="${badgeClass}" onclick="togglePresenceMTT('${j}')">${badgeText}</span>
+                            <button onclick="desinscrireMTT('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>
+                        </div>
+                    </li>
+                `;
             });
+            renderTablesUIMTT();
         }
+
         function toggleInscriptionMTT() {
             const joueur = document.getElementById('select-joueur-mtt').value;
-            if (!joueur) return;
+            if (!joueur) {
+                alert("Veuillez sélectionner un joueur.");
+                return;
+            }
             if (!appData.inscriptionsMTT[activeTournoiMTTId]) appData.inscriptionsMTT[activeTournoiMTTId] = {};
-            appData.inscriptionsMTT[activeTournoiMTTId][joueur] = { present: true };
+            const tournoiInsc = appData.inscriptionsMTT[activeTournoiMTTId];
+            
+            const isAlready = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
+            if (isAlready) {
+                if (Array.isArray(tournoiInsc)) {
+                    appData.inscriptionsMTT[activeTournoiMTTId] = tournoiInsc.filter(x => x !== joueur);
+                } else {
+                    delete tournoiInsc[joueur];
+                }
+            } else {
+                if (Array.isArray(tournoiInsc)) {
+                    tournoiInsc.push(joueur);
+                } else {
+                    tournoiInsc[joueur] = { present: false };
+                }
+            }
             updateInscritsMTTUI();
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({ action: "inscrire", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur })
+                    body: JSON.stringify({ action: isAlready ? "desinscrire" : "inscrire", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur })
+                });
+            }
+        }
+
+        function desinscrireMTT(joueur) {
+            if (!appData.inscriptionsMTT[activeTournoiMTTId]) return;
+            const tournoiInsc = appData.inscriptionsMTT[activeTournoiMTTId];
+            if (Array.isArray(tournoiInsc)) {
+                appData.inscriptionsMTT[activeTournoiMTTId] = tournoiInsc.filter(x => x !== joueur);
+            } else {
+                delete tournoiInsc[joueur];
+            }
+            updateInscritsMTTUI();
+            if (scriptUrl) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "desinscrire", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur })
+                });
+            }
+        }
+
+        function togglePresenceMTT(joueur) {
+            const tournoiInsc = appData.inscriptionsMTT[activeTournoiMTTId];
+            if (!tournoiInsc || !tournoiInsc[joueur]) return;
+            tournoiInsc[joueur].present = !tournoiInsc[joueur].present;
+            updateInscritsMTTUI();
+            if (scriptUrl) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "present", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur, present: tournoiInsc[joueur].present })
                 });
             }
         }
@@ -463,7 +531,7 @@
             container.innerHTML = '';
 
             if (!tablesGenereesMTT || Object.keys(tablesGenereesMTT).length === 0) {
-                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table MTT générée pour le moment.</p>`;
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table MTT générée pour le moment. Cliquez sur "Créer / Mélanger les tables".</p>`;
                 return;
             }
 
@@ -532,27 +600,95 @@
             alert(`✅ ${nbTables} tables MTT générées avec succès !`);
         }
 
-        // --- FONCTIONS SNG ---
+        // --- FONCTIONS SNG (AVEC PRÉSENCE) ---
         function onTournoiSNGChange() { activeTournoiSNGId = document.getElementById('select-tournoi-sng').value; updateInscritsSNGUI(); }
+        
         function updateInscritsSNGUI() {
             const list = document.getElementById('list-inscrits-sng');
             if (!list) return;
             list.innerHTML = '';
-            const inscrits = (appData.inscriptionsSNG || {})[activeTournoiSNGId] || {};
-            Object.keys(inscrits).forEach(j => {
-                list.innerHTML += `<li><span>${j}</span><span class="badge badge-present">Inscrit SNG</span></li>`;
+            const tournoiInsc = (appData.inscriptionsSNG || {})[activeTournoiSNGId] || {};
+            
+            let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
+            inscritsNoms.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+
+            inscritsNoms.forEach(j => {
+                const info = (typeof tournoiInsc[j] === 'object' && tournoiInsc[j] !== null) ? tournoiInsc[j] : { present: false };
+                const isPresent = info.present;
+                const badgeClass = isPresent ? "badge badge-present" : "badge badge-absent";
+                const badgeText = isPresent ? "Présent" : "Absent";
+                
+                list.innerHTML += `
+                    <li>
+                        <span>${j}</span>
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <span class="${badgeClass}" onclick="togglePresenceSNG('${j}')">${badgeText}</span>
+                            <button onclick="desinscrireSNG('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>
+                        </div>
+                    </li>
+                `;
             });
+            renderTablesUISNG();
         }
+
         function toggleInscriptionSNG() {
             const joueur = document.getElementById('select-joueur-sng').value;
-            if (!joueur) return;
+            if (!joueur) {
+                alert("Veuillez sélectionner un joueur.");
+                return;
+            }
             if (!appData.inscriptionsSNG[activeTournoiSNGId]) appData.inscriptionsSNG[activeTournoiSNGId] = {};
-            appData.inscriptionsSNG[activeTournoiSNGId][joueur] = { present: true };
+            const tournoiInsc = appData.inscriptionsSNG[activeTournoiSNGId];
+            
+            const isAlready = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
+            if (isAlready) {
+                if (Array.isArray(tournoiInsc)) {
+                    appData.inscriptionsSNG[activeTournoiSNGId] = tournoiInsc.filter(x => x !== joueur);
+                } else {
+                    delete tournoiInsc[joueur];
+                }
+            } else {
+                if (Array.isArray(tournoiInsc)) {
+                    tournoiInsc.push(joueur);
+                } else {
+                    tournoiInsc[joueur] = { present: false };
+                }
+            }
             updateInscritsSNGUI();
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({ action: "inscrire", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur })
+                    body: JSON.stringify({ action: isAlready ? "desinscrire" : "inscrire", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur })
+                });
+            }
+        }
+
+        function desinscrireSNG(joueur) {
+            if (!appData.inscriptionsSNG[activeTournoiSNGId]) return;
+            const tournoiInsc = appData.inscriptionsSNG[activeTournoiSNGId];
+            if (Array.isArray(tournoiInsc)) {
+                appData.inscriptionsSNG[activeTournoiSNGId] = tournoiInsc.filter(x => x !== joueur);
+            } else {
+                delete tournoiInsc[joueur];
+            }
+            updateInscritsSNGUI();
+            if (scriptUrl) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "desinscrire", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur })
+                });
+            }
+        }
+
+        function togglePresenceSNG(joueur) {
+            const tournoiInsc = appData.inscriptionsSNG[activeTournoiSNGId];
+            if (!tournoiInsc || !tournoiInsc[joueur]) return;
+            tournoiInsc[joueur].present = !tournoiInsc[joueur].present;
+            updateInscritsSNGUI();
+            if (scriptUrl) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "present", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur, present: tournoiInsc[joueur].present })
                 });
             }
         }
@@ -563,7 +699,7 @@
             container.innerHTML = '';
 
             if (!tablesGenereesSNG || Object.keys(tablesGenereesSNG).length === 0) {
-                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table SNG générée.</p>`;
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table SNG générée. Cliquez sur "Figer / Créer les tables SNG".</p>`;
                 return;
             }
 
