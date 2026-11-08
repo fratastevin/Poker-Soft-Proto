@@ -19,10 +19,11 @@
 
         .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         .grid-2 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
-        @media(min-width: 768px) { .grid-2 { grid-template-columns: 1fr 1fr; } .grid-2-live { grid-template-columns: 2fr 1fr; } }
+        @media(min-width: 768px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
         label { display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.25rem; }
         select, input, button { width: 100%; background-color: #0f172a; border: 1px solid #475569; border-radius: 0.375rem; padding: 0.5rem; color: #f8fafc; font-size: 1rem; margin-bottom: 1rem; box-sizing: border-box; }
         button { cursor: pointer; font-weight: bold; border: none; transition: background 0.2s; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-green { background-color: #059669; color: white; }
         .btn-amber { background-color: #d97706; color: white; }
         .btn-rose { background-color: #e11d48; color: white; }
@@ -54,12 +55,6 @@
         .table-general { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.875rem; }
         .table-general th, .table-general td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #334155; }
         .table-general th { color: #fbbf24; background-color: #1e293b; font-weight: bold; }
-
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 10000; }
-        .modal-box { background: #1e293b; border: 1px solid #475569; padding: 1.5rem; border-radius: 0.5rem; width: 320px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); }
-        .modal-box h3 { margin-top: 0; color: #fbbf24; font-size: 1.1rem; }
-        .modal-box input { width: 100%; margin-bottom: 1rem; }
-        .modal-buttons { display: flex; gap: 0.5rem; justify-content: flex-end; }
     </style>
 </head>
 <body>
@@ -70,7 +65,7 @@
     </div>
 
     <div id="spectator-banner">
-        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. (Cliquez sur "👑 Master" pour vous authentifier).
+        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Les actions d'administration sont désactivées. (Cliquez sur "👑 Master" pour vous authentifier).
     </div>
 
     <header>
@@ -95,40 +90,51 @@
                 <button onclick="switchSubTab('mtt', 'general')" id="btn-mtt-general" class="btn-tab">Classement Général</button>
             </div>
 
+            <!-- 1. Inscriptions MTT -->
             <div id="subtab-mtt-inscriptions" class="card hidden">
                 <h2>Inscriptions MTT & Appel</h2>
                 <div class="grid-2">
                     <div>
                         <label>Tournoi MTT :</label>
-                        <select id="select-tournoi-mtt" onchange="onTournoiMTTChange()"></select>
+                        <select id="select-tournoi-mtt-1" onchange="syncTournoiMTT(this.value)"></select>
                     </div>
                     <div>
                         <label>Joueur :</label>
                         <select id="select-joueur-mtt"></select>
                     </div>
                 </div>
-                <button onclick="toggleInscriptionMTT()" class="btn-green">S'inscrire / Se désinscrire</button>
+                <button onclick="toggleInscriptionMTT()" class="btn-green master-action">S'inscrire / Se désinscrire</button>
                 <ul id="list-inscrits-mtt" style="margin-top:1rem;"></ul>
             </div>
 
+            <!-- 2. Plans de Table MTT -->
             <div id="subtab-mtt-tables" class="card hidden">
                 <h2>Plans de Table MTT</h2>
-                <button onclick="genererTablesMTT()" class="btn-amber">🎲 Créer / Mélanger les tables</button>
+                <div style="margin-bottom:1rem; max-width:300px;">
+                    <label>Tournoi MTT :</label>
+                    <select id="select-tournoi-mtt-2" onchange="syncTournoiMTT(this.value)"></select>
+                </div>
+                <button onclick="genererTablesMTT()" class="btn-amber master-action">🎲 Créer / Mélanger les tables</button>
                 <div id="tables-container-mtt" class="poker-table-grid" style="margin-top:1rem;"></div>
             </div>
 
+            <!-- 3. Live MTT -->
             <div id="subtab-mtt-live" class="card hidden text-center">
-                <span id="live-niveau-mtt" style="color:#94a3b8; font-weight:bold;">Niveau 1</span>
+                <div style="margin-bottom:1rem; max-width:300px; text-align:left; margin-left:auto; margin-right:auto;">
+                    <label>Tournoi MTT :</label>
+                    <select id="select-tournoi-mtt-3" onchange="syncTournoiMTT(this.value)"></select>
+                </div>
+                <span id="live-niveau-mtt" style="color:#94a3b8; font-weight:bold;">Niveau 1 (Blinds 25/50)</span>
                 <div id="live-chrono-mtt" class="font-mono" style="font-size:3rem; font-weight:900; color:#34d399;">20:00</div>
                 <div style="display:flex; justify-content:center; gap:0.5rem; margin-top:1rem;">
-                    <button onclick="toggleChronoMTT()" id="btn-chrono-mtt" class="btn-green" style="width:auto; padding:0.5rem 1.5rem;">Start</button>
-                    <button onclick="resetChronoMTT()" class="btn-rose" style="width:auto; padding:0.5rem 1.5rem;">Reset</button>
+                    <button onclick="toggleChronoMTT()" id="btn-chrono-mtt" class="btn-green master-action" style="width:auto; padding:0.5rem 1.5rem;">Start</button>
+                    <button onclick="resetChronoMTT()" class="btn-rose master-action" style="width:auto; padding:0.5rem 1.5rem;">Reset</button>
                 </div>
                 <div style="margin-top:1.5rem;" class="grid-2">
                     <div>
                         <label>Éliminer un joueur :</label>
                         <select id="select-eliminer-mtt"></select>
-                        <button onclick="eliminerJoueurMTT()" class="btn-rose">Marquer comme Éliminé</button>
+                        <button onclick="eliminerJoueurMTT()" class="btn-rose master-action">Marquer comme Éliminé</button>
                     </div>
                     <div>
                         <label>Consignes / Équilibrage :</label>
@@ -137,11 +143,17 @@
                 </div>
             </div>
 
+            <!-- 4. Classement de tournoi MTT -->
             <div id="subtab-mtt-classement" class="card hidden">
                 <h2>Classement du Tournoi MTT</h2>
-                <div id="classement-tournoi-mtt"></div>
+                <div style="margin-bottom:1rem; max-width:300px;">
+                    <label>Tournoi MTT :</label>
+                    <select id="select-tournoi-mtt-4" onchange="syncTournoiMTT(this.value)"></select>
+                </div>
+                <div id="classement-tournoi-mtt"><p style="color:#94a3b8; font-style:italic;">Le classement du tournoi s'affichera ici au fil des éliminations.</p></div>
             </div>
 
+            <!-- 5. Classement Général MTT -->
             <div id="subtab-mtt-general" class="card hidden">
                 <h2>🏆 Classement Général MTT</h2>
                 <div id="general-container-mtt"></div>
@@ -158,36 +170,55 @@
                 <button onclick="switchSubTab('sng', 'general')" id="btn-sng-general" class="btn-tab">Classement Général</button>
             </div>
 
+            <!-- 1. Inscriptions SNG -->
             <div id="subtab-sng-inscriptions" class="card hidden">
                 <h2>Inscriptions SNG & Appel</h2>
-                <label>Sélectionner le SNG :</label>
-                <select id="select-tournoi-sng" onchange="onTournoiSNGChange()"></select>
                 <div class="grid-2">
+                    <div>
+                        <label>Sélectionner le SNG :</label>
+                        <select id="select-tournoi-sng-1" onchange="syncTournoiSNG(this.value)"></select>
+                    </div>
                     <div>
                         <label>Joueur :</label>
                         <select id="select-joueur-sng"></select>
-                        <button onclick="toggleInscriptionSNG()" class="btn-green">S'inscrire / Se désinscrire</button>
                     </div>
                 </div>
+                <button onclick="toggleInscriptionSNG()" class="btn-green master-action">S'inscrire / Se désinscrire</button>
                 <ul id="list-inscrits-sng" style="margin-top:1rem;"></ul>
             </div>
 
+            <!-- 2. Plans de Table SNG -->
             <div id="subtab-sng-tables" class="card hidden">
                 <h2>Plans de Table SNG (Fixes et Indépendants)</h2>
-                <button onclick="genererTablesSNGFixed()" class="btn-amber">🎲 Figer / Créer les tables SNG</button>
+                <div style="margin-bottom:1rem; max-width:300px;">
+                    <label>Sélectionner le SNG :</label>
+                    <select id="select-tournoi-sng-2" onchange="syncTournoiSNG(this.value)"></select>
+                </div>
+                <button onclick="genererTablesSNGFixed()" class="btn-amber master-action">🎲 Figer / Créer les tables SNG</button>
                 <div id="tables-container-sng" class="poker-table-grid" style="margin-top:1rem;"></div>
             </div>
 
+            <!-- 3. Live SNG -->
             <div id="subtab-sng-live" class="card hidden">
+                <div style="margin-bottom:1rem; max-width:300px;">
+                    <label>Sélectionner le SNG :</label>
+                    <select id="select-tournoi-sng-3" onchange="syncTournoiSNG(this.value)"></select>
+                </div>
                 <h2>Live SNG (Par Table Indépendante)</h2>
-                <div id="sng-live-tables-container"></div>
+                <div id="sng-live-tables-container"><p style="color:#94a3b8; font-style:italic;">Générez d'abord les tables SNG pour lancer le live.</p></div>
             </div>
 
+            <!-- 4. Classement de tournoi SNG -->
             <div id="subtab-sng-classement" class="card hidden">
-                <h2>Classement du Tournoi SNG (Multi-tables)</h2>
-                <div id="classement-tournoi-sng"></div>
+                <h2>Classement du Tournoi SNG</h2>
+                <div style="margin-bottom:1rem; max-width:300px;">
+                    <label>Sélectionner le SNG :</label>
+                    <select id="select-tournoi-sng-4" onchange="syncTournoiSNG(this.value)"></select>
+                </div>
+                <div id="classement-tournoi-sng"><p style="color:#94a3b8; font-style:italic;">Classement spécifique à ce SNG.</p></div>
             </div>
 
+            <!-- 5. Classement Général SNG -->
             <div id="subtab-sng-general" class="card hidden">
                 <h2>🏆 Classement Général SNG</h2>
                 <div id="general-container-sng"></div>
@@ -228,6 +259,8 @@
         let tablesGenereesMTT = null;
         let tablesGenereesSNG = null;
         let tournoiCommenceMTT = false;
+        let chronoIntervalMTT = null;
+        let secondesRestantesMTT = 1200;
         let joueursInscritsHC = [];
 
         window.onload = function() {
@@ -257,21 +290,32 @@
         }
 
         function populateDropdowns() {
-            const selMTT = document.getElementById('select-tournoi-mtt');
-            selMTT.innerHTML = '';
-            (appData.tournoisMTT || []).forEach(t => {
-                selMTT.innerHTML += `<option value="${t.id}">${t.displayLabel}</option>`;
-            });
-            activeTournoiMTTId = appData.prochainTournoiMTTId || (appData.tournoisMTT[0] ? appData.tournoisMTT[0].id : null);
-            selMTT.value = activeTournoiMTTId;
+            activeTournoiMTTId = appData.prochainTournoiMTTId || (appData.tournoisMTT && appData.tournoisMTT[0] ? appData.tournoisMTT[0].id : null);
+            activeTournoiSNGId = appData.prochainTournoiSNGId || (appData.tournoisSNG && appData.tournoisSNG[0] ? appData.tournoisSNG[0].id : null);
 
-            const selSNG = document.getElementById('select-tournoi-sng');
-            selSNG.innerHTML = '';
-            (appData.tournoisSNG || []).forEach(t => {
-                selSNG.innerHTML += `<option value="${t.id}">${t.displayLabel}</option>`;
+            // Remplissage des sélecteurs multiples MTT (1 à 4)
+            [1, 2, 3, 4].forEach(i => {
+                const sel = document.getElementById(`select-tournoi-mtt-${i}`);
+                if (sel) {
+                    sel.innerHTML = '';
+                    (appData.tournoisMTT || []).forEach(t => {
+                        sel.innerHTML += `<option value="${t.id}">${t.displayLabel}</option>`;
+                    });
+                    sel.value = activeTournoiMTTId;
+                }
             });
-            activeTournoiSNGId = appData.prochainTournoiSNGId || (appData.tournoisSNG[0] ? appData.tournoisSNG[0].id : null);
-            selSNG.value = activeTournoiSNGId;
+
+            // Remplissage des sélecteurs multiples SNG (1 à 4)
+            [1, 2, 3, 4].forEach(i => {
+                const sel = document.getElementById(`select-tournoi-sng-${i}`);
+                if (sel) {
+                    sel.innerHTML = '';
+                    (appData.tournoisSNG || []).forEach(t => {
+                        sel.innerHTML += `<option value="${t.id}">${t.displayLabel}</option>`;
+                    });
+                    sel.value = activeTournoiSNGId;
+                }
+            });
 
             const selJoueursMTT = document.getElementById('select-joueur-mtt');
             const selJoueursSNG = document.getElementById('select-joueur-sng');
@@ -288,11 +332,31 @@
             renderClassementsGeneraux();
         }
 
+        // --- SYNCHRONISATION DES SÉLECTEURS DE TOURNOI ---
+        function syncTournoiMTT(tournoiId) {
+            activeTournoiMTTId = tournoiId;
+            [1, 2, 3, 4].forEach(i => {
+                const s = document.getElementById(`select-tournoi-mtt-${i}`);
+                if (s) s.value = tournoiId;
+            });
+            updateInscritsMTTUI();
+        }
+
+        function syncTournoiSNG(tournoiId) {
+            activeTournoiSNGId = tournoiId;
+            [1, 2, 3, 4].forEach(i => {
+                const s = document.getElementById(`select-tournoi-sng-${i}`);
+                if (s) s.value = tournoiId;
+            });
+            updateInscritsSNGUI();
+        }
+
         // --- DÉTERMINATION AUTOMATIQUE DU MODE ET DE LA SOUS-PAGE AU CHARGEMENT ---
         function determinerModeEtSousPageInitial() {
             let modeParDefaut = 'mtt';
             let sousPageParDefaut = 'inscriptions';
 
+            // Logique de détection intelligente basée sur l'état du tournoi le plus proche
             if (tablesGenereesMTT !== null && !tournoiCommenceMTT) {
                 sousPageParDefaut = 'tables';
             } else if (tournoiCommenceMTT) {
@@ -343,6 +407,57 @@
             }
         }
 
+        // --- AUTHENTIFICATION MASTER & GESTION DES DROITS SPECTATEUR ---
+        function gererBoutonMaster() {
+            if (isMaster) {
+                if (confirm("Se déconnecter du mode Master ?")) {
+                    isMaster = false;
+                    masterToken = null;
+                    sessionStorage.clear();
+                    mettreAJourBoutonMasterUI();
+                }
+            } else {
+                const user = prompt("Identifiant admin :");
+                const pwd = prompt("Mot de passe admin :");
+                if (!user || !pwd) return;
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "loginMaster", username: user, password: pwd })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "success") {
+                        isMaster = true;
+                        masterToken = data.masterToken;
+                        sessionStorage.setItem('poker_is_master', 'true');
+                        sessionStorage.setItem('poker_master_token', masterToken);
+                        mettreAJourBoutonMasterUI();
+                        alert("👑 Connexion Administrateur réussie.");
+                    } else {
+                        alert("❌ " + data.message);
+                    }
+                });
+            }
+        }
+
+        function mettreAJourBoutonMasterUI() {
+            const btn = document.getElementById('btn-master-toggle');
+            const banner = document.getElementById('spectator-banner');
+            const masterElements = document.querySelectorAll('.master-action');
+
+            if (isMaster) {
+                btn.innerText = "👑 Master (Déco)";
+                btn.style.backgroundColor = "#059669";
+                banner.style.display = 'none';
+                masterElements.forEach(el => el.removeAttribute('disabled'));
+            } else {
+                btn.innerText = "👑 Master";
+                btn.style.backgroundColor = "#7c3aed";
+                banner.style.display = 'block';
+                masterElements.forEach(el => el.setAttribute('disabled', 'true'));
+            }
+        }
+
         // --- GESTION HORS CHAMPIONNAT & DRAG AND DROP .TXT ---
         const dropZone = document.getElementById('drop-zone-hc');
         const fileInput = document.getElementById('file-input-hc');
@@ -385,56 +500,7 @@
             reader.readAsText(file);
         }
 
-        // --- AUTHENTIFICATION MASTER ---
-        function gererBoutonMaster() {
-            if (isMaster) {
-                if (confirm("Se déconnecter du mode Master ?")) {
-                    isMaster = false;
-                    masterToken = null;
-                    sessionStorage.clear();
-                    mettreAJourBoutonMasterUI();
-                }
-            } else {
-                const user = prompt("Identifiant admin :");
-                const pwd = prompt("Mot de passe admin :");
-                if (!user || !pwd) return;
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "loginMaster", username: user, password: pwd })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === "success") {
-                        isMaster = true;
-                        masterToken = data.masterToken;
-                        sessionStorage.setItem('poker_is_master', 'true');
-                        sessionStorage.setItem('poker_master_token', masterToken);
-                        mettreAJourBoutonMasterUI();
-                        alert("👑 Connexion Administrateur réussie.");
-                    } else {
-                        alert("❌ " + data.message);
-                    }
-                });
-            }
-        }
-
-        function mettreAJourBoutonMasterUI() {
-            const btn = document.getElementById('btn-master-toggle');
-            const banner = document.getElementById('spectator-banner');
-            if (isMaster) {
-                btn.innerText = "👑 Master (Déco)";
-                btn.style.backgroundColor = "#059669";
-                banner.style.display = 'none';
-            } else {
-                btn.innerText = "👑 Master";
-                btn.style.backgroundColor = "#7c3aed";
-                banner.style.display = 'block';
-            }
-        }
-
-        // --- FONCTIONS MTT (AVEC PRÉSENCE) ---
-        function onTournoiMTTChange() { activeTournoiMTTId = document.getElementById('select-tournoi-mtt').value; updateInscritsMTTUI(); }
-        
+        // --- FONCTIONS MTT ---
         function updateInscritsMTTUI() {
             const list = document.getElementById('list-inscrits-mtt');
             if (!list) return;
@@ -455,20 +521,28 @@
                         <span>${j}</span>
                         <div style="display:flex; gap:0.5rem; align-items:center;">
                             <span class="${badgeClass}" onclick="togglePresenceMTT('${j}')">${badgeText}</span>
-                            <button onclick="desinscrireMTT('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>
+                            ${isMaster ? `<button onclick="desinscrireMTT('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>` : ''}
                         </div>
                     </li>
                 `;
             });
+            populateEliminerSelectMTT(inscritsNoms);
             renderTablesUIMTT();
         }
 
+        function populateEliminerSelectMTT(inscritsNoms) {
+            const sel = document.getElementById('select-eliminer-mtt');
+            if (!sel) return;
+            sel.innerHTML = '<option value="" disabled selected>-- Choisir un joueur --</option>';
+            inscritsNoms.forEach(j => {
+                sel.innerHTML += `<option value="${j}">${j}</option>`;
+            });
+        }
+
         function toggleInscriptionMTT() {
+            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
             const joueur = document.getElementById('select-joueur-mtt').value;
-            if (!joueur) {
-                alert("Veuillez sélectionner un joueur.");
-                return;
-            }
+            if (!joueur) { alert("Veuillez sélectionner un joueur."); return; }
             if (!appData.inscriptionsMTT[activeTournoiMTTId]) appData.inscriptionsMTT[activeTournoiMTTId] = {};
             const tournoiInsc = appData.inscriptionsMTT[activeTournoiMTTId];
             
@@ -490,12 +564,13 @@
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({ action: isAlready ? "desinscrire" : "inscrire", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur })
+                    body: JSON.stringify({ action: isAlready ? "desinscrire" : "inscrire", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur, masterToken: masterToken })
                 });
             }
         }
 
         function desinscrireMTT(joueur) {
+            if (!isMaster) return;
             if (!appData.inscriptionsMTT[activeTournoiMTTId]) return;
             const tournoiInsc = appData.inscriptionsMTT[activeTournoiMTTId];
             if (Array.isArray(tournoiInsc)) {
@@ -507,12 +582,13 @@
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({ action: "desinscrire", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur })
+                    body: JSON.stringify({ action: "desinscrire", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur, masterToken: masterToken })
                 });
             }
         }
 
         function togglePresenceMTT(joueur) {
+            if (!isMaster) return;
             const tournoiInsc = appData.inscriptionsMTT[activeTournoiMTTId];
             if (!tournoiInsc || !tournoiInsc[joueur]) return;
             tournoiInsc[joueur].present = !tournoiInsc[joueur].present;
@@ -520,7 +596,7 @@
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({ action: "present", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur, present: tournoiInsc[joueur].present })
+                    body: JSON.stringify({ action: "present", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur, present: tournoiInsc[joueur].present, masterToken: masterToken })
                 });
             }
         }
@@ -561,6 +637,7 @@
         }
 
         function genererTablesMTT() {
+            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
             const tournoiInsc = (appData.inscriptionsMTT || {})[activeTournoiMTTId] || {};
             let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
             const maxPerTable = appData.maxJoueursParTable || 6;
@@ -593,16 +670,58 @@
             });
 
             tablesGenereesMTT = tables;
-            tournoiCommenceMTT = false;
+            tournoiCommenceMTT = true;
             
             renderTablesUIMTT();
-            switchSubTab('mtt', 'tables');
-            alert(`✅ ${nbTables} tables MTT générées avec succès !`);
+            switchSubTab('mtt', 'live');
+            alert(`✅ ${nbTables} tables MTT générées avec succès ! Démarrage du live.`);
         }
 
-        // --- FONCTIONS SNG (AVEC PRÉSENCE) ---
-        function onTournoiSNGChange() { activeTournoiSNGId = document.getElementById('select-tournoi-sng').value; updateInscritsSNGUI(); }
-        
+        function toggleChronoMTT() {
+            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
+            const btn = document.getElementById('btn-chrono-mtt');
+            if (chronoIntervalMTT) {
+                clearInterval(chronoIntervalMTT);
+                chronoIntervalMTT = null;
+                btn.innerText = "Start";
+                btn.className = "btn-green master-action";
+            } else {
+                tournoiCommenceMTT = true;
+                btn.innerText = "Pause";
+                btn.className = "btn-amber master-action";
+                chronoIntervalMTT = setInterval(() => {
+                    if (secondesRestantesMTT > 0) {
+                        secondesRestantesMTT--;
+                        let m = Math.floor(secondesRestantesMTT / 60);
+                        let s = secondesRestantesMTT % 60;
+                        document.getElementById('live-chrono-mtt').innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+                    } else {
+                        clearInterval(chronoIntervalMTT);
+                        alert("⏰ Fin du niveau !");
+                    }
+                }, 1000);
+            }
+        }
+
+        function resetChronoMTT() {
+            if (!isMaster) return;
+            if (chronoIntervalMTT) { clearInterval(chronoIntervalMTT); chronoIntervalMTT = null; }
+            secondesRestantesMTT = 1200;
+            document.getElementById('live-chrono-mtt').innerText = "20:00";
+            document.getElementById('btn-chrono-mtt').innerText = "Start";
+            document.getElementById('btn-chrono-mtt').className = "btn-green master-action";
+        }
+
+        function eliminerJoueurMTT() {
+            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
+            const sel = document.getElementById('select-eliminer-mtt');
+            const joueur = sel ? sel.value : null;
+            if (!joueur) { alert("Veuillez sélectionner un joueur à éliminer."); return; }
+            alert(`❌ Le joueur ${joueur} a été marqué comme éliminé.`);
+        }
+
+
+        // --- FONCTIONS SNG ---
         function updateInscritsSNGUI() {
             const list = document.getElementById('list-inscrits-sng');
             if (!list) return;
@@ -623,7 +742,7 @@
                         <span>${j}</span>
                         <div style="display:flex; gap:0.5rem; align-items:center;">
                             <span class="${badgeClass}" onclick="togglePresenceSNG('${j}')">${badgeText}</span>
-                            <button onclick="desinscrireSNG('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>
+                            ${isMaster ? `<button onclick="desinscrireSNG('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>` : ''}
                         </div>
                     </li>
                 `;
@@ -632,11 +751,9 @@
         }
 
         function toggleInscriptionSNG() {
+            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
             const joueur = document.getElementById('select-joueur-sng').value;
-            if (!joueur) {
-                alert("Veuillez sélectionner un joueur.");
-                return;
-            }
+            if (!joueur) { alert("Veuillez sélectionner un joueur."); return; }
             if (!appData.inscriptionsSNG[activeTournoiSNGId]) appData.inscriptionsSNG[activeTournoiSNGId] = {};
             const tournoiInsc = appData.inscriptionsSNG[activeTournoiSNGId];
             
@@ -658,12 +775,13 @@
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({ action: isAlready ? "desinscrire" : "inscrire", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur })
+                    body: JSON.stringify({ action: isAlready ? "desinscrire" : "inscrire", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur, masterToken: masterToken })
                 });
             }
         }
 
         function desinscrireSNG(joueur) {
+            if (!isMaster) return;
             if (!appData.inscriptionsSNG[activeTournoiSNGId]) return;
             const tournoiInsc = appData.inscriptionsSNG[activeTournoiSNGId];
             if (Array.isArray(tournoiInsc)) {
@@ -675,12 +793,13 @@
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({ action: "desinscrire", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur })
+                    body: JSON.stringify({ action: "desinscrire", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur, masterToken: masterToken })
                 });
             }
         }
 
         function togglePresenceSNG(joueur) {
+            if (!isMaster) return;
             const tournoiInsc = appData.inscriptionsSNG[activeTournoiSNGId];
             if (!tournoiInsc || !tournoiInsc[joueur]) return;
             tournoiInsc[joueur].present = !tournoiInsc[joueur].present;
@@ -688,18 +807,21 @@
             if (scriptUrl) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({ action: "present", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur, present: tournoiInsc[joueur].present })
+                    body: JSON.stringify({ action: "present", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur, present: tournoiInsc[joueur].present, masterToken: masterToken })
                 });
             }
         }
 
         function renderTablesUISNG() {
             const container = document.getElementById('tables-container-sng');
+            const liveContainer = document.getElementById('sng-live-tables-container');
             if (!container) return;
             container.innerHTML = '';
+            if (liveContainer) liveContainer.innerHTML = '';
 
             if (!tablesGenereesSNG || Object.keys(tablesGenereesSNG).length === 0) {
                 container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table SNG générée. Cliquez sur "Figer / Créer les tables SNG".</p>`;
+                if (liveContainer) liveContainer.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucun live SNG en cours.</p>`;
                 return;
             }
 
@@ -725,10 +847,20 @@
                         <div class="seat-list">${seatsHtml}</div>
                     </div>
                 `;
+
+                if (liveContainer) {
+                    liveContainer.innerHTML += `
+                        <div class="card" style="margin-bottom:1rem;">
+                            <h3 style="color:#fbbf24; margin-top:0;">Table SNG ${tNum} - En cours</h3>
+                            <div class="seat-list">${seatsHtml}</div>
+                        </div>
+                    `;
+                }
             }
         }
 
         function genererTablesSNGFixed() {
+            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
             const tournoiInsc = (appData.inscriptionsSNG || {})[activeTournoiSNGId] || {};
             let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
             const maxPerTable = appData.maxJoueursParTable || 6;
@@ -762,8 +894,8 @@
 
             tablesGenereesSNG = tables;
             renderTablesUISNG();
-            switchSubTab('sng', 'tables');
-            alert(`✅ ${nbTables} tables SNG indépendantes créées !`);
+            switchSubTab('sng', 'live');
+            alert(`✅ ${nbTables} tables SNG indépendantes créées ! Basculement sur le Live.`);
         }
 
         // --- RENDU CLASSEMENTS GÉNÉRAUX ---
