@@ -61,6 +61,16 @@ function doGet(e) {
     const sngTournois = readCalendar("Calendrier SNG", "sng");
     const tournois = [...mttTournois, ...sngTournois];
 
+    // Tri chronologique des tournois par date
+    tournois.sort((a, b) => {
+      if (a.dateObj && b.dateObj) {
+        return a.dateObj.getTime() - b.dateObj.getTime();
+      }
+      if (a.dateObj) return -1;
+      if (b.dateObj) return 1;
+      return a.id.localeCompare(b.id);
+    });
+
     // Trouver le prochain tournoi
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -344,14 +354,20 @@ function doPost(e) {
 
     const playerActions = ["inscrire", "desinscrire", "present"];
     if (playerActions.includes(action)) {
-      const clubPasswordSaisi = data.clubPassword;
-      const expectedClubPassword = PropertiesService.getScriptProperties().getProperty('CLUB_PASSWORD');
+      const clientToken = data.masterToken;
+      const serverToken = PropertiesService.getScriptProperties().getProperty('ACTIVE_MASTER_TOKEN');
+      const isMasterAction = clientToken && clientToken === serverToken;
 
-      if (expectedClubPassword && clubPasswordSaisi !== expectedClubPassword) {
-        return ContentService.createTextOutput(JSON.stringify({ 
-          status: "error", 
-          message: "Code secret du club incorrect. Action refusée." 
-        })).setMimeType(ContentService.MimeType.JSON);
+      if (!isMasterAction) {
+        const clubPasswordSaisi = data.clubPassword;
+        const expectedClubPassword = PropertiesService.getScriptProperties().getProperty('CLUB_PASSWORD');
+
+        if (expectedClubPassword && clubPasswordSaisi !== expectedClubPassword) {
+          return ContentService.createTextOutput(JSON.stringify({ 
+            status: "error", 
+            message: "Code secret du club incorrect. Action refusée." 
+          })).setMimeType(ContentService.MimeType.JSON);
+        }
       }
     }
 
