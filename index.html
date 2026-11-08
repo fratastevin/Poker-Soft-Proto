@@ -76,8 +76,7 @@
     <header>
         <h1>♠️ Poker Club Manager</h1>
         <div class="nav-buttons">
-            <!-- Navigation par Championnat -->
-            <button onclick="switchMainSection('mtt')" id="btn-sec-mtt" class="btn-tab btn-amber">MTT</button>
+            <button onclick="switchMainSection('mtt')" id="btn-sec-mtt" class="btn-tab">MTT</button>
             <button onclick="switchMainSection('sng')" id="btn-sec-sng" class="btn-tab">SNG</button>
             <button onclick="switchMainSection('online')" id="btn-sec-online" class="btn-tab">ONLINE</button>
             <button onclick="switchMainSection('hc')" id="btn-sec-hc" class="btn-tab">Hors Championnat</button>
@@ -87,17 +86,16 @@
 
     <main>
         <!-- SECTION MTT -->
-        <div id="section-mtt">
+        <div id="section-mtt" class="hidden">
             <div style="display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap;">
-                <button onclick="switchSubTab('mtt', 'inscriptions')" id="btn-mtt-inscriptions" class="btn-tab btn-blue">Inscriptions</button>
-                <button onclick="switchSubTab('mtt', 'tables')" id="btn-mtt-tables" class="btn-tab">Plans de Table</button>
+                <button onclick="switchSubTab('mtt', 'inscriptions')" id="btn-mtt-inscriptions" class="btn-tab">Inscriptions</button>
+                <button onclick="switchSubTab('mtt', 'tables')" id="btn-mtt-tables" class="btn-tab">Plans de table</button>
                 <button onclick="switchSubTab('mtt', 'live')" id="btn-mtt-live" class="btn-tab">Live</button>
-                <button onclick="switchSubTab('mtt', 'classement')" id="btn-mtt-classement" class="btn-tab">Classement Tournoi</button>
-                <button onclick="switchSubTab('mtt', 'general')" id="btn-mtt-general" class="btn-tab">Classement Général MTT</button>
+                <button onclick="switchSubTab('mtt', 'classement')" id="btn-mtt-classement" class="btn-tab">Classement de tournoi</button>
+                <button onclick="switchSubTab('mtt', 'general')" id="btn-mtt-general" class="btn-tab">Classement Général</button>
             </div>
 
-            <!-- Sous-onglets MTT -->
-            <div id="subtab-mtt-inscriptions" class="card">
+            <div id="subtab-mtt-inscriptions" class="card hidden">
                 <h2>Inscriptions MTT & Appel</h2>
                 <div class="grid-2">
                     <div>
@@ -145,7 +143,7 @@
             </div>
 
             <div id="subtab-mtt-general" class="card hidden">
-                <h2>🏆 Classement Général de la Saison (MTT)</h2>
+                <h2>🏆 Classement Général MTT</h2>
                 <div id="general-container-mtt"></div>
             </div>
         </div>
@@ -153,13 +151,15 @@
         <!-- SECTION SNG -->
         <div id="section-sng" class="hidden">
             <div style="display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap;">
-                <button onclick="switchSubTab('sng', 'inscriptions')" id="btn-sng-inscriptions" class="btn-tab btn-blue">Inscriptions & Tables SNG</button>
-                <button onclick="switchSubTab('sng', 'live')" id="btn-sng-live" class="btn-tab">Live & Classement SNG</button>
-                <button onclick="switchSubTab('sng', 'general')" id="btn-sng-general" class="btn-tab">Classement Général SNG</button>
+                <button onclick="switchSubTab('sng', 'inscriptions')" id="btn-sng-inscriptions" class="btn-tab">Inscriptions</button>
+                <button onclick="switchSubTab('sng', 'tables')" id="btn-sng-tables" class="btn-tab">Plans de table</button>
+                <button onclick="switchSubTab('sng', 'live')" id="btn-sng-live" class="btn-tab">Live</button>
+                <button onclick="switchSubTab('sng', 'classement')" id="btn-sng-classement" class="btn-tab">Classement de tournoi</button>
+                <button onclick="switchSubTab('sng', 'general')" id="btn-sng-general" class="btn-tab">Classement Général</button>
             </div>
 
-            <div id="subtab-sng-inscriptions" class="card">
-                <h2>Inscriptions & Tables SNG (Indépendantes)</h2>
+            <div id="subtab-sng-inscriptions" class="card hidden">
+                <h2>Inscriptions SNG</h2>
                 <label>Sélectionner le SNG :</label>
                 <select id="select-tournoi-sng" onchange="onTournoiSNGChange()"></select>
                 <div class="grid-2">
@@ -168,16 +168,24 @@
                         <select id="select-joueur-sng"></select>
                         <button onclick="toggleInscriptionSNG()" class="btn-green">S'inscrire / Se désinscrire</button>
                     </div>
-                    <div>
-                        <button onclick="genererTablesSNGFixed()" class="btn-amber">Figer les tables SNG</button>
-                    </div>
                 </div>
+                <ul id="list-inscrits-sng" style="margin-top:1rem;"></ul>
+            </div>
+
+            <div id="subtab-sng-tables" class="card hidden">
+                <h2>Plans de Table SNG (Fixes et Indépendants)</h2>
+                <button onclick="genererTablesSNGFixed()" class="btn-amber">Figer les tables SNG</button>
                 <div id="tables-container-sng" class="poker-table-grid" style="margin-top:1rem;"></div>
             </div>
 
             <div id="subtab-sng-live" class="card hidden">
-                <h2>Live & Classements SNG (Par Table Indépendante)</h2>
+                <h2>Live SNG (Par Table Indépendante)</h2>
                 <div id="sng-live-tables-container"></div>
+            </div>
+
+            <div id="subtab-sng-classement" class="card hidden">
+                <h2>Classement du Tournoi SNG (Multi-tables)</h2>
+                <div id="classement-tournoi-sng"></div>
             </div>
 
             <div id="subtab-sng-general" class="card hidden">
@@ -190,7 +198,7 @@
         <div id="section-online" class="hidden">
             <div class="card">
                 <h2>Tournois Online (Winamax)</h2>
-                <p style="color:#94a3b8;">Les tournois se jouent directement sur Winamax. Consultez ci-dessous le classement général synchronisé.</p>
+                <p style="color:#94a3b8;">Classement général et synchronisation des résultats Winamax.</p>
                 <div id="general-container-online"></div>
             </div>
         </div>
@@ -199,17 +207,13 @@
         <div id="section-hc" class="hidden">
             <div class="card">
                 <h2>Tournoi Hors Championnat (Ponctuel)</h2>
-                <p style="color:#94a3b8;">Glissez-déposez un fichier texte (`.txt`) contenant un pseudo par ligne pour inscrire instantanément les joueurs externes.</p>
-                
+                <p style="color:#94a3b8;">Glissez-déposez un fichier texte (`.txt`) contenant un pseudo par ligne pour inscrire les joueurs externes.</p>
                 <div id="drop-zone-hc" class="drop-zone">
                     📥 Glissez et déposez votre fichier `.txt` ici ou cliquez pour sélectionner.
                     <input type="file" id="file-input-hc" accept=".txt" style="display:none;">
                 </div>
-
                 <h3 style="margin-top:1.5rem;">Joueurs Inscrits Hors Championnat (<span id="count-hc">0</span>)</h3>
                 <ul id="list-inscrits-hc"></ul>
-                
-                <button onclick="lancerTournoiHC()" class="btn-green" style="margin-top:1rem;">Lancer le Tournoi & Activer le Live</button>
             </div>
         </div>
     </main>
@@ -223,6 +227,7 @@
         let activeTournoiSNGId = null;
         let tablesGenereesMTT = null;
         let tablesGenereesSNG = null;
+        let tournoiCommenceMTT = false;
         let joueursInscritsHC = [];
 
         window.onload = function() {
@@ -245,13 +250,13 @@
                 .then(data => {
                     appData = data;
                     populateDropdowns();
+                    determinerModeEtSousPageInitial();
                     document.getElementById('global-loader').style.display = 'none';
                 })
                 .catch(err => console.error("Erreur chargement:", err));
         }
 
         function populateDropdowns() {
-            // Remplissage MTT
             const selMTT = document.getElementById('select-tournoi-mtt');
             selMTT.innerHTML = '';
             (appData.tournoisMTT || []).forEach(t => {
@@ -260,7 +265,6 @@
             activeTournoiMTTId = appData.prochainTournoiMTTId || (appData.tournoisMTT[0] ? appData.tournoisMTT[0].id : null);
             selMTT.value = activeTournoiMTTId;
 
-            // Remplissage SNG
             const selSNG = document.getElementById('select-tournoi-sng');
             selSNG.innerHTML = '';
             (appData.tournoisSNG || []).forEach(t => {
@@ -269,7 +273,6 @@
             activeTournoiSNGId = appData.prochainTournoiSNGId || (appData.tournoisSNG[0] ? appData.tournoisSNG[0].id : null);
             selSNG.value = activeTournoiSNGId;
 
-            // Pseudos joueurs officiels
             const selJoueursMTT = document.getElementById('select-joueur-mtt');
             const selJoueursSNG = document.getElementById('select-joueur-sng');
             [selJoueursMTT, selJoueursSNG].forEach(sel => {
@@ -281,16 +284,46 @@
             });
 
             updateInscritsMTTUI();
+            updateInscritsSNGUI();
             renderClassementsGeneraux();
+        }
+
+        // --- DÉTERMINATION AUTOMATIQUE DU MODE ET DE LA SOUS-PAGE AU CHARGEMENT ---
+        function determinerModeEtSousPageInitial() {
+            // Par défaut MTT si non défini, ou logique basée sur le tournoi le plus proche
+            let modeParDefaut = 'mtt';
+            let sousPageParDefaut = 'inscriptions';
+
+            // Vérification de l'état des tables / du live pour le tournoi actif sélectionné
+            if (tablesGenereesMTT !== null && !tournoiCommenceMTT) {
+                sousPageParDefaut = 'tables';
+            } else if (tournoiCommenceMTT) {
+                sousPageParDefaut = 'live';
+            } else {
+                sousPageParDefaut = 'inscriptions';
+            }
+
+            switchMainSection(modeParDefaut);
+            switchSubTab(modeParDefaut, sousPageParDefaut);
         }
 
         function switchMainSection(section) {
             ['mtt', 'sng', 'online', 'hc'].forEach(s => {
-                document.getElementById(`section-${s}`).classList.add('hidden');
-                document.getElementById(`btn-sec-${s}`).style.backgroundColor = '#334155';
+                const secEl = document.getElementById(`section-${s}`);
+                const btnEl = document.getElementById(`btn-sec-${s}`);
+                if (secEl) secEl.classList.add('hidden');
+                if (btnEl) {
+                    btnEl.style.backgroundColor = '#334155';
+                    btnEl.style.color = '#cbd5e1';
+                }
             });
-            document.getElementById(`section-${section}`).classList.remove('hidden');
-            document.getElementById(`btn-sec-${section}`).style.backgroundColor = '#d97706';
+            const targetSec = document.getElementById(`section-${section}`);
+            const targetBtn = document.getElementById(`btn-sec-${section}`);
+            if (targetSec) targetSec.classList.remove('hidden');
+            if (targetBtn) {
+                targetBtn.style.backgroundColor = '#d97706'; // Surbrillance active du bouton principal
+                targetBtn.style.color = '#ffffff';
+            }
         }
 
         function switchSubTab(champ, subtab) {
@@ -298,29 +331,37 @@
                 const el = document.getElementById(`subtab-${champ}-${st}`);
                 const btn = document.getElementById(`btn-${champ}-${st}`);
                 if (el) el.classList.add('hidden');
-                if (btn) { btn.style.backgroundColor = '#334155'; btn.style.color = '#cbd5e1'; }
+                if (btn) {
+                    btn.style.backgroundColor = '#334155';
+                    btn.style.color = '#cbd5e1';
+                }
             });
             const targetEl = document.getElementById(`subtab-${champ}-${subtab}`);
             const targetBtn = document.getElementById(`btn-${champ}-${subtab}`);
             if (targetEl) targetEl.classList.remove('hidden');
-            if (targetBtn) { targetBtn.style.backgroundColor = '#2563eb'; targetBtn.style.color = '#ffffff'; }
+            if (targetBtn) {
+                targetBtn.style.backgroundColor = '#2563eb'; // Surbrillance active du sous-bouton
+                targetBtn.style.color = '#ffffff';
+            }
         }
 
         // --- GESTION HORS CHAMPIONNAT & DRAG AND DROP .TXT ---
         const dropZone = document.getElementById('drop-zone-hc');
         const fileInput = document.getElementById('file-input-hc');
 
-        dropZone.onclick = () => fileInput.click();
-        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
-        dropZone.ondragleave = () => dropZone.classList.remove('dragover');
-        dropZone.ondrop = (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) traiterFichierTxt(e.dataTransfer.files[0]);
-        };
-        fileInput.onchange = (e) => {
-            if (e.target.files.length > 0) traiterFichierTxt(e.target.files[0]);
-        };
+        if (dropZone && fileInput) {
+            dropZone.onclick = () => fileInput.click();
+            dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+            dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+            dropZone.ondrop = (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) traiterFichierTxt(e.dataTransfer.files[0]);
+            };
+            fileInput.onchange = (e) => {
+                if (e.target.files.length > 0) traiterFichierTxt(e.target.files[0]);
+            };
+        }
 
         function traiterFichierTxt(file) {
             const reader = new FileReader();
@@ -335,7 +376,6 @@
                     list.innerHTML += `<li><span>${j}</span><span class="badge badge-present">Inscrit HC</span></li>`;
                 });
 
-                // Enregistrement dans la feuille "Joueurs Hors Championnat"
                 if (scriptUrl) {
                     fetch(scriptUrl, {
                         method: "POST",
@@ -345,14 +385,6 @@
                 alert(`✅ ${joueursInscritsHC.length} joueurs inscrits avec succès pour le tournoi Hors Championnat.`);
             };
             reader.readAsText(file);
-        }
-
-        function lancerTournoiHC() {
-            if (joueursInscritsHC.length === 0) {
-                alert("Veuillez d'abord importer un fichier de pseudos .txt !");
-                return;
-            }
-            alert("Tournoi Hors Championnat initialisé ! Prêt pour le lancement des tables.");
         }
 
         // --- AUTHENTIFICATION MASTER ---
@@ -402,7 +434,7 @@
             }
         }
 
-        // --- FONCTIONS MTT SIMPLIFIÉES & FACTORISÉES ---
+        // --- FONCTIONS MTT ---
         function onTournoiMTTChange() { activeTournoiMTTId = document.getElementById('select-tournoi-mtt').value; updateInscritsMTTUI(); }
         function updateInscritsMTTUI() {
             const list = document.getElementById('list-inscrits-mtt');
@@ -427,13 +459,43 @@
             }
         }
         function genererTablesMTT() {
-            // Logique de brassage aléatoire et génération des tables MTT
+            tablesGenereesMTT = {};
+            switchSubTab('mtt', 'tables');
             alert("Tables MTT générées !");
         }
 
-        // --- RENDU DES CLASSEMENTS GÉNÉRAUX ---
+        // --- FONCTIONS SNG ---
+        function onTournoiSNGChange() { activeTournoiSNGId = document.getElementById('select-tournoi-sng').value; updateInscritsSNGUI(); }
+        function updateInscritsSNGUI() {
+            const list = document.getElementById('list-inscrits-sng');
+            if (!list) return;
+            list.innerHTML = '';
+            const inscrits = (appData.inscriptionsSNG || {})[activeTournoiSNGId] || {};
+            Object.keys(inscrits).forEach(j => {
+                list.innerHTML += `<li><span>${j}</span><span class="badge badge-present">Inscrit SNG</span></li>`;
+            });
+        }
+        function toggleInscriptionSNG() {
+            const joueur = document.getElementById('select-joueur-sng').value;
+            if (!joueur) return;
+            if (!appData.inscriptionsSNG[activeTournoiSNGId]) appData.inscriptionsSNG[activeTournoiSNGId] = {};
+            appData.inscriptionsSNG[activeTournoiSNGId][joueur] = { present: true };
+            updateInscritsSNGUI();
+            if (scriptUrl) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "inscrire", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur })
+                });
+            }
+        }
+        function genererTablesSNGFixed() {
+            tablesGenereesSNG = {};
+            switchSubTab('sng', 'tables');
+            alert("Tables SNG figées et indépendantes créées !");
+        }
+
+        // --- RENDU CLASSEMENTS GÉNÉRAUX ---
         function renderClassementsGeneraux() {
-            // Rendu Classement MTT
             const containerMTT = document.getElementById('general-container-mtt');
             if (containerMTT && appData.classementMTT) {
                 let html = `<table class="table-general"><thead><tr><th>Place</th><th>Pseudo</th><th>Points</th><th>Win</th><th>ITM</th></tr></thead><tbody>`;
@@ -443,7 +505,6 @@
                 containerMTT.innerHTML = html + `</tbody></table>`;
             }
 
-            // Rendu Classement SNG
             const containerSNG = document.getElementById('general-container-sng');
             if (containerSNG && appData.classementSNG) {
                 let html = `<table class="table-general"><thead><tr><th>Place</th><th>Pseudo</th><th>Points SNG</th><th>Win</th></tr></thead><tbody>`;
@@ -453,7 +514,6 @@
                 containerSNG.innerHTML = html + `</tbody></table>`;
             }
 
-            // Rendu Classement Online
             const containerOnline = document.getElementById('general-container-online');
             if (containerOnline && appData.classementOnline) {
                 let html = `<table class="table-general"><thead><tr><th>Place</th><th>Pseudo</th><th>Points Online</th></tr></thead><tbody>`;
