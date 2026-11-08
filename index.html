@@ -290,11 +290,9 @@
 
         // --- DÉTERMINATION AUTOMATIQUE DU MODE ET DE LA SOUS-PAGE AU CHARGEMENT ---
         function determinerModeEtSousPageInitial() {
-            // Par défaut MTT si non défini, ou logique basée sur le tournoi le plus proche
             let modeParDefaut = 'mtt';
             let sousPageParDefaut = 'inscriptions';
 
-            // Vérification de l'état des tables / du live pour le tournoi actif sélectionné
             if (tablesGenereesMTT !== null && !tournoiCommenceMTT) {
                 sousPageParDefaut = 'tables';
             } else if (tournoiCommenceMTT) {
@@ -321,7 +319,7 @@
             const targetBtn = document.getElementById(`btn-sec-${section}`);
             if (targetSec) targetSec.classList.remove('hidden');
             if (targetBtn) {
-                targetBtn.style.backgroundColor = '#d97706'; // Surbrillance active du bouton principal
+                targetBtn.style.backgroundColor = '#d97706';
                 targetBtn.style.color = '#ffffff';
             }
         }
@@ -340,7 +338,7 @@
             const targetBtn = document.getElementById(`btn-${champ}-${subtab}`);
             if (targetEl) targetEl.classList.remove('hidden');
             if (targetBtn) {
-                targetBtn.style.backgroundColor = '#2563eb'; // Surbrillance active du sous-bouton
+                targetBtn.style.backgroundColor = '#2563eb';
                 targetBtn.style.color = '#ffffff';
             }
         }
@@ -458,10 +456,80 @@
                 });
             }
         }
+
+        function renderTablesUIMTT() {
+            const container = document.getElementById('tables-container-mtt');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (!tablesGenereesMTT || Object.keys(tablesGenereesMTT).length === 0) {
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table MTT générée pour le moment.</p>`;
+                return;
+            }
+
+            for (const [tNum, seats] of Object.entries(tablesGenereesMTT)) {
+                const actifsCount = seats.filter(s => s.player !== null).length;
+                let seatsHtml = '';
+                seats.forEach(s => {
+                    const playerDisplay = s.player ? `<span class="seat-player">${s.player}</span>` : `<span class="seat-empty">Siège vide</span>`;
+                    seatsHtml += `
+                        <div class="seat-item">
+                            <span class="seat-num">Siège ${s.seat}</span>
+                            ${playerDisplay}
+                        </div>
+                    `;
+                });
+
+                container.innerHTML += `
+                    <div class="poker-table-card">
+                        <div class="poker-table-title">
+                            <span>Table ${tNum}</span>
+                            <span style="font-size:0.75rem; color:#94a3b8;">(${actifsCount} joueurs)</span>
+                        </div>
+                        <div class="seat-list">${seatsHtml}</div>
+                    </div>
+                `;
+            }
+        }
+
         function genererTablesMTT() {
-            tablesGenereesMTT = {};
+            const tournoiInsc = (appData.inscriptionsMTT || {})[activeTournoiMTTId] || {};
+            let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
+            const maxPerTable = appData.maxJoueursParTable || 6;
+
+            if (inscritsNoms.length === 0) {
+                alert("Aucun joueur inscrit pour ce tournoi MTT !");
+                return;
+            }
+
+            inscritsNoms.sort(() => Math.random() - 0.5);
+            const nbTables = Math.ceil(inscritsNoms.length / maxPerTable);
+
+            let tables = {};
+            for (let t = 1; t <= nbTables; t++) {
+                tables[t] = [];
+                for (let s = 1; s <= maxPerTable; s++) {
+                    tables[t].push({ seat: s, player: null });
+                }
+            }
+
+            let tIdx = 1, sIdx = 0;
+            inscritsNoms.forEach(j => {
+                while (tables[tIdx][sIdx].player !== null) {
+                    tIdx++;
+                    if (tIdx > nbTables) { tIdx = 1; sIdx++; }
+                }
+                tables[tIdx][sIdx].player = j;
+                tIdx++;
+                if (tIdx > nbTables) { tIdx = 1; sIdx++; }
+            });
+
+            tablesGenereesMTT = tables;
+            tournoiCommenceMTT = false;
+            
+            renderTablesUIMTT();
             switchSubTab('mtt', 'tables');
-            alert("Tables MTT générées !");
+            alert(`✅ ${nbTables} tables MTT générées avec succès !`);
         }
 
         // --- FONCTIONS SNG ---
@@ -488,10 +556,78 @@
                 });
             }
         }
+
+        function renderTablesUISNG() {
+            const container = document.getElementById('tables-container-sng');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (!tablesGenereesSNG || Object.keys(tablesGenereesSNG).length === 0) {
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table SNG générée.</p>`;
+                return;
+            }
+
+            for (const [tNum, seats] of Object.entries(tablesGenereesSNG)) {
+                const actifsCount = seats.filter(s => s.player !== null).length;
+                let seatsHtml = '';
+                seats.forEach(s => {
+                    const playerDisplay = s.player ? `<span class="seat-player">${s.player}</span>` : `<span class="seat-empty">Siège vide</span>`;
+                    seatsHtml += `
+                        <div class="seat-item">
+                            <span class="seat-num">Siège ${s.seat}</span>
+                            ${playerDisplay}
+                        </div>
+                    `;
+                });
+
+                container.innerHTML += `
+                    <div class="poker-table-card">
+                        <div class="poker-table-title">
+                            <span>Table SNG ${tNum} (Indépendante)</span>
+                            <span style="font-size:0.75rem; color:#94a3b8;">(${actifsCount} joueurs)</span>
+                        </div>
+                        <div class="seat-list">${seatsHtml}</div>
+                    </div>
+                `;
+            }
+        }
+
         function genererTablesSNGFixed() {
-            tablesGenereesSNG = {};
+            const tournoiInsc = (appData.inscriptionsSNG || {})[activeTournoiSNGId] || {};
+            let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
+            const maxPerTable = appData.maxJoueursParTable || 6;
+
+            if (inscritsNoms.length === 0) {
+                alert("Aucun joueur inscrit pour ce SNG !");
+                return;
+            }
+
+            inscritsNoms.sort(() => Math.random() - 0.5);
+            const nbTables = Math.ceil(inscritsNoms.length / maxPerTable);
+
+            let tables = {};
+            for (let t = 1; t <= nbTables; t++) {
+                tables[t] = [];
+                for (let s = 1; s <= maxPerTable; s++) {
+                    tables[t].push({ seat: s, player: null });
+                }
+            }
+
+            let tIdx = 1, sIdx = 0;
+            inscritsNoms.forEach(j => {
+                while (tables[tIdx][sIdx].player !== null) {
+                    tIdx++;
+                    if (tIdx > nbTables) { tIdx = 1; sIdx++; }
+                }
+                tables[tIdx][sIdx].player = j;
+                tIdx++;
+                if (tIdx > nbTables) { tIdx = 1; sIdx++; }
+            });
+
+            tablesGenereesSNG = tables;
+            renderTablesUISNG();
             switchSubTab('sng', 'tables');
-            alert("Tables SNG figées et indépendantes créées !");
+            alert(`✅ ${nbTables} tables SNG indépendantes créées !`);
         }
 
         // --- RENDU CLASSEMENTS GÉNÉRAUX ---
