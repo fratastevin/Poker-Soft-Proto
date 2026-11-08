@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Poker Club Manager - Multi-Championnats</title>
+    <title>Poker Club Manager - Connected</title>
     <style>
         body { font-family: ui-sans-serif, system-ui, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
         header { background-color: #1e293b; border-bottom: 1px solid #334155; padding: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
         h1 { font-size: 1.25rem; font-weight: bold; color: #fbbf24; margin: 0; }
         .nav-buttons { display: flex; gap: 0.25rem; flex-wrap: wrap; align-items: center; }
-        main { flex-grow: 1; padding: 1rem; max-width: 68rem; margin: 0 auto; width: 100%; box-sizing: border-box; }
+        main { flex-grow: 1; padding: 1rem; max-width: 64rem; margin: 0 auto; width: 100%; box-sizing: border-box; }
         .hidden { display: none; }
         
         #global-loader { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #0f172a; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; color: #fbbf24; font-weight: bold; gap: 1rem; }
@@ -19,495 +19,767 @@
 
         .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         .grid-2 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
-        @media(min-width: 768px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+        @media(min-width: 768px) { .grid-2 { grid-template-columns: 1fr 1fr; } .grid-2-live { grid-template-columns: 2fr 1fr; } }
         label { display: block; font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.25rem; }
         select, input, button { width: 100%; background-color: #0f172a; border: 1px solid #475569; border-radius: 0.375rem; padding: 0.5rem; color: #f8fafc; font-size: 1rem; margin-bottom: 1rem; box-sizing: border-box; }
         button { cursor: pointer; font-weight: bold; border: none; transition: background 0.2s; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-green { background-color: #059669; color: white; }
+        .btn-green:hover { background-color: #047857; }
         .btn-amber { background-color: #d97706; color: white; }
         .btn-rose { background-color: #e11d48; color: white; }
         .btn-blue { background-color: #2563eb; color: white; }
         .btn-purple { background-color: #7c3aed; color: white; }
+        .btn-disabled { background-color: #334155 !important; color: #64748b !important; cursor: not-allowed !important; }
         .btn-tab { padding: 0.5rem 0.75rem; border-radius: 0.375rem; font-weight: 500; font-size: 0.875rem; width: auto; display: inline-block; margin: 0; background-color: #334155; color: #cbd5e1; }
         .text-center { text-align: center; }
         .font-mono { font-family: monospace; }
         ul { list-style: none; padding: 0; margin: 0; }
         li { padding: 0.5rem 0; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; }
-        .badge { font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 9999px; cursor: pointer; font-weight: bold; }
-        .badge-absent { background-color: #475569; color: #cbd5e1; }
-        .badge-present { background-color: #059669; color: white; }
+        .badge { font-size: 0.75rem; background-color: #064e3b; color: #6ee7b7; padding: 0.125rem 0.5rem; border-radius: 9999px; }
+        .badge-absent { background-color: #475569; color: #cbd5e1; cursor: pointer; }
+        .badge-present { background-color: #059669; color: white; cursor: pointer; }
         .alert { background-color: #0f172a; border: 1px solid #334155; padding: 0.75rem; border-radius: 0.375rem; font-size: 0.875rem; font-family: monospace; color: #fde68a; line-height: 1.4; }
+        .alert-action { background-color: #451a03; border-color: #d97706; color: #fef08a; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
         .poker-table-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
         .poker-table-card { background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; padding: 1rem; }
         .poker-table-title { font-weight: bold; color: #fbbf24; margin-bottom: 0.75rem; border-bottom: 1px solid #1e293b; padding-bottom: 0.25rem; display: flex; justify-content: space-between; }
         .seat-list { display: flex; flex-direction: column; gap: 0.375rem; }
-        .seat-item { display: flex; justify-content: space-between; background: #1e293b; padding: 0.375rem 0.75rem; border-radius: 0.25rem; font-size: 0.875rem; align-items: center; border: 1px dashed transparent; }
+        .seat-item { display: flex; justify-content: space-between; background: #1e293b; padding: 0.375rem 0.75rem; border-radius: 0.25rem; font-size: 0.875rem; align-items: center; border: 1px dashed transparent; cursor: grab; }
+        .seat-item:active { cursor: grabbing; }
+        .seat-item.drag-over { border-color: #fbbf24; background: #334155; }
         .seat-num { color: #94a3b8; font-size: 0.75rem; font-weight: bold; }
         .seat-player { color: #f8fafc; font-weight: 500; }
-        .seat-empty { color: #475569; font-style: italic; }
+        .seat-empty { color: #475569; font-style: italic; cursor: default; }
 
-        .drop-zone { border: 2px dashed #475569; border-radius: 0.5rem; padding: 2rem; text-align: center; background: #0f172a; color: #94a3b8; cursor: pointer; transition: border-color 0.2s; }
-        .drop-zone.dragover { border-color: #fbbf24; color: #fbbf24; background: #1e293b; }
+        .classement-item { display: flex; justify-content: space-between; background: #1e293b; padding: 0.5rem 1rem; border-radius: 0.375rem; margin-bottom: 0.5rem; align-items: center; border: 1px solid #334155; cursor: grab; }
+        .classement-item:active { cursor: grabbing; }
+        .classement-item.drag-over { border-color: #fbbf24; background: #334155; }
 
         .table-general { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.875rem; }
         .table-general th, .table-general td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #334155; }
         .table-general th { color: #fbbf24; background-color: #1e293b; font-weight: bold; }
+        .table-general tr:hover { background-color: #1e293b; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 10000; }
+        .modal-box { background: #1e293b; border: 1px solid #475569; padding: 1.5rem; border-radius: 0.5rem; width: 320px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); }
+        .modal-box h3 { margin-top: 0; color: #fbbf24; font-size: 1.1rem; }
+        .modal-box input { width: 100%; margin-bottom: 1rem; }
+        .modal-buttons { display: flex; gap: 0.5rem; justify-content: flex-end; }
     </style>
 </head>
 <body>
 
     <div id="global-loader">
         <div class="big-loader"></div>
-        <div>Chargement des championnats...</div>
+        <div>Chargement de la configuration et des données...</div>
     </div>
 
     <div id="spectator-banner">
-        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Les actions d'administration (génération, chronomètre) sont réservées au Master. (Cliquez sur "👑 Master" pour vous authentifier).
+        👀 MODE SPECTATEUR : Vous visualisez le tournoi en direct. Le Maître du tournoi gère les commandes. (Cliquez sur "👑 Master" pour vous authentifier et reprendre le contrôle).
     </div>
 
     <header>
         <h1>♠️ Poker Club Manager</h1>
         <div class="nav-buttons">
-            <button onclick="switchMainSection('mtt')" id="btn-sec-mtt" class="btn-tab">MTT</button>
-            <button onclick="switchMainSection('sng')" id="btn-sec-sng" class="btn-tab">SNG</button>
-            <button onclick="switchMainSection('online')" id="btn-sec-online" class="btn-tab">ONLINE</button>
-            <button onclick="switchMainSection('hc')" id="btn-sec-hc" class="btn-tab">Hors Championnat</button>
-            <button onclick="gererBoutonMaster()" id="btn-master-toggle" class="btn-tab btn-purple">👑 Master</button>
+            <button onclick="switchTab('inscriptions')" id="btn-inscriptions" class="btn-tab btn-amber">Inscriptions & Appel</button>
+            <button onclick="switchTab('tables')" id="btn-tables" class="btn-tab">Plans de Table</button>
+            <button onclick="switchTab('live')" id="btn-live" class="btn-tab">Live Tournoi</button>
+            <button onclick="switchTab('classement')" id="btn-classement" class="btn-tab">Classement Tournoi</button>
+            <button onclick="switchTab('general')" id="btn-general" class="btn-tab">Classement Général</button>
+            <button onclick="gererBoutonMaster()" id="btn-master-toggle" class="btn-tab btn-purple" title="S'authentifier ou se déconnecter du mode Master">👑 Master</button>
         </div>
     </header>
 
     <main>
-        <!-- SECTION MTT -->
-        <div id="section-mtt" class="hidden">
-            <div style="display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap;">
-                <button onclick="switchSubTab('mtt', 'inscriptions')" id="btn-mtt-inscriptions" class="btn-tab">Inscriptions</button>
-                <button onclick="switchSubTab('mtt', 'tables')" id="btn-mtt-tables" class="btn-tab">Plans de table</button>
-                <button onclick="switchSubTab('mtt', 'live')" id="btn-mtt-live" class="btn-tab">Live</button>
-                <button onclick="switchSubTab('mtt', 'classement')" id="btn-mtt-classement" class="btn-tab">Classement de tournoi</button>
-                <button onclick="switchSubTab('mtt', 'general')" id="btn-mtt-general" class="btn-tab">Classement Général</button>
-            </div>
-
-            <!-- 1. Inscriptions MTT -->
-            <div id="subtab-mtt-inscriptions" class="card hidden">
-                <h2>Inscriptions MTT & Appel</h2>
+        <section id="tab-inscriptions">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Inscriptions & Appel</h2>
+                    <span id="loading-status" style="font-size:0.875rem; color:#94a3b8;"></span>
+                </div>
+                
                 <div class="grid-2">
                     <div>
-                        <label>Tournoi MTT :</label>
-                        <select id="select-tournoi-mtt-1" onchange="syncTournoiMTT(this.value)"></select>
+                        <label>Sélectionner le Tournoi :</label>
+                        <select id="select-tournoi" onchange="onTournoiChange()">
+                            <option value="">Chargement des tournois...</option>
+                        </select>
                     </div>
                     <div>
-                        <label>Joueur :</label>
-                        <select id="select-joueur-mtt"></select>
+                        <label>Joueur / Pseudo :</label>
+                        <select id="select-joueur">
+                            <option value="" disabled selected>-- Sélectionnez un joueur --</option>
+                        </select>
                     </div>
                 </div>
-                <button onclick="toggleInscriptionMTT()" class="btn-green">S'inscrire / Se désinscrire</button>
-                <ul id="list-inscrits-mtt" style="margin-top:1rem;"></ul>
-            </div>
-
-            <!-- 2. Plans de Table MTT -->
-            <div id="subtab-mtt-tables" class="card hidden">
-                <h2>Plans de Table MTT</h2>
-                <div style="margin-bottom:1rem; max-width:300px;">
-                    <label>Tournoi MTT :</label>
-                    <select id="select-tournoi-mtt-2" onchange="syncTournoiMTT(this.value)"></select>
-                </div>
-                <button onclick="genererTablesMTT()" class="btn-amber master-action">🎲 Créer / Mélanger les tables</button>
-                <div id="tables-container-mtt" class="poker-table-grid" style="margin-top:1rem;"></div>
-            </div>
-
-            <!-- 3. Live MTT -->
-            <div id="subtab-mtt-live" class="card hidden text-center">
-                <div style="margin-bottom:1rem; max-width:300px; text-align:left; margin-left:auto; margin-right:auto;">
-                    <label>Tournoi MTT :</label>
-                    <select id="select-tournoi-mtt-3" onchange="syncTournoiMTT(this.value)"></select>
-                </div>
-                <span id="live-niveau-mtt" style="color:#94a3b8; font-weight:bold;">Niveau 1 (Blinds 25/50)</span>
-                <div id="live-chrono-mtt" class="font-mono" style="font-size:3rem; font-weight:900; color:#34d399;">20:00</div>
-                <div style="display:flex; justify-content:center; gap:0.5rem; margin-top:1rem;">
-                    <button onclick="toggleChronoMTT()" id="btn-chrono-mtt" class="btn-green master-action" style="width:auto; padding:0.5rem 1.5rem;">Start</button>
-                    <button onclick="resetChronoMTT()" class="btn-rose master-action" style="width:auto; padding:0.5rem 1.5rem;">Reset</button>
-                </div>
-                <div style="margin-top:1.5rem;" class="grid-2">
-                    <div>
-                        <label>Éliminer un joueur :</label>
-                        <select id="select-eliminer-mtt"></select>
-                        <button onclick="eliminerJoueurMTT()" class="btn-rose master-action">Marquer comme Éliminé</button>
-                    </div>
-                    <div>
-                        <label>Consignes / Équilibrage :</label>
-                        <div id="live-alertes-mtt" class="alert">Toutes les tables sont équilibrées.</div>
-                    </div>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <button onclick="toggleInscription()" id="btn-inscrire" class="btn-green" style="flex:1;">S'inscrire / Se désinscrire</button>
+                    <button onclick="ouvrirModalAjoutJoueur()" class="btn-blue" style="width:auto; padding:0.5rem 1rem;">+ Ajouter un nouveau joueur</button>
                 </div>
             </div>
 
-            <!-- 4. Classement de tournoi MTT -->
-            <div id="subtab-mtt-classement" class="card hidden">
-                <h2>Classement du Tournoi MTT</h2>
-                <div style="margin-bottom:1rem; max-width:300px;">
-                    <label>Tournoi MTT :</label>
-                    <select id="select-tournoi-mtt-4" onchange="syncTournoiMTT(this.value)"></select>
-                </div>
-                <div id="classement-tournoi-mtt"><p style="color:#94a3b8; font-style:italic;">Le classement du tournoi s'affichera ici au fil des éliminations.</p></div>
-            </div>
-
-            <!-- 5. Classement Général MTT -->
-            <div id="subtab-mtt-general" class="card hidden">
-                <h2>🏆 Classement Général MTT</h2>
-                <div id="general-container-mtt"></div>
-            </div>
-        </div>
-
-        <!-- SECTION SNG -->
-        <div id="section-sng" class="hidden">
-            <div style="display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap;">
-                <button onclick="switchSubTab('sng', 'inscriptions')" id="btn-sng-inscriptions" class="btn-tab">Inscriptions</button>
-                <button onclick="switchSubTab('sng', 'tables')" id="btn-sng-tables" class="btn-tab">Plans de table</button>
-                <button onclick="switchSubTab('sng', 'live')" id="btn-sng-live" class="btn-tab">Live</button>
-                <button onclick="switchSubTab('sng', 'classement')" id="btn-sng-classement" class="btn-tab">Classement de tournoi</button>
-                <button onclick="switchSubTab('sng', 'general')" id="btn-sng-general" class="btn-tab">Classement Général</button>
-            </div>
-
-            <!-- 1. Inscriptions SNG -->
-            <div id="subtab-sng-inscriptions" class="card hidden">
-                <h2>Inscriptions SNG & Appel</h2>
-                <div class="grid-2">
-                    <div>
-                        <label>Sélectionner le SNG :</label>
-                        <select id="select-tournoi-sng-1" onchange="syncTournoiSNG(this.value)"></select>
-                    </div>
-                    <div>
-                        <label>Joueur :</label>
-                        <select id="select-joueur-sng"></select>
-                    </div>
-                </div>
-                <button onclick="toggleInscriptionSNG()" class="btn-green">S'inscrire / Se désinscrire</button>
-                <ul id="list-inscrits-sng" style="margin-top:1rem;"></ul>
-            </div>
-
-            <!-- 2. Plans de Table SNG -->
-            <div id="subtab-sng-tables" class="card hidden">
-                <h2>Plans de Table SNG (Fixes et Indépendants)</h2>
-                <div style="margin-bottom:1rem; max-width:300px;">
-                    <label>Sélectionner le SNG :</label>
-                    <select id="select-tournoi-sng-2" onchange="syncTournoiSNG(this.value)"></select>
-                </div>
-                <button onclick="genererTablesSNGFixed()" class="btn-amber master-action">🎲 Figer / Créer les tables SNG</button>
-                <div id="tables-container-sng" class="poker-table-grid" style="margin-top:1rem;"></div>
-            </div>
-
-            <!-- 3. Live SNG -->
-            <div id="subtab-sng-live" class="card hidden">
-                <div style="margin-bottom:1rem; max-width:300px;">
-                    <label>Sélectionner le SNG :</label>
-                    <select id="select-tournoi-sng-3" onchange="syncTournoiSNG(this.value)"></select>
-                </div>
-                <h2>Live SNG (Par Table Indépendante)</h2>
-                <div id="sng-live-tables-container"><p style="color:#94a3b8; font-style:italic;">Générez d'abord les tables SNG pour lancer le live.</p></div>
-            </div>
-
-            <!-- 4. Classement de tournoi SNG -->
-            <div id="subtab-sng-classement" class="card hidden">
-                <h2>Classement du Tournoi SNG</h2>
-                <div style="margin-bottom:1rem; max-width:300px;">
-                    <label>Sélectionner le SNG :</label>
-                    <select id="select-tournoi-sng-4" onchange="syncTournoiSNG(this.value)"></select>
-                </div>
-                <div id="classement-tournoi-sng"><p style="color:#94a3b8; font-style:italic;">Classement spécifique à ce SNG.</p></div>
-            </div>
-
-            <!-- 5. Classement Général SNG -->
-            <div id="subtab-sng-general" class="card hidden">
-                <h2>🏆 Classement Général SNG</h2>
-                <div id="general-container-sng"></div>
-            </div>
-        </div>
-
-        <!-- SECTION ONLINE -->
-        <div id="section-online" class="hidden">
             <div class="card">
-                <h2>Tournois Online (Winamax)</h2>
-                <p style="color:#94a3b8;">Classement général et synchronisation des résultats Winamax.</p>
-                <div id="general-container-online"></div>
+                <h3 style="margin-top:0; color:#cbd5e1; font-size:1rem;">Liste des Inscrits & Appel (<span id="count-inscrits">0</span>)</h3>
+                <p style="font-size:0.75rem; color:#94a3b8; margin-top:0;">Inscriptions de dernière minute possibles. Gestion des présences ouverte.</p>
+                <ul id="list-inscrits"></ul>
             </div>
-        </div>
+        </section>
 
-        <!-- SECTION HORS CHAMPIONNAT -->
-        <div id="section-hc" class="hidden">
+        <section id="tab-tables" class="hidden">
             <div class="card">
-                <h2>Tournoi Hors Championnat (Ponctuel)</h2>
-                <p style="color:#94a3b8;">Glissez-déposez un fichier texte (`.txt`) contenant un pseudo par ligne pour inscrire les joueurs externes.</p>
-                <div id="drop-zone-hc" class="drop-zone">
-                    📥 Glissez et déposez votre fichier `.txt` ici ou cliquez pour sélectionner.
-                    <input type="file" id="file-input-hc" accept=".txt" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:1rem;">
+                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Répartition des Tables</h2>
+                    <div>
+                        <button onclick="genererTables()" id="btn-generer-tables" class="btn-amber" style="width:auto; padding:0.5rem 1rem; margin:0;">🎲 Créer / Mélanger les tables</button>
+                    </div>
                 </div>
-                <h3 style="margin-top:1.5rem;">Joueurs Inscrits Hors Championnat (<span id="count-hc">0</span>)</h3>
-                <ul id="list-inscrits-hc"></ul>
+                <div id="table-status-msg" class="alert" style="margin-bottom:1rem;">
+                    Tables non générées. Cliquez sur le bouton ci-dessus pour répartir les joueurs.
+                </div>
+                <div id="poker-tables-container" class="poker-table-grid"></div>
             </div>
-        </div>
+        </section>
+
+        <section id="tab-live" class="hidden">
+            <div class="card text-center" style="margin-bottom:1.5rem; padding: 1.25rem;">
+                <span id="live-niveau" style="font-size:1rem; text-transform:uppercase; color:#94a3b8; font-weight:bold; display:block;">Niveau 1</span>
+                <div id="live-blinds" style="font-size:2rem; font-weight:bold; color:#f8fafc; margin:0.25rem 0;">50 / 100 (Ante 50)</div>
+                <div id="live-chrono" class="font-mono" style="font-size:3rem; font-weight:900; color:#34d399; margin:0.25rem 0;">20:00</div>
+                <div style="display:flex; gap:0.5rem; justify-content:center; margin-top:0.75rem; flex-wrap:wrap; max-width:400px; margin-left:auto; margin-right:auto;">
+                    <button onclick="promptPrevLevel()" style="flex:1; padding:0.5rem; margin:0; font-size:0.875rem; background-color:#334155; color:white;">Niveau -</button>
+                    <button onclick="resetChrono()" id="btn-reset" style="flex:1; padding:0.5rem; margin:0; font-size:0.875rem; background-color:#e11d48; color:white;">Reset</button>
+                    <button onclick="toggleChrono()" id="btn-chrono" class="btn-green" style="flex:1.5; padding:0.5rem; margin:0; font-size:0.875rem;">Start</button>
+                    <button onclick="promptNextLevel()" style="flex:1; padding:0.5rem; margin:0; font-size:0.875rem; background-color:#334155; color:white;">Niveau +</button>
+                </div>
+            </div>
+
+            <div class="grid-2 grid-2-live" style="margin-bottom:1.5rem;">
+                <div class="card" style="margin-bottom:0;">
+                    <h3 style="margin-top:0; color:#fde68a; font-size:1rem;">Gestion du Live & Éliminations</h3>
+                    <div class="grid-2">
+                        <div>
+                            <label>Éliminer un joueur :</label>
+                            <select id="select-eliminer">
+                                <option value="" disabled selected>-- Sélectionnez un joueur --</option>
+                            </select>
+                            <button onclick="eliminerJoueur()" id="btn-eliminer" class="btn-rose">Marquer comme Éliminé</button>
+
+                            <div style="margin-top:1.5rem; border-top:1px solid #334155; padding-top:1rem;">
+                                <label style="color:#60a5fa;">Réintégrer un joueur éliminé par erreur :</label>
+                                <select id="select-reintegrer">
+                                    <option value="" disabled selected>-- Sélectionnez un joueur --</option>
+                                </select>
+                                <button onclick="reintegrerJoueur()" id="btn-reintegrer" class="btn-blue">Réintégrer le joueur</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label>Consignes / Mouvements requis :</label>
+                            <div id="live-alertes" class="alert">
+                                Tournoi en cours. Toutes les tables sont équilibrées.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card text-center" style="margin-bottom:0; display:flex; flex-direction:column; justify-content:center;">
+                    <span style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Statistiques (Suivant : <span id="stat-suivant" style="color:#fbbf24;">Niveau 2</span>)</span>
+                    <div style="font-size:0.95rem; margin-top:1rem; line-height:1.8;">
+                        <div>Restants : <span id="stat-restants" style="font-weight:bold;">0</span> / <span id="stat-total">0</span></div>
+                        <div>Tapis Moyen : <span id="stat-tapis-moyen" style="font-weight:bold; color:#60a5fa;">0</span></div>
+                        <div>État Tables : <span id="stat-equilibre" style="font-weight:bold; color:#34d399;">OK</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-classement" class="hidden">
+            <div class="card">
+                <h2 style="margin-top:0; color:#fde68a; font-size:1.125rem;">Classement du Tournoi en Cours</h2>
+                <p style="font-size:0.75rem; color:#94a3b8;">Glissez-déposez les joueurs éliminés pour réajuster leur ordre de classement si besoin. Le classement se construit par le bas (du 1er éliminé vers le vainqueur).</p>
+                <div id="classement-container" style="margin-top:1rem;"></div>
+            </div>
+        </section>
+
+        <section id="tab-general" class="hidden">
+            <div class="card">
+                <h2 style="margin-top:0; color:#fbbf24; font-size:1.125rem;">🏆 Classement Général de la Saison</h2>
+                <div id="general-container">
+                    <p style="color:#94a3b8; font-style:italic;">Chargement du classement général...</p>
+                </div>
+            </div>
+        </section>
     </main>
 
     <script>
-        let scriptUrl = "";
+        let scriptUrl = ""; 
+        
+        let myClientId = localStorage.getItem('poker_client_id');
+        if (!myClientId) {
+            myClientId = 'client_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('poker_client_id', myClientId);
+        }
+
         let isMaster = sessionStorage.getItem('poker_is_master') === 'true';
         let masterToken = sessionStorage.getItem('poker_master_token') || null;
-        let appData = {};
-        let activeTournoiMTTId = null;
-        let activeTournoiSNGId = null;
-        let tablesGenereesMTT = {};
-        let tablesGenereesSNG = {};
-        let tournoiCommenceMTT = false;
-        let chronoIntervalMTT = null;
-        let secondesRestantesMTT = 1200;
-        let joueursInscritsHC = [];
+
+        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6, startingStack: 20000, structures: {}, allStates: {}, tournoisTermines: {}, classementGeneral: [] };
+        let activeTournoiId = null;
+        let tablesGenerees = null;
+        let totalJoueursInitial = 0;
+        let joueursEliminesHistorique = []; 
+        let alerteIgnoree = false;
+
+        let niveauActuel = 1;
+        let dureeNiveauSec = 1200;
+        let secondesRestantes = 1200;
+        let chronoEndTime = null;
+        let chronoIsRunning = false;
+        let chronoTimer = null;
+        let globalSyncTimer = null;
 
         window.onload = function() {
             mettreAJourBoutonMasterUI();
+
             fetch('config.json')
-                .then(res => res.json())
+                .then(res => {
+                    if (!res.ok) throw new Error("Fichier config.json introuvable.");
+                    return res.json();
+                })
                 .then(config => {
                     scriptUrl = config.scriptUrl;
+                    if (!scriptUrl) throw new Error("Propriété scriptUrl manquante dans config.json.");
                     loadDataFromSheet();
                 })
                 .catch(err => {
-                    document.getElementById('global-loader').innerHTML = `<div style="color:#f43f5e;">Erreur config.json : ${err.message}</div>`;
+                    console.error(err);
+                    document.getElementById('global-loader').innerHTML = `<div style="color:#f43f5e; text-align:center; padding:2rem;">Erreur de configuration : Impossible de charger le fichier <b>config.json</b> ou l'URL du script est invalide.<br><br>${err.message}</div>`;
                 });
         };
 
-        function loadDataFromSheet() {
-            if (!scriptUrl) return;
-            fetch(scriptUrl)
-                .then(res => res.json())
-                .then(data => {
-                    appData = data;
-                    if (appData.tablesMTT) tablesGenereesMTT = appData.tablesMTT;
-                    if (appData.tablesSNG) tablesGenereesSNG = appData.tablesSNG;
-                    populateDropdowns();
-                    determinerModeEtSousPageInitial();
-                    document.getElementById('global-loader').style.display = 'none';
-                })
-                .catch(err => console.error("Erreur chargement:", err));
+        function getDureeStructureSec(numNiveau) {
+            const structs = appData.structures || {};
+            const structActuelle = structs[numNiveau] || {};
+            if (structActuelle.duree && !isNaN(structActuelle.duree) && Number(structActuelle.duree) > 0) {
+                return parseFloat(structActuelle.duree);
+            }
+            if (structActuelle.dureeMinutes && !isNaN(structActuelle.dureeMinutes) && Number(structActuelle.dureeMinutes) > 0) {
+                return parseFloat(structActuelle.dureeMinutes) * 60;
+            }
+            return 1200;
         }
 
-        function populateDropdowns() {
-            const listMTT = appData.tournoisMTT || appData.tournois_mtt || appData.calendrierMTT || [];
-            const listSNG = appData.tournoisSNG || appData.tournois_sng || appData.calendrierSNG || [];
-
-            activeTournoiMTTId = appData.prochainTournoiMTTId || (listMTT[0] ? listMTT[0].id : null);
-            activeTournoiSNGId = appData.prochainTournoiSNGId || (listSNG[0] ? listSNG[0].id : null);
-
-            [1, 2, 3, 4].forEach(i => {
-                const sel = document.getElementById(`select-tournoi-mtt-${i}`);
-                if (sel) {
-                    sel.innerHTML = '';
-                    listMTT.forEach(t => {
-                        sel.innerHTML += `<option value="${t.id}">${t.displayLabel || t.nom || t.id}</option>`;
-                    });
-                    sel.value = activeTournoiMTTId;
+        function recalculerStatistiquesLive() {
+            let tousJoueursActifs = [];
+            if (tablesGenerees) {
+                for (const seats of Object.values(tablesGenerees)) {
+                    seats.forEach(s => { if (s.player) tousJoueursActifs.push(s.player); });
                 }
-            });
+            }
 
-            [1, 2, 3, 4].forEach(i => {
-                const sel = document.getElementById(`select-tournoi-sng-${i}`);
-                if (sel) {
-                    sel.innerHTML = '';
-                    listSNG.forEach(t => {
-                        sel.innerHTML += `<option value="${t.id}">${t.displayLabel || t.nom || t.id}</option>`;
-                    });
-                    sel.value = activeTournoiSNGId;
-                }
-            });
+            if (totalJoueursInitial === 0 && tousJoueursActifs.length > 0) {
+                totalJoueursInitial = tousJoueursActifs.length + joueursEliminesHistorique.length;
+            }
 
-            const selJoueursMTT = document.getElementById('select-joueur-mtt');
-            const selJoueursSNG = document.getElementById('select-joueur-sng');
-            [selJoueursMTT, selJoueursSNG].forEach(sel => {
-                if (!sel) return;
-                sel.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
-                (appData.joueurs || []).forEach(j => {
-                    sel.innerHTML += `<option value="${j}">${j}</option>`;
-                });
-            });
+            const restantsCount = tousJoueursActifs.length;
+            const starting = appData.startingStack || 20000;
+            const totalInscrits = totalJoueursInitial || restantsCount;
+            const avgStack = restantsCount > 0 ? Math.round((starting * totalInscrits) / restantsCount) : starting;
 
-            updateInscritsMTTUI();
-            updateInscritsSNGUI();
-            renderClassementsGeneraux();
+            const elTotal = document.getElementById('stat-total');
+            const elRestants = document.getElementById('stat-restants');
+            const elTapisMoyen = document.getElementById('stat-tapis-moyen');
+
+            if (elTotal) elTotal.innerText = totalInscrits;
+            if (elRestants) elRestants.innerText = restantsCount;
+            if (elTapisMoyen) elTapisMoyen.innerText = avgStack.toLocaleString();
         }
 
-        function syncTournoiMTT(tournoiId) {
-            activeTournoiMTTId = tournoiId;
-            [1, 2, 3, 4].forEach(i => {
-                const s = document.getElementById(`select-tournoi-mtt-${i}`);
-                if (s) s.value = tournoiId;
-            });
-            updateInscritsMTTUI();
+        function startGlobalSync() {
+            if (globalSyncTimer) clearInterval(globalSyncTimer);
+            
+            const interval = isMaster ? 15000 : 30000;
+
+            globalSyncTimer = setInterval(() => {
+                if (!scriptUrl) return;
+
+                fetch(scriptUrl)
+                    .then(res => res.json())
+                    .then(data => {
+                        appData.allStates = data.allStates || {};
+                        appData.tournoisTermines = data.tournoisTermines || {};
+                        appData.classementGeneral = data.classementGeneral || appData.classementGeneral;
+                        if (data.structures) appData.structures = data.structures;
+
+                        if (data.inscriptions) {
+                            appData.inscriptions = data.inscriptions;
+                            const tabInsc = document.getElementById('tab-inscriptions');
+                            if (tabInsc && !tabInsc.classList.contains('hidden') && tablesGenerees === null) {
+                                updateInscritsUI();
+                            }
+                        }
+
+                        const generalTab = document.getElementById('tab-general');
+                        if (generalTab && !generalTab.classList.contains('hidden')) {
+                            renderClassementGeneralUI();
+                        }
+
+                        if (activeTournoiId) {
+                            const remoteState = appData.allStates[activeTournoiId];
+                            if (remoteState) {
+                                if (!isMaster) {
+                                    syncRemoteLiveState(remoteState);
+                                }
+                            } else {
+                                tablesGenerees = null;
+                                renderTablesUI();
+                            }
+                        }
+                    })
+                    .catch(err => console.error("Erreur sync globale arrière-plan:", err));
+            }, interval);
         }
 
-        function syncTournoiSNG(tournoiId) {
-            activeTournoiSNGId = tournoiId;
-            [1, 2, 3, 4].forEach(i => {
-                const s = document.getElementById(`select-tournoi-sng-${i}`);
-                if (s) s.value = tournoiId;
-            });
-            updateInscritsSNGUI();
+        function checkMastershipBeforeAction() {
+            if (!isMaster) {
+                alert("⚠️ Action refusée : Vous devez d'abord vous authentifier en tant que Maître (bouton 👑 Master).");
+                return false;
+            }
+            return true;
         }
 
-        function determinerModeEtSousPageInitial() {
-            let modeParDefaut = 'mtt';
-            let sousPageParDefaut = 'inscriptions';
+        function jouerBipChangementNiveau() {
+            try {
+                const audio = new Audio('bip.wav');
+                audio.volume = 1;
+                audio.play().catch(e => console.log("Lecture audio bloquée :", e));
+            } catch (e) {}
+        }
 
-            if (tablesGenereesMTT[activeTournoiMTTId] && !tournoiCommenceMTT) {
-                sousPageParDefaut = 'tables';
-            } else if (tournoiCommenceMTT) {
-                sousPageParDefaut = 'live';
+        function syncRemoteLiveState(state) {
+            if (!state || isMaster) return;
+
+            if (state.niveauActuel && state.niveauActuel !== niveauActuel) {
+                niveauActuel = state.niveauActuel;
+                jouerBipChangementNiveau();
             } else {
-                sousPageParDefaut = 'inscriptions';
+                niveauActuel = state.niveauActuel || 1;
             }
 
-            switchMainSection(modeParDefaut);
-            switchSubTab(modeParDefaut, sousPageParDefaut);
-        }
+            tablesGenerees = state.tablesGenerees || null;
+            joueursEliminesHistorique = state.joueursEliminesHistorique || [];
+            totalJoueursInitial = state.totalJoueursInitial || 0;
+            chronoIsRunning = state.chronoIsRunning || false;
 
-        function switchMainSection(section) {
-            ['mtt', 'sng', 'online', 'hc'].forEach(s => {
-                const secEl = document.getElementById(`section-${s}`);
-                const btnEl = document.getElementById(`btn-sec-${s}`);
-                if (secEl) secEl.classList.add('hidden');
-                if (btnEl) {
-                    btnEl.style.backgroundColor = '#334155';
-                    btnEl.style.color = '#cbd5e1';
-                }
-            });
-            const targetSec = document.getElementById(`section-${section}`);
-            const targetBtn = document.getElementById(`btn-sec-${section}`);
-            if (targetSec) targetSec.classList.remove('hidden');
-            if (targetBtn) {
-                targetBtn.style.backgroundColor = '#d97706';
-                targetBtn.style.color = '#ffffff';
+            const alertBox = document.getElementById('live-alertes');
+            if (alertBox && state.derniereAlerte) {
+                let consigneNettoyee = state.derniereAlerte.replace(/<button[^>]*>Compris<\/button>/gi, '');
+                alertBox.innerHTML = consigneNettoyee;
+                alertBox.className = consignesContiennentUneAlerte(state.derniereAlerte) ? "alert alert-action" : "alert";
             }
+
+            if (chronoIsRunning && state.chronoEndTime) {
+                chronoEndTime = state.chronoEndTime;
+                const diff = Math.ceil((chronoEndTime - Date.now()) / 1000);
+                if (diff > 0) secondesRestantes = diff;
+                if (!chronoTimer) startChronoLoop(false);
+            } else {
+                if (chronoTimer) clearInterval(chronoTimer);
+                chronoIsRunning = false;
+                chronoEndTime = null;
+                if (state.secondesRestantes !== undefined) secondesRestantes = state.secondesRestantes;
+                const btn = document.getElementById('btn-chrono');
+                if (btn) { btn.innerText = "Start"; btn.className = "btn-green"; }
+            }
+
+            updateChronoUI();
+            renderTablesUI();
+            recalculerStatistiquesLive();
         }
 
-        function switchSubTab(champ, subtab) {
-            ['inscriptions', 'tables', 'live', 'classement', 'general'].forEach(st => {
-                const el = document.getElementById(`subtab-${champ}-${st}`);
-                const btn = document.getElementById(`btn-${champ}-${st}`);
-                if (el) el.classList.add('hidden');
-                if (btn) {
-                    btn.style.backgroundColor = '#334155';
-                    btn.style.color = '#cbd5e1';
-                }
-            });
-            const targetEl = document.getElementById(`subtab-${champ}-${subtab}`);
-            const targetBtn = document.getElementById(`btn-${champ}-${subtab}`);
-            if (targetEl) targetEl.classList.remove('hidden');
-            if (targetBtn) {
-                targetBtn.style.backgroundColor = '#2563eb';
-                targetBtn.style.color = '#ffffff';
+        function consignesContiennentUneAlerte(htmlTexte) {
+            return htmlTexte.includes("CASSAGE") || htmlTexte.includes("RÉÉQUILIBRAGE") || htmlTexte.includes("⚠️") || htmlTexte.includes("🚨");
+        }
+
+        function lockLiveInterfaceForSpectator(lock) {
+            const banner = document.getElementById('spectator-banner');
+            banner.style.display = lock ? 'block' : 'none';
+        }
+
+        function mettreAJourBoutonMasterUI() {
+            const btnMaster = document.getElementById('btn-master-toggle');
+            if (!btnMaster) return;
+
+            if (isMaster) {
+                btnMaster.innerText = "👑 Master (Déco)";
+                btnMaster.style.backgroundColor = "#059669";
+                lockLiveInterfaceForSpectator(false);
+            } else {
+                btnMaster.innerText = "👑 Master";
+                btnMaster.style.backgroundColor = "#7c3aed";
+                lockLiveInterfaceForSpectator(true);
             }
         }
 
         function gererBoutonMaster() {
             if (isMaster) {
-                if (confirm("Se déconnecter du mode Master ?")) {
+                if (confirm("Voulez-vous vous déconnecter du mode Administrateur (Master) ?")) {
                     isMaster = false;
                     masterToken = null;
-                    sessionStorage.clear();
+                    sessionStorage.removeItem('poker_is_master');
+                    sessionStorage.removeItem('poker_master_token');
                     mettreAJourBoutonMasterUI();
+                    alert("🔓 Vous êtes déconnecté du mode Master (mode spectateur activé).");
                 }
             } else {
-                const user = prompt("Identifiant admin :");
-                const pwd = prompt("Mot de passe admin :");
-                if (!user || !pwd) return;
-                fetch(scriptUrl, {
+                ouvrirModalLoginMaster();
+            }
+        }
+
+        function ouvrirModalLoginMaster() {
+            const oldModal = document.getElementById('custom-modal-login');
+            if (oldModal) oldModal.remove();
+
+            const modalHtml = `
+                <div id="custom-modal-login" class="modal-overlay">
+                    <div class="modal-box">
+                        <h3>Connexion Administrateur</h3>
+                        <label>Identifiant :</label>
+                        <input type="text" id="modal-user" placeholder="Nom d'utilisateur" autocomplete="username">
+                        <label>Mot de passe :</label>
+                        <input type="password" id="modal-password" placeholder="••••••••" autocomplete="current-password">
+                        <div class="modal-buttons">
+                            <button onclick="fermerModalLogin()" style="background:#475569; width:auto; padding:0.5rem 1rem;">Annuler</button>
+                            <button onclick="validerLoginMaster()" class="btn-purple" style="width:auto; padding:0.5rem 1rem;">Connexion</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.getElementById('modal-user').focus();
+
+            const inputPwd = document.getElementById('modal-password');
+            inputPwd.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') validerLoginMaster();
+            });
+        }
+
+        function fermerModalLogin() {
+            const modal = document.getElementById('custom-modal-login');
+            if (modal) modal.remove();
+        }
+
+        async function validerLoginMaster() {
+            const userSaisi = document.getElementById('modal-user').value.trim();
+            const pwdSaisi = document.getElementById('modal-password').value;
+
+            if (!userSaisi || !pwdSaisi) {
+                alert("Veuillez remplir tous les champs.");
+                return;
+            }
+
+            fermerModalLogin();
+
+            try {
+                const response = await fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({ action: "loginMaster", username: user, password: pwd })
-                })
+                    body: JSON.stringify({
+                        action: "loginMaster",
+                        username: userSaisi,
+                        password: pwdSaisi
+                    })
+                });
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    masterToken = result.masterToken;
+                    isMaster = true;
+                    
+                    sessionStorage.setItem('poker_is_master', 'true');
+                    sessionStorage.setItem('poker_master_token', masterToken);
+
+                    mettreAJourBoutonMasterUI();
+
+                    if (scriptUrl && activeTournoiId) {
+                        if (!appData.allStates) appData.allStates = {};
+                        if (!appData.allStates[activeTournoiId]) appData.allStates[activeTournoiId] = {};
+                        appData.allStates[activeTournoiId].masterClientId = myClientId;
+                        saveGameStateToSheet();
+                    }
+                    alert("👑 Authentification réussie : Vous êtes connecté en tant que Maître du Tournoi.");
+                    startGlobalSync();
+                } else {
+                    alert("❌ " + (result.message || "Identifiant ou mot de passe incorrect."));
+                }
+            } catch (err) {
+                console.error("Erreur d'authentification master:", err);
+                alert("Erreur de communication avec le serveur Google Apps Script.");
+            }
+        }
+
+        function demanderMotDePasseClubAsync() {
+            return new Promise((resolve) => {
+                const oldModal = document.getElementById('custom-modal-club');
+                if (oldModal) oldModal.remove();
+
+                const modalHtml = `
+                    <div id="custom-modal-club" class="modal-overlay">
+                        <div class="modal-box">
+                            <h3>Code Secret du Club</h3>
+                            <label>Entrez le mot de passe joueur :</label>
+                            <input type="password" id="modal-club-password" placeholder="••••••••" autocomplete="current-password">
+                            <div class="modal-buttons">
+                                <button onclick="fermerModalClub(null)" style="background:#475569; width:auto; padding:0.5rem 1rem;">Annuler</button>
+                                <button onclick="soumettreModalClub()" class="btn-green" style="width:auto; padding:0.5rem 1rem;">Valider</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                const inputPwd = document.getElementById('modal-club-password');
+                inputPwd.focus();
+                inputPwd.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') soumettreModalClub();
+                });
+
+                window._resolveClubPrompt = resolve;
+            });
+        }
+
+        function fermerModalClub(valeur) {
+            const modal = document.getElementById('custom-modal-club');
+            if (modal) modal.remove();
+            if (window._resolveClubPrompt) {
+                window._resolveClubPrompt(valeur);
+                window._resolveClubPrompt = null;
+            }
+        }
+
+        async function soumettreModalClub() {
+            const pwdSaisi = document.getElementById('modal-club-password').value;
+            if (!pwdSaisi) {
+                alert("Veuillez entrer le mot de passe.");
+                return;
+            }
+
+            try {
+                const response = await fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "verifyClubPassword",
+                        clubPassword: pwdSaisi
+                    })
+                });
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    fermerModalClub(pwdSaisi);
+                } else {
+                    alert("❌ " + (result.message || "Code secret du club incorrect."));
+                }
+            } catch (err) {
+                console.error("Erreur vérification code club:", err);
+                alert("Erreur de communication avec le serveur.");
+            }
+        }
+
+        function loadDataFromSheet() {
+            if (!scriptUrl) return;
+
+            fetch(scriptUrl)
                 .then(res => res.json())
                 .then(data => {
-                    if (data.status === "success") {
-                        isMaster = true;
-                        masterToken = data.masterToken;
-                        sessionStorage.setItem('poker_is_master', 'true');
-                        sessionStorage.setItem('poker_master_token', masterToken);
-                        mettreAJourBoutonMasterUI();
-                        updateInscritsMTTUI();
-                        updateInscritsSNGUI();
-                        alert("👑 Connexion Administrateur réussie.");
+                    appData = data;
+                    if (data.structures) appData.structures = data.structures;
+                    populateDropdowns();
+
+                    mettreAJourBoutonMasterUI();
+
+                    if (data.allStates && activeTournoiId && data.allStates[activeTournoiId]) {
+                        restoreGameState(data.allStates[activeTournoiId]);
                     } else {
-                        alert("❌ " + data.message);
+                        resetLocalState();
                     }
+
+                    checkTournoiLockStatus();
+                    renderClassementGeneralUI();
+
+                    document.getElementById('global-loader').style.display = 'none';
+                    startGlobalSync();
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('global-loader').innerHTML = `<div style="color:#f43f5e; text-align:center; padding:2rem;">Erreur de chargement des données depuis Google Apps Script.<br><br>${err.toString()}</div>`;
                 });
-            }
         }
 
-        function mettreAJourBoutonMasterUI() {
-            const btn = document.getElementById('btn-master-toggle');
-            const banner = document.getElementById('spectator-banner');
-            const masterElements = document.querySelectorAll('.master-action');
-
-            if (isMaster) {
-                btn.innerText = "👑 Master (Déco)";
-                btn.style.backgroundColor = "#059669";
-                banner.style.display = 'none';
-                masterElements.forEach(el => el.removeAttribute('disabled'));
-            } else {
-                btn.innerText = "👑 Master";
-                btn.style.backgroundColor = "#7c3aed";
-                banner.style.display = 'block';
-                masterElements.forEach(el => el.setAttribute('disabled', 'true'));
-            }
+        function resetLocalState() {
+            tablesGenerees = null;
+            totalJoueursInitial = 0;
+            joueursEliminesHistorique = [];
+            niveauActuel = 1;
+            dureeNiveauSec = getDureeStructureSec(1);
+            secondesRestantes = dureeNiveauSec;
+            chronoEndTime = null;
+            chronoIsRunning = false;
+            if (chronoTimer) clearInterval(chronoTimer);
+            updateChronoUI();
+            renderTablesUI();
         }
 
-        // --- GESTION HORS CHAMPIONNAT & DRAG AND DROP .TXT ---
-        const dropZone = document.getElementById('drop-zone-hc');
-        const fileInput = document.getElementById('file-input-hc');
-
-        if (dropZone && fileInput) {
-            dropZone.onclick = () => fileInput.click();
-            dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
-            dropZone.ondragleave = () => dropZone.classList.remove('dragover');
-            dropZone.ondrop = (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('dragover');
-                if (e.dataTransfer.files.length > 0) traiterFichierTxt(e.dataTransfer.files[0]);
-            };
-            fileInput.onchange = (e) => {
-                if (e.target.files.length > 0) traiterFichierTxt(e.target.files[0]);
-            };
-        }
-
-        function traiterFichierTxt(file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const lignes = e.target.result.split(/\r\n|\n/);
-                joueursInscritsHC = lignes.map(l => l.trim()).filter(l => l.length > 0);
-                
-                document.getElementById('count-hc').innerText = joueursInscritsHC.length;
-                const list = document.getElementById('list-inscrits-hc');
-                list.innerHTML = '';
-                joueursInscritsHC.forEach(j => {
-                    list.innerHTML += `<li><span>${j}</span><span class="badge badge-present">Inscrit HC</span></li>`;
-                });
-
-                if (scriptUrl) {
-                    fetch(scriptUrl, {
-                        method: "POST",
-                        body: JSON.stringify({ action: "inscrireHorsChampionnatBatch", pseudos: joueursInscritsHC, masterToken: masterToken })
-                    });
-                }
-                alert(`✅ ${joueursInscritsHC.length} joueurs inscrits avec succès pour le tournoi Hors Championnat.`);
-            };
-            reader.readAsText(file);
-        }
-
-        // --- FONCTIONS MTT ---
-        function updateInscritsMTTUI() {
-            const list = document.getElementById('list-inscrits-mtt');
-            if (!list) return;
-            list.innerHTML = '';
-            const tournoiInsc = (appData.inscriptionsMTT || {})[activeTournoiMTTId] || {};
+        function restoreGameState(state) {
+            if (!state) return;
+            tablesGenerees = state.tablesGenerees || null;
+            totalJoueursInitial = state.totalJoueursInitial || 0;
+            joueursEliminesHistorique = state.joueursEliminesHistorique || [];
             
+            niveauActuel = state.niveauActuel || 1;
+            dureeNiveauSec = getDureeStructureSec(niveauActuel);
+            secondesRestantes = state.secondesRestantes || dureeNiveauSec;
+            chronoEndTime = state.chronoEndTime || null;
+            chronoIsRunning = state.chronoIsRunning || false;
+
+            if (chronoIsRunning && chronoEndTime) {
+                const now = Date.now();
+                const diffSec = Math.floor((chronoEndTime - now) / 1000);
+                
+                if (diffSec > 0) {
+                    secondesRestantes = diffSec;
+                    startChronoLoop(false);
+                } else {
+                    let tempsEcouleAbsolu = Math.floor((now - (chronoEndTime - (secondesRestantes * 1000))) / 1000);
+                    let niveauxPasses = Math.floor(tempsEcouleAbsolu / dureeNiveauSec);
+                    niveauActuel = Math.min(25, niveauActuel + niveauxPasses);
+                    dureeNiveauSec = getDureeStructureSec(niveauActuel);
+                    secondesRestantes = dureeNiveauSec - (tempsEcouleAbsolu % dureeNiveauSec);
+                    startChronoLoop(true);
+                }
+            } else {
+                updateChronoUI();
+            }
+            renderTablesUI();
+        }
+
+        function saveGameStateToSheet() {
+            if (!scriptUrl || !activeTournoiId || !isMaster) return;
+
+            const alertBox = document.getElementById('live-alertes');
+            let consigneActuelle = alertBox ? alertBox.innerHTML : "";
+
+            const state = {
+                masterClientId: myClientId,
+                tablesGenerees: tablesGenerees,
+                totalJoueursInitial: totalJoueursInitial,
+                joueursEliminesHistorique: joueursEliminesHistorique,
+                niveauActuel: niveauActuel,
+                secondesRestantes: secondesRestantes,
+                chronoEndTime: chronoEndTime,
+                chronoIsRunning: chronoIsRunning,
+                derniereAlerte: consigneActuelle
+            };
+
+            fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify({
+                    tournoiId: activeTournoiId,
+                    action: "saveState",
+                    masterToken: masterToken,
+                    state: state
+                })
+            }).catch(err => console.error("Erreur saveState:", err));
+        }
+
+        function populateDropdowns() {
+            const selJ = document.getElementById('select-joueur');
+            selJ.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
+            const joueursTries = [...appData.joueurs].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+            joueursTries.forEach(j => {
+                selJ.innerHTML += `<option value="${j}">${j}</option>`;
+            });
+
+            const selT = document.getElementById('select-tournoi');
+            selT.innerHTML = '';
+            appData.tournois.forEach(t => {
+                const isSelected = (t.id === appData.prochainTournoiId) ? 'selected' : '';
+                selT.innerHTML += `<option value="${t.id}" ${isSelected}>${t.displayLabel}</option>`;
+            });
+
+            activeTournoiId = appData.prochainTournoiId || (appData.tournois[0] ? appData.tournois[0].id : null);
+            selT.value = activeTournoiId;
+
+            updateInscritsUI();
+        }
+
+        function onTournoiChange() {
+            activeTournoiId = document.getElementById('select-tournoi').value;
+            
+            if (appData.allStates && appData.allStates[activeTournoiId]) {
+                restoreGameState(appData.allStates[activeTournoiId]);
+            } else {
+                resetLocalState();
+            }
+            updateInscritsUI();
+            checkTournoiLockStatus();
+        }
+
+        async function ouvrirModalAjoutJoueur() {
+            const clubPassword = await demanderMotDePasseClubAsync();
+            if (!clubPassword) return;
+
+            const nomNouveau = prompt("Entrez le pseudo du nouveau joueur :");
+            if (!nomNouveau || nomNouveau.trim() === "") return;
+
+            const cleanNom = nomNouveau.trim();
+            if (appData.joueurs.includes(cleanNom)) {
+                alert("Ce joueur existe déjà dans la liste.");
+                return;
+            }
+
+            appData.joueurs.push(cleanNom);
+            appData.joueurs.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+            populateDropdowns();
+
+            document.getElementById('select-joueur').value = cleanNom;
+            toggleInscriptionWithPassword(clubPassword);
+
+            if (scriptUrl) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "ajouterJoueur", clubPassword: clubPassword, masterToken: masterToken, joueur: cleanNom })
+                }).catch(err => console.error("Erreur ajout joueur:", err));
+            }
+        }
+
+        function checkTournoiLockStatus() {
+            const hasVainqueur = appData.tournoisTermines && appData.tournoisTermines[activeTournoiId];
+
+            const btnGenerer = document.getElementById('btn-generer-tables');
+            if (tablesGenerees !== null) {
+                btnGenerer.disabled = true;
+                btnGenerer.className = "btn-disabled";
+            } else {
+                btnGenerer.disabled = false;
+                btnGenerer.className = "btn-amber";
+            }
+
+            const btnReset = document.getElementById('btn-reset');
+            if (hasVainqueur) {
+                btnReset.disabled = true;
+                btnReset.className = "btn-disabled";
+                btnReset.title = "Reset impossible : le vainqueur de ce tournoi est déjà enregistré.";
+            } else {
+                btnReset.disabled = false;
+                btnReset.className = "btn-rose";
+                btnReset.title = "";
+            }
+        }
+
+        function updateInscritsUI() {
+            const list = document.getElementById('list-inscrits');
+            list.innerHTML = '';
+            const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
+
             let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
             inscritsNoms.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 
@@ -521,102 +793,340 @@
                     <li>
                         <span>${j}</span>
                         <div style="display:flex; gap:0.5rem; align-items:center;">
-                            <span class="${badgeClass}" onclick="togglePresenceMTT('${j}')">${badgeText}</span>
-                            <button onclick="desinscrireMTT('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>
+                            <span class="${badgeClass}" onclick="togglePresence('${j}')">${badgeText}</span>
+                            <button onclick="demanderAuthClubEtDesinscrire('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;" title="Désinscrire">✕</button>
                         </div>
                     </li>
                 `;
             });
-            populateEliminerSelectMTT(inscritsNoms);
-            renderTablesUIMTT();
+            document.getElementById('count-inscrits').innerText = inscritsNoms.length;
+            renderTablesUI();
         }
 
-        function populateEliminerSelectMTT(inscritsNoms) {
-            const sel = document.getElementById('select-eliminer-mtt');
-            if (!sel) return;
-            sel.innerHTML = '<option value="" disabled selected>-- Choisir un joueur --</option>';
-            inscritsNoms.forEach(j => {
-                sel.innerHTML += `<option value="${j}">${j}</option>`;
-            });
-        }
-
-        function toggleInscriptionMTT() {
-            const joueur = document.getElementById('select-joueur-mtt').value;
-            if (!joueur) { alert("Veuillez sélectionner un joueur."); return; }
-            if (!appData.inscriptionsMTT[activeTournoiMTTId]) appData.inscriptionsMTT[activeTournoiMTTId] = {};
-            const tournoiInsc = appData.inscriptionsMTT[activeTournoiMTTId];
-            
-            const isAlready = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
-            if (isAlready) {
-                if (Array.isArray(tournoiInsc)) {
-                    appData.inscriptionsMTT[activeTournoiMTTId] = tournoiInsc.filter(x => x !== joueur);
-                } else {
-                    delete tournoiInsc[joueur];
-                }
-            } else {
-                if (Array.isArray(tournoiInsc)) {
-                    tournoiInsc.push(joueur);
-                } else {
-                    tournoiInsc[joueur] = { present: false };
-                }
-            }
-            updateInscritsMTTUI();
-            if (scriptUrl) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ action: isAlready ? "desinscrire" : "inscrire", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur, masterToken: masterToken })
-                });
-            }
-        }
-
-        function desinscrireMTT(joueur) {
-            if (!appData.inscriptionsMTT[activeTournoiMTTId]) return;
-            const tournoiInsc = appData.inscriptionsMTT[activeTournoiMTTId];
-            if (Array.isArray(tournoiInsc)) {
-                appData.inscriptionsMTT[activeTournoiMTTId] = tournoiInsc.filter(x => x !== joueur);
-            } else {
-                delete tournoiInsc[joueur];
-            }
-            updateInscritsMTTUI();
-            if (scriptUrl) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "desinscrire", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur, masterToken: masterToken })
-                });
-            }
-        }
-
-        function togglePresenceMTT(joueur) {
-            const tournoiInsc = appData.inscriptionsMTT[activeTournoiMTTId];
-            if (!tournoiInsc || !tournoiInsc[joueur]) return;
-            tournoiInsc[joueur].present = !tournoiInsc[joueur].present;
-            updateInscritsMTTUI();
-            if (scriptUrl) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "present", champType: "MTT", tournoiId: activeTournoiMTTId, joueur: joueur, present: tournoiInsc[joueur].present, masterToken: masterToken })
-                });
-            }
-        }
-
-        function renderTablesUIMTT() {
-            const container = document.getElementById('tables-container-mtt');
-            if (!container) return;
-            container.innerHTML = '';
-
-            const currentTables = tablesGenereesMTT[activeTournoiMTTId];
-            if (!currentTables || Object.keys(currentTables).length === 0) {
-                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table MTT générée pour ce tournoi. Cliquez sur "Créer / Mélanger les tables".</p>`;
+        async function toggleInscription() {
+            const joueur = document.getElementById('select-joueur').value;
+            if (!joueur) {
+                alert("Veuillez sélectionner un joueur dans la liste.");
                 return;
             }
 
-            for (const [tNum, seats] of Object.entries(currentTables)) {
+            if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+            const tournoiInsc = appData.inscriptions[activeTournoiId];
+            const isAlreadyInscrit = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
+            
+            const clubPassword = await demanderMotDePasseClubAsync();
+            if (!clubPassword) return;
+
+            if (isAlreadyInscrit) {
+                desinscrireJoueurDirect(joueur, clubPassword);
+            } else {
+                if (tablesGenerees !== null) {
+                    if (!checkMastershipBeforeAction()) return;
+                    inscrireDerniereMinute(joueur, clubPassword);
+                } else {
+                    if (Array.isArray(tournoiInsc)) {
+                        appData.inscriptions[activeTournoiId].push(joueur);
+                    } else {
+                        appData.inscriptions[activeTournoiId][joueur] = { present: false };
+                    }
+                    updateInscritsUI();
+
+                    if (scriptUrl && activeTournoiId) {
+                        fetch(scriptUrl, {
+                            method: "POST",
+                            body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire", clubPassword: clubPassword })
+                        });
+                    }
+                }
+            }
+            document.getElementById('select-joueur').selectedIndex = 0;
+        }
+
+        async function toggleInscriptionWithPassword(clubPassword) {
+            const joueur = document.getElementById('select-joueur').value;
+            if (!joueur) return;
+
+            if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+            const tournoiInsc = appData.inscriptions[activeTournoiId];
+
+            if (Array.isArray(tournoiInsc)) {
+                appData.inscriptions[activeTournoiId].push(joueur);
+            } else {
+                appData.inscriptions[activeTournoiId][joueur] = { present: false };
+            }
+            updateInscritsUI();
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire", clubPassword: clubPassword })
+                });
+            }
+        }
+
+        async function demanderAuthClubEtDesinscrire(joueur) {
+            const clubPassword = await demanderMotDePasseClubAsync();
+            if (!clubPassword) return;
+            desinscrireJoueurDirect(joueur, clubPassword);
+        }
+
+        function inscrireDerniereMinute(joueur, clubPassword) {
+            const maxPerTable = appData.maxJoueursParTable || 6;
+            
+            if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+            appData.inscriptions[activeTournoiId][joueur] = { present: true };
+            totalJoueursInitial++;
+
+            let plusPetiteTableId = null;
+            let minJoueurs = Infinity;
+
+            for (const [tId, seats] of Object.entries(tablesGenerees)) {
+                const actifsCount = seats.filter(s => s.player !== null).length;
+                if (actifsCount < maxPerTable && actifsCount < minJoueurs) {
+                    minJoueurs = actifsCount;
+                    plusPetiteTableId = tId;
+                }
+            }
+
+            if (plusPetiteTableId !== null) {
+                const siegeLibre = tablesGenerees[plusPetiteTableId].find(s => s.player === null);
+                if (siegeLibre) {
+                    siegeLibre.player = joueur;
+                    alert(`✅ ${joueur} a été ajouté à la Table ${plusPetiteTableId} (Siège ${siegeLibre.seat}).`);
+                }
+            } else {
+                const choix = prompt(`⚠️ Toutes les tables sont pleines !\n\nChoisissez une option :\n1. Réagencer les tables.\n2. Accepter en extra exceptionnel.\n3. Refuser l'inscription.\n\nTapez 1, 2 ou 3 :`, "1");
+                
+                if (choix === "1") {
+                    let tousActifs = [joueur];
+                    for (const seats of Object.values(tablesGenerees)) {
+                        seats.forEach(s => { if (s.player) tousActifs.push(s.player); });
+                    }
+                    repartirTablesRecalculees(tousActifs);
+                    alert(`🔄 Tables réagencées pour intégrer ${joueur}.`);
+                } else if (choix === "2") {
+                    tablesGenerees[1].push({ seat: tablesGenerees[1].length + 1, player: joueur });
+                    alert(`➕ ${joueur} accepté en extra sur la Table 1.`);
+                } else {
+                    if (Array.isArray(appData.inscriptions[activeTournoiId])) {
+                        appData.inscriptions[activeTournoiId] = appData.inscriptions[activeTournoiId].filter(x => x !== joueur);
+                    } else {
+                        delete appData.inscriptions[activeTournoiId][joueur];
+                    }
+                    totalJoueursInitial--;
+                    alert(`❌ Inscription refusée.`);
+                    return;
+                }
+            }
+
+            updateInscritsUI();
+            saveGameStateToSheet();
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "inscrire", clubPassword: clubPassword })
+                });
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: true, masterToken: masterToken })
+                });
+            }
+        }
+
+        function repartirTablesRecalculees(listeJoueurs) {
+            const maxPerTable = appData.maxJoueursParTable || 6;
+            listeJoueurs.sort(() => Math.random() - 0.5);
+            const nbTables = Math.ceil(listeJoueurs.length / maxPerTable);
+
+            let tables = {};
+            for (let t = 1; t <= nbTables; t++) {
+                tables[t] = [];
+                for (let s = 1; s <= maxPerTable; s++) {
+                    tables[t].push({ seat: s, player: null });
+                }
+            }
+
+            let tIdx = 1, sIdx = 0;
+            listeJoueurs.forEach(j => {
+                while (tables[tIdx][sIdx].player !== null) {
+                    tIdx++;
+                    if (tIdx > nbTables) { tIdx = 1; sIdx++; }
+                }
+                tables[tIdx][sIdx].player = j;
+                tIdx++;
+                if (tIdx > nbTables) { tIdx = 1; sIdx++; }
+            });
+
+            for (const tId of Object.keys(tables)) {
+                let joueursTable = tables[tId].map(s => s.player).filter(p => p !== null);
+                joueursTable.sort(() => Math.random() - 0.5);
+                tables[tId].forEach((s, idx) => {
+                    s.player = joueursTable[idx] !== undefined ? joueursTable[idx] : null;
+                });
+            }
+
+            tablesGenerees = tables;
+            renderTablesUI();
+        }
+
+        function desinscrireJoueurDirect(joueur, clubPassword) {
+            const isTournoiStarted = tablesGenerees !== null;
+
+            if (isTournoiStarted) {
+                let trouveTable = false;
+                for (const [tId, seats] of Object.entries(tablesGenerees)) {
+                    const seatObj = seats.find(s => s.player === joueur);
+                    if (seatObj) {
+                        seatObj.player = null;
+                        trouveTable = true;
+                        break;
+                    }
+                }
+                if (trouveTable) totalJoueursInitial--;
+            }
+
+            const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
+            if (Array.isArray(tournoiInsc)) {
+                appData.inscriptions[activeTournoiId] = tournoiInsc.filter(x => x !== joueur);
+            } else {
+                delete tournoiInsc[joueur];
+            }
+
+            updateInscritsUI();
+            if (isTournoiStarted && isMaster) {
+                verifierEtReequilibrer();
+                saveGameStateToSheet();
+            }
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "desinscrire", clubPassword: clubPassword })
+                });
+            }
+        }
+
+        function togglePresence(joueur) {
+            if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+            const tournoiInsc = appData.inscriptions[activeTournoiId];
+
+            if (typeof tournoiInsc[joueur] === 'undefined') {
+                tournoiInsc[joueur] = { present: true };
+            }
+
+            const currentPresent = tournoiInsc[joueur].present || false;
+            const newPresent = !currentPresent;
+            tournoiInsc[joueur].present = newPresent;
+            updateInscritsUI();
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: newPresent, masterToken: masterToken })
+                }).then(() => {
+                    if (tablesGenerees !== null && isMaster) {
+                        saveGameStateToSheet();
+                    }
+                });
+            }
+        }
+
+        function genererTables() {
+            if (!checkMastershipBeforeAction()) return;
+            if (tablesGenerees !== null) return;
+            const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
+            let inscritsNoms = Array.isArray(tournoiInsc) ? tournoiInsc : Object.keys(tournoiInsc);
+            const maxPerTable = appData.maxJoueursParTable || 6;
+
+            if (inscritsNoms.length === 0) {
+                alert("Aucun joueur inscrit !");
+                return;
+            }
+
+            let presents = inscritsNoms.filter(j => (tournoiInsc[j] && tournoiInsc[j].present));
+            let absents = inscritsNoms.filter(j => !(tournoiInsc[j] && tournoiInsc[j].present));
+            
+            presents.sort(() => Math.random() - 0.5);
+            absents.sort(() => Math.random() - 0.5);
+
+            const totalJoueurs = inscritsNoms.length;
+            totalJoueursInitial = totalJoueurs;
+            const nbTables = Math.ceil(totalJoueurs / maxPerTable);
+
+            let tables = {};
+            for (let t = 1; t <= nbTables; t++) {
+                tables[t] = [];
+                for (let s = 1; s <= maxPerTable; s++) {
+                    tables[t].push({ seat: s, player: null });
+                }
+            }
+
+            let currentTable = 1;
+            let currentSeatOffset = 0;
+
+            presents.forEach(p => {
+                while (tables[currentTable][currentSeatOffset].player !== null) {
+                    currentTable++;
+                    if (currentTable > nbTables) {
+                        currentTable = 1;
+                        currentSeatOffset++;
+                    }
+                }
+                tables[currentTable][currentSeatOffset].player = p;
+                currentTable++;
+                if (currentTable > nbTables) {
+                    currentTable = 1;
+                    currentSeatOffset++;
+                }
+            });
+
+            absents.forEach(a => {
+                let placed = false;
+                for (let s = 0; s < maxPerTable && !placed; s++) {
+                    for (let t = 1; t <= nbTables && !placed; t++) {
+                        if (tables[t][s].player === null) {
+                            tables[t][s].player = a;
+                            placed = true;
+                        }
+                    }
+                }
+            });
+
+            for (const tId of Object.keys(tables)) {
+                let joueursTable = tables[tId].map(s => s.player).filter(p => p !== null);
+                joueursTable.sort(() => Math.random() - 0.5);
+                tables[tId].forEach((s, idx) => {
+                    s.player = joueursTable[idx] !== undefined ? joueursTable[idx] : null;
+                });
+            }
+
+            tablesGenerees = tables;
+            joueursEliminesHistorique = [];
+            renderTablesUI();
+            document.getElementById('table-status-msg').innerText = `Tables générées avec succès (${nbTables} tables réparties pour ${totalJoueurs} inscrits).`;
+            checkTournoiLockStatus();
+            saveGameStateToSheet();
+        }
+
+        function renderTablesUI() {
+            const container = document.getElementById('poker-tables-container');
+            container.innerHTML = '';
+
+            if (!tablesGenerees) {
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table générée pour le moment.</p>`;
+                return;
+            }
+
+            for (const [tNum, seats] of Object.entries(tablesGenerees)) {
                 const actifsCount = seats.filter(s => s.player !== null).length;
                 let seatsHtml = '';
                 seats.forEach(s => {
                     const playerDisplay = s.player ? `<span class="seat-player">${s.player}</span>` : `<span class="seat-empty">Siège vide</span>`;
+                    const draggableAttr = (s.player && isMaster) ? `draggable="true" ondragstart="onDragStart(event, '${tNum}', '${s.seat}', '${s.player}')"` : '';
+                    
                     seatsHtml += `
-                        <div class="seat-item">
+                        <div class="seat-item" ${draggableAttr} ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, '${tNum}', '${s.seat}')">
                             <span class="seat-num">Siège ${s.seat}</span>
                             ${playerDisplay}
                         </div>
@@ -635,309 +1145,599 @@
             }
         }
 
-        function genererTablesMTT() {
-            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
-            const tournoiInsc = (appData.inscriptionsMTT || {})[activeTournoiMTTId] || {};
-            let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
-            const maxPerTable = appData.maxJoueursParTable || 6;
-
-            if (inscritsNoms.length === 0) {
-                alert("Aucun joueur inscrit pour ce tournoi MTT !");
-                return;
-            }
-
-            inscritsNoms.sort(() => Math.random() - 0.5);
-            const nbTables = Math.ceil(inscritsNoms.length / maxPerTable);
-
-            let tables = {};
-            for (let t = 1; t <= nbTables; t++) {
-                tables[t] = [];
-                for (let s = 1; s <= maxPerTable; s++) {
-                    tables[t].push({ seat: s, player: null });
-                }
-            }
-
-            let tIdx = 1, sIdx = 0;
-            inscritsNoms.forEach(j => {
-                while (tables[tIdx][sIdx].player !== null) {
-                    tIdx++;
-                    if (tIdx > nbTables) { tIdx = 1; sIdx++; }
-                }
-                tables[tIdx][sIdx].player = j;
-                tIdx++;
-                if (tIdx > nbTables) { tIdx = 1; sIdx++; }
-            });
-
-            tablesGenereesMTT[activeTournoiMTTId] = tables;
-            tournoiCommenceMTT = true;
-            
-            renderTablesUIMTT();
-            
-            if (scriptUrl) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "sauvegarderTables", champType: "MTT", tournoiId: activeTournoiMTTId, tables: tables, masterToken: masterToken })
-                });
-            }
-
-            switchSubTab('mtt', 'tables');
-            alert(`✅ ${nbTables} tables MTT générées et sauvegardées avec succès !`);
-        }
-
-        function toggleChronoMTT() {
-            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
-            const btn = document.getElementById('btn-chrono-mtt');
-            if (chronoIntervalMTT) {
-                clearInterval(chronoIntervalMTT);
-                chronoIntervalMTT = null;
-                btn.innerText = "Start";
-                btn.className = "btn-green master-action";
-            } else {
-                tournoiCommenceMTT = true;
-                btn.innerText = "Pause";
-                btn.className = "btn-amber master-action";
-                chronoIntervalMTT = setInterval(() => {
-                    if (secondesRestantesMTT > 0) {
-                        secondesRestantesMTT--;
-                        let m = Math.floor(secondesRestantesMTT / 60);
-                        let s = secondesRestantesMTT % 60;
-                        document.getElementById('live-chrono-mtt').innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-                    } else {
-                        clearInterval(chronoIntervalMTT);
-                        alert("⏰ Fin du niveau !");
-                    }
-                }, 1000);
-            }
-        }
-
-        function resetChronoMTT() {
+        let draggedData = null;
+        function onDragStart(event, tableNum, seatNum, playerName) {
             if (!isMaster) return;
-            if (chronoIntervalMTT) { clearInterval(chronoIntervalMTT); chronoIntervalMTT = null; }
-            secondesRestantesMTT = 1200;
-            document.getElementById('live-chrono-mtt').innerText = "20:00";
-            document.getElementById('btn-chrono-mtt').innerText = "Start";
-            document.getElementById('btn-chrono-mtt').className = "btn-green master-action";
+            draggedData = { tableNum, seatNum, playerName };
+            event.dataTransfer.setData('text/plain', playerName);
         }
 
-        function eliminerJoueurMTT() {
-            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
-            const sel = document.getElementById('select-eliminer-mtt');
-            const joueur = sel ? sel.value : null;
-            if (!joueur) { alert("Veuillez sélectionner un joueur à éliminer."); return; }
-            alert(`❌ Le joueur ${joueur} a été marqué comme éliminé.`);
+        function onDragOver(event) { if (!isMaster) return; event.preventDefault(); event.currentTarget.classList.add('drag-over'); }
+        function onDragLeave(event) { event.currentTarget.classList.remove('drag-over'); }
+
+        function onDrop(event, targetTableNum, targetSeatNum) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('drag-over');
+            if (!draggedData || !checkMastershipBeforeAction()) return;
+
+            const srcTable = draggedData.tableNum;
+            const srcSeat = draggedData.seatNum;
+            const movingPlayer = draggedData.playerName;
+
+            const targetSeatObj = tablesGenerees[targetTableNum].find(s => s.seat == targetSeatNum);
+            const targetPlayer = targetSeatObj.player;
+
+            tablesGenerees[srcTable].find(s => s.seat == srcSeat).player = targetPlayer;
+            targetSeatObj.player = movingPlayer;
+
+            draggedData = null;
+            renderTablesUI();
+            verifierEtReequilibrer();
+            saveGameStateToSheet();
         }
 
-
-        // --- FONCTIONS SNG ---
-        function updateInscritsSNGUI() {
-            const list = document.getElementById('list-inscrits-sng');
-            if (!list) return;
-            list.innerHTML = '';
-            const tournoiInsc = (appData.inscriptionsSNG || {})[activeTournoiSNGId] || {};
-            
-            let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
-            inscritsNoms.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
-
-            inscritsNoms.forEach(j => {
-                const info = (typeof tournoiInsc[j] === 'object' && tournoiInsc[j] !== null) ? tournoiInsc[j] : { present: false };
-                const isPresent = info.present;
-                const badgeClass = isPresent ? "badge badge-present" : "badge badge-absent";
-                const badgeText = isPresent ? "Présent" : "Absent";
-                
-                list.innerHTML += `
-                    <li>
-                        <span>${j}</span>
-                        <div style="display:flex; gap:0.5rem; align-items:center;">
-                            <span class="${badgeClass}" onclick="togglePresenceSNG('${j}')">${badgeText}</span>
-                            <button onclick="desinscrireSNG('${j}')" style="background:#e11d48; color:white; border:none; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto; margin:0;">✕</button>
-                        </div>
-                    </li>
-                `;
+        function switchTab(tab) {
+            ['inscriptions', 'tables', 'live', 'classement', 'general'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`btn-${t}`).style.backgroundColor = '#334155';
+                document.getElementById(`btn-${t}`).style.color = '#cbd5e1';
             });
-            renderTablesUISNG();
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            document.getElementById(`btn-${tab}`).style.backgroundColor = '#d97706';
+            document.getElementById(`btn-${tab}`).style.color = '#ffffff';
+
+            if (tab === 'live') initLive();
+            else if (tab === 'classement') renderClassementUI();
+            else if (tab === 'general') renderClassementGeneralUI();
         }
 
-        function toggleInscriptionSNG() {
-            const joueur = document.getElementById('select-joueur-sng').value;
-            if (!joueur) { alert("Veuillez sélectionner un joueur."); return; }
-            if (!appData.inscriptionsSNG[activeTournoiSNGId]) appData.inscriptionsSNG[activeTournoiSNGId] = {};
-            const tournoiInsc = appData.inscriptionsSNG[activeTournoiSNGId];
-            
-            const isAlready = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
-            if (isAlready) {
-                if (Array.isArray(tournoiInsc)) {
-                    appData.inscriptionsSNG[activeTournoiSNGId] = tournoiInsc.filter(x => x !== joueur);
-                } else {
-                    delete tournoiInsc[joueur];
-                }
-            } else {
-                if (Array.isArray(tournoiInsc)) {
-                    tournoiInsc.push(joueur);
-                } else {
-                    tournoiInsc[joueur] = { present: false };
+        function initLive() {
+            recalculerStatistiquesLive();
+
+            let tousJoueursActifs = [];
+            if (tablesGenerees) {
+                for (const seats of Object.values(tablesGenerees)) {
+                    seats.forEach(s => { if (s.player) tousJoueursActifs.push(s.player); });
                 }
             }
-            updateInscritsSNGUI();
-            if (scriptUrl) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ action: isAlready ? "desinscrire" : "inscrire", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur, masterToken: masterToken })
+
+            const selElim = document.getElementById('select-eliminer');
+            if (selElim) {
+                selElim.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
+                tousJoueursActifs.sort((a,b) => a.localeCompare(b)).forEach(j => {
+                    selElim.innerHTML += `<option value="${j}">${j}</option>`;
                 });
             }
+
+            const selReint = document.getElementById('select-reintegrer');
+            if (selReint) {
+                selReint.innerHTML = '<option value="" disabled selected>-- Sélectionnez un joueur --</option>';
+                if (joueursEliminesHistorique.length > 0) {
+                    [...joueursEliminesHistorique].reverse().forEach(item => {
+                        selReint.innerHTML += `<option value="${item.joueur}">${item.joueur} (Place: ${item.classement})</option>`;
+                    });
+                }
+            }
+
+            if (tablesGenerees) {
+                verifierEtReequilibrer();
+            }
+            updateChronoUI();
         }
 
-        function desinscrireSNG(joueur) {
-            if (!appData.inscriptionsSNG[activeTournoiSNGId]) return;
-            const tournoiInsc = appData.inscriptionsSNG[activeTournoiSNGId];
-            if (Array.isArray(tournoiInsc)) {
-                appData.inscriptionsSNG[activeTournoiSNGId] = tournoiInsc.filter(x => x !== joueur);
-            } else {
-                delete tournoiInsc[joueur];
+        function marquerAlerteCompris() {
+            if (!checkMastershipBeforeAction()) return;
+            alerteIgnoree = true;
+            const alertBox = document.getElementById('live-alertes');
+            const eqSpan = document.getElementById('stat-equilibre');
+            alertBox.innerHTML = "Tournoi en cours. Consigne acquittée.";
+            alertBox.className = "alert";
+            eqSpan.innerText = "OK";
+            eqSpan.style.color = "#34d399";
+        }
+
+        function verifierEtReequilibrer() {
+            if (!tablesGenerees) return;
+
+            const maxPerTable = appData.maxJoueursParTable || 6;
+            let tablesActivesIds = [];
+            let totalJoueursActifs = 0;
+
+            for (const [tId, seats] of Object.entries(tablesGenerees)) {
+                const count = seats.filter(s => s.player !== null).length;
+                if (count > 0) {
+                    tablesActivesIds.push(tId);
+                    totalJoueursActifs += count;
+                }
             }
-            updateInscritsSNGUI();
-            if (scriptUrl) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "desinscrire", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur, masterToken: masterToken })
+
+            if (totalJoueursActifs === 0) return;
+
+            if (totalJoueursActifs === 1 && !appData.tournoisTermines[activeTournoiId]) {
+                let dernierJoueur = null;
+                for (const seats of Object.values(tablesGenerees)) {
+                    const s = seats.find(seat => seat.player !== null);
+                    if (s) { dernierJoueur = s.player; break; }
+                }
+
+                if (dernierJoueur && isMaster) {
+                    if (chronoIsRunning) toggleChrono();
+
+                    if (scriptUrl && activeTournoiId) {
+                        fetch(scriptUrl, {
+                            method: "POST",
+                            body: JSON.stringify({
+                                tournoiId: activeTournoiId,
+                                joueur: dernierJoueur,
+                                action: "eliminer",
+                                masterToken: masterToken,
+                                classement: 1
+                            })
+                        }).catch(err => console.error("Erreur enregistrement vainqueur:", err));
+                    }
+
+                    appData.tournoisTermines[activeTournoiId] = dernierJoueur;
+                    checkTournoiLockStatus();
+                    
+                    setTimeout(() => {
+                        loadDataFromSheet();
+                    }, 1500);
+
+                    alert(`🏆 TOURNOI TERMINÉ !\n\nVainqueur : ${dernierJoueur}.\nLe classement général a été mis à jour.`);
+                }
+            }
+
+            const nbTablesNecessaires = Math.ceil(totalJoueursActifs / maxPerTable);
+            const alertBox = document.getElementById('live-alertes');
+            const eqSpan = document.getElementById('stat-equilibre');
+
+            if (nbTablesNecessaires < tablesActivesIds.length) {
+                eqSpan.innerText = "CASSAGE APPLIQUÉ";
+                eqSpan.style.color = "#f43f5e";
+
+                const randIndex = Math.floor(Math.random() * tablesActivesIds.length);
+                const tableAFermerId = tablesActivesIds[randIndex];
+                const joueursAFermer = tablesGenerees[tableAFermerId].filter(s => s.player !== null).map(s => s.player);
+
+                let siegesLibres = [];
+                tablesActivesIds.forEach(tId => {
+                    if (tId !== tableAFermerId) {
+                        tablesGenerees[tId].forEach(s => {
+                            if (s.player === null) {
+                                siegesLibres.push({ tableId: tId, seat: s.seat });
+                            }
+                        });
+                    }
                 });
-            }
-        }
 
-        function togglePresenceSNG(joueur) {
-            const tournoiInsc = appData.inscriptionsSNG[activeTournoiSNGId];
-            if (!tournoiInsc || !tournoiInsc[joueur]) return;
-            tournoiInsc[joueur].present = !tournoiInsc[joueur].present;
-            updateInscritsSNGUI();
-            if (scriptUrl) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "present", champType: "SNG", tournoiId: activeTournoiSNGId, joueur: joueur, present: tournoiInsc[joueur].present, masterToken: masterToken })
+                siegesLibres.sort(() => Math.random() - 0.5);
+                let consignes = `🚨 <b>CASSAGE DE TABLE EFFECTUÉ (FERMETURE TABLE ${tableAFermerId})</b><br>Joueurs replacés :<br>`;
+
+                joueursAFermer.forEach((j, idx) => {
+                    if (siegesLibres[idx]) {
+                        const destination = siegesLibres[idx];
+                        consignes += `• <b>${j}</b> ➔ Table ${destination.tableId}, Siège ${destination.seat}<br>`;
+                        
+                        tablesGenerees[tableAFermerId].find(s => s.player === j).player = null;
+                        tablesGenerees[destination.tableId].find(s => s.seat === destination.seat).player = j;
+                    }
                 });
-            }
-        }
 
-        function renderTablesUISNG() {
-            const container = document.getElementById('tables-container-sng');
-            const liveContainer = document.getElementById('sng-live-tables-container');
-            if (!container) return;
-            container.innerHTML = '';
-            if (liveContainer) liveContainer.innerHTML = '';
+                consignes += `<br><button onclick="marquerAlerteCompris()" style="background:#d97706; color:white; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto;">Compris</button>`;
 
-            const currentTables = tablesGenereesSNG[activeTournoiSNGId];
-            if (!currentTables || Object.keys(currentTables).length === 0) {
-                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table SNG générée pour ce tournoi. Cliquez sur "Figer / Créer les tables SNG".</p>`;
-                if (liveContainer) liveContainer.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucun live SNG en cours pour ce tournoi.</p>`;
+                alertBox.innerHTML = consignes;
+                alertBox.className = "alert alert-action";
+                renderTablesUI();
+                if (isMaster) saveGameStateToSheet();
                 return;
             }
 
-            for (const [tNum, seats] of Object.entries(currentTables)) {
-                const actifsCount = seats.filter(s => s.player !== null).length;
-                let seatsHtml = '';
-                seats.forEach(s => {
-                    const playerDisplay = s.player ? `<span class="seat-player">${s.player}</span>` : `<span class="seat-empty">Siège vide</span>`;
-                    seatsHtml += `
-                        <div class="seat-item">
-                            <span class="seat-num">Siège ${s.seat}</span>
-                            ${playerDisplay}
-                        </div>
-                    `;
-                });
+            let minJoueurs = Infinity, maxJoueurs = -1;
+            let tablePlusPetiteId = null, tablePlusGrandeId = null;
 
+            tablesActivesIds.forEach(tId => {
+                const count = tablesGenerees[tId].filter(s => s.player !== null).length;
+                if (count < minJoueurs) { minJoueurs = count; tablePlusPetiteId = tId; }
+                if (count > maxJoueurs) { maxJoueurs = count; tablePlusGrandeId = tId; }
+            });
+
+            if (maxJoueurs - minJoueurs >= 2) {
+                eqSpan.innerText = "RÉÉQUILIBRAGE APPLIQUÉ";
+                eqSpan.style.color = "#fbbf24";
+
+                const joueursGrandeTable = tablesGenerees[tablePlusGrandeId].filter(s => s.player !== null).map(s => s.player);
+                const joueurADeplacer = joueursGrandeTable[Math.floor(Math.random() * joueursGrandeTable.length)];
+                const siegeLibre = tablesGenerees[tablePlusPetiteId].find(s => s.player === null);
+
+                let consignes = `⚠️ <b>RÉÉQUILIBRAGE EFFECTUÉ (Écart ≥ 2)</b><br>`;
+                consignes += `<b>${joueurADeplacer}</b> a été déplacé de la Table ${tablePlusGrandeId} vers la Table ${tablePlusPetiteId} (Siège ${siegeLibre.seat}).<br><br>`;
+                consignes += `<button onclick="marquerAlerteCompris()" style="background:#d97706; color:white; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto;">Compris</button>`;
+
+                tablesGenerees[tablePlusGrandeId].find(s => s.player === joueurADeplacer).player = null;
+                siegeLibre.player = joueurADeplacer;
+
+                alertBox.innerHTML = consignes;
+                alertBox.className = "alert alert-action";
+                renderTablesUI();
+                if (isMaster) saveGameStateToSheet();
+                return;
+            }
+
+            if (alerteIgnoree) {
+                eqSpan.innerText = "OK";
+                eqSpan.style.color = "#34d399";
+                alertBox.innerHTML = "Tournoi en cours. Toutes les tables sont équilibrées.";
+                alertBox.className = "alert";
+            } else {
+                eqSpan.innerText = "PARFAIT";
+                eqSpan.style.color = "#34d399";
+                alertBox.innerHTML = "Tournoi en cours. Toutes les tables sont parfaitement équilibrées.";
+                alertBox.className = "alert";
+            }
+        }
+
+        function renderClassementUI() {
+            const container = document.getElementById('classement-container');
+            container.innerHTML = '';
+
+            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
+
+            if (eliminesTries.length === 0) {
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucun joueur éliminé pour le moment.</p>`;
+                return;
+            }
+
+            eliminesTries.forEach((item, index) => {
+                const draggableAttr = isMaster ? `draggable="true" ondragstart="onDragClassementStart(event, ${index})" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDropClassement(event, ${index})"` : '';
                 container.innerHTML += `
-                    <div class="poker-table-card">
-                        <div class="poker-table-title">
-                            <span>Table SNG ${tNum} (Indépendante)</span>
-                            <span style="font-size:0.75rem; color:#94a3b8;">(${actifsCount} joueurs)</span>
-                        </div>
-                        <div class="seat-list">${seatsHtml}</div>
+                    <div class="classement-item" ${draggableAttr}>
+                        <span style="font-weight:bold; color:#fbbf24; width:30px;">#${item.classement}</span>
+                        <span style="flex-grow:1; font-weight:500;">${item.joueur}</span>
+                        <span style="font-size:0.75rem; color:#94a3b8;">${isMaster ? 'Glisser pour réordonner' : ''}</span>
                     </div>
                 `;
+            });
+        }
 
-                if (liveContainer) {
-                    liveContainer.innerHTML += `
-                        <div class="card" style="margin-bottom:1rem;">
-                            <h3 style="color:#fbbf24; margin-top:0;">Table SNG ${tNum} - En cours</h3>
-                            <div class="seat-list">${seatsHtml}</div>
-                        </div>
-                    `;
-                }
+        let dragClassementIndex = null;
+        function onDragClassementStart(event, index) {
+            if (!isMaster) return;
+            dragClassementIndex = index;
+        }
+
+        function onDropClassement(event, targetIndex) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('drag-over');
+            if (dragClassementIndex === null || dragClassementIndex === targetIndex || !checkMastershipBeforeAction()) return;
+
+            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
+            const movedItem = eliminesTries.splice(dragClassementIndex, 1)[0];
+            eliminesTries.splice(targetIndex, 0, movedItem);
+
+            const baseClassementPire = totalJoueursInitial || (eliminesTries.length + 1);
+
+            eliminesTries.forEach((item, idx) => {
+                item.classement = baseClassementPire - idx;
+            });
+
+            joueursEliminesHistorique = eliminesTries;
+            dragClassementIndex = null;
+            renderClassementUI();
+            saveGameStateToSheet();
+
+            let classementMap = {};
+            joueursEliminesHistorique.forEach(item => {
+                classementMap[item.joueur] = item.classement;
+            });
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        tournoiId: activeTournoiId,
+                        action: "updateClassementBatch",
+                        masterToken: masterToken,
+                        classementMap: classementMap
+                    })
+                }).catch(err => console.error("Erreur synchro classement:", err));
             }
         }
 
-        function genererTablesSNGFixed() {
-            if (!isMaster) { alert("Action réservée à l'administrateur."); return; }
-            const tournoiInsc = (appData.inscriptionsSNG || {})[activeTournoiSNGId] || {};
-            let inscritsNoms = Array.isArray(tournoiInsc) ? [...tournoiInsc] : Object.keys(tournoiInsc);
-            const maxPerTable = appData.maxJoueursParTable || 6;
+        function renderClassementGeneralUI() {
+            const container = document.getElementById('general-container');
+            const data = appData.classementGeneral || [];
 
-            if (inscritsNoms.length === 0) {
-                alert("Aucun joueur inscrit pour ce SNG !");
+            if (data.length === 0) {
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune donnée de classement général disponible.</p>`;
                 return;
             }
 
-            inscritsNoms.sort(() => Math.random() - 0.5);
-            const nbTables = Math.ceil(inscritsNoms.length / maxPerTable);
+            let html = `
+                <table class="table-general">
+                    <thead>
+                        <tr>
+                            <th style="width:60px;">Place</th>
+                            <th>Pseudo</th>
+                            <th style="text-align:center;">Points</th>
+                            <th style="text-align:center;">Points Tous</th>
+                            <th style="text-align:center;">Win</th>
+                            <th style="text-align:center;">ITM</th>
+                            <th style="text-align:center;">Participations</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
 
-            let tables = {};
-            for (let t = 1; t <= nbTables; t++) {
-                tables[t] = [];
-                for (let s = 1; s <= maxPerTable; s++) {
-                    tables[t].push({ seat: s, player: null });
-                }
-            }
-
-            let tIdx = 1, sIdx = 0;
-            inscritsNoms.forEach(j => {
-                while (tables[tIdx][sIdx].player !== null) {
-                    tIdx++;
-                    if (tIdx > nbTables) { tIdx = 1; sIdx++; }
-                }
-                tables[tIdx][sIdx].player = j;
-                tIdx++;
-                if (tIdx > nbTables) { tIdx = 1; sIdx++; }
+            data.forEach((row) => {
+                html += `
+                    <tr>
+                        <td style="font-weight:bold; color:#fbbf24;">#${row.classement}</td>
+                        <td style="font-weight:500;">${row.joueur}</td>
+                        <td style="text-align:center; font-weight:bold; color:#34d399;">${row.points}</td>
+                        <td style="text-align:center; font-weight:bold; color:#60a5fa;">${row.pointsTous}</td>
+                        <td style="text-align:center;">${row.win}</td>
+                        <td style="text-align:center;">${row.itm}</td>
+                        <td style="text-align:center;">${row.participations}</td>
+                    </tr>
+                `;
             });
 
-            tablesGenereesSNG[activeTournoiSNGId] = tables;
-            renderTablesUISNG();
-
-            if (scriptUrl) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "sauvegarderTables", champType: "SNG", tournoiId: activeTournoiSNGId, tables: tables, masterToken: masterToken })
-                });
-            }
-
-            switchSubTab('sng', 'live');
-            alert(`✅ ${nbTables} tables SNG indépendantes créées et sauvegardées !`);
+            html += `</tbody></table>`;
+            container.innerHTML = html;
         }
 
-        // --- RENDU CLASSEMENTS GÉNÉRAUX ---
-        function renderClassementsGeneraux() {
-            const containerMTT = document.getElementById('general-container-mtt');
-            if (containerMTT && appData.classementMTT) {
-                let html = `<table class="table-general"><thead><tr><th>Place</th><th>Pseudo</th><th>Points</th><th>Win</th><th>ITM</th></tr></thead><tbody>`;
-                appData.classementMTT.forEach(r => {
-                    html += `<tr><td>#${r.classement}</td><td><b>${r.joueur}</b></td><td>${r.points}</td><td>${r.win}</td><td>${r.itm}</td></tr>`;
-                });
-                containerMTT.innerHTML = html + `</tbody></table>`;
+        function updateChronoUI() {
+            let m = Math.floor(secondesRestantes / 60);
+            let s = secondesRestantes % 60;
+            document.getElementById('live-chrono').innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            
+            const structs = appData.structures || {};
+            const currentStruct = structs[niveauActuel] || {label: `Niveau ${niveauActuel}`, sb: 0, bb: 0, ante: 0};
+            
+            document.getElementById('live-niveau').innerText = currentStruct.label;
+            document.getElementById('live-blinds').innerText = currentStruct.isPause ? "PAUSE" : `${currentStruct.sb} / ${currentStruct.bb} (Ante ${currentStruct.ante})`;
+
+            const nextStruct = structs[niveauActuel + 1];
+            if (nextStruct) {
+                document.getElementById('stat-suivant').innerText = nextStruct.label + (nextStruct.isPause ? "" : ` (${nextStruct.sb}/${nextStruct.bb})`);
+            } else {
+                document.getElementById('stat-suivant').innerText = "Dernier niveau";
+            }
+        }
+
+        function startChronoLoop(save = true) {
+            chronoIsRunning = true;
+            const btn = document.getElementById('btn-chrono');
+            if (btn) { btn.innerText = "Pause"; btn.className = "btn-amber"; }
+
+            if (!chronoEndTime) chronoEndTime = Date.now() + (secondesRestantes * 1000);
+            if (chronoTimer) clearInterval(chronoTimer);
+
+            chronoTimer = setInterval(() => {
+                const diff = Math.ceil((chronoEndTime - Date.now()) / 1000);
+                if (diff > 0) {
+                    secondesRestantes = diff;
+                    updateChronoUI();
+                } else {
+                    clearInterval(chronoTimer);
+                    chronoIsRunning = false;
+                    chronoEndTime = null;
+                    
+                    const structs = appData.structures || {};
+                    if (structs[niveauActuel + 1]) {
+                        niveauActuel++;
+                        dureeNiveauSec = getDureeStructureSec(niveauActuel);
+                        secondesRestantes = dureeNiveauSec;
+                        jouerBipChangementNiveau();
+                        startChronoLoop(true);
+                    } else {
+                        alert("🏁 Fin de la structure des niveaux !");
+                    }
+                }
+            }, 1000);
+
+            updateChronoUI();
+            if (save && isMaster) saveGameStateToSheet();
+        }
+
+        function toggleChrono() {
+            if (!checkMastershipBeforeAction()) return;
+
+            if (chronoIsRunning) {
+                clearInterval(chronoTimer);
+                chronoIsRunning = false;
+                chronoEndTime = null;
+                const btn = document.getElementById('btn-chrono');
+                if (btn) { btn.innerText = "Start"; btn.className = "btn-green"; }
+                updateChronoUI();
+                saveGameStateToSheet();
+            } else {
+                chronoEndTime = Date.now() + (secondesRestantes * 1000);
+                startChronoLoop(true);
+            }
+        }
+
+        function resetChrono() {
+            if (!checkMastershipBeforeAction()) return;
+
+            if (appData.tournoisTermines && appData.tournoisTermines[activeTournoiId]) {
+                alert("⚠️ Reset impossible : ce tournoi est terminé.");
+                return;
             }
 
-            const containerSNG = document.getElementById('general-container-sng');
-            if (containerSNG && appData.classementSNG) {
-                let html = `<table class="table-general"><thead><tr><th>Place</th><th>Pseudo</th><th>Points SNG</th><th>Win</th></tr></thead><tbody>`;
-                appData.classementSNG.forEach(r => {
-                    html += `<tr><td>#${r.classement}</td><td><b>${r.joueur}</b></td><td>${r.points}</td><td>${r.win}</td></tr>`;
-                });
-                containerSNG.innerHTML = html + `</tbody></table>`;
+            if (!confirm("⚠️ RESET COMPLET DU TOURNOI :\n\n- Le chrono repassera au début.\n- Tous les joueurs éliminés seront réintégrés.\n- Leurs classements enregistrés sur Google Sheet seront effacés.\n- Les plans de table pourront être refaits.\n\nConfirmez-vous cette réinitialisation ?")) {
+                return;
             }
 
-            const containerOnline = document.getElementById('general-container-online');
-            if (containerOnline && appData.classementOnline) {
-                let html = `<table class="table-general"><thead><tr><th>Place</th><th>Pseudo</th><th>Points Online</th></tr></thead><tbody>`;
-                appData.classementOnline.forEach(r => {
-                    html += `<tr><td>#${r.classement}</td><td><b>${r.joueur}</b></td><td>${r.points}</td></tr>`;
+            clearInterval(chronoTimer);
+            chronoIsRunning = false;
+            chronoEndTime = null;
+            niveauActuel = 1;
+            dureeNiveauSec = getDureeStructureSec(1);
+            secondesRestantes = dureeNiveauSec;
+
+            const btn = document.getElementById('btn-chrono');
+            if (btn) { btn.innerText = "Start"; btn.className = "btn-green"; }
+            updateChronoUI();
+
+            if (joueursEliminesHistorique.length > 0 && tablesGenerees) {
+                joueursEliminesHistorique.forEach(item => {
+                    let placeRemise = false;
+                    if (tablesGenerees[item.origTableId]) {
+                        const sOrig = tablesGenerees[item.origTableId].find(s => s.seat == item.origSeat);
+                        if (sOrig && sOrig.player === null) {
+                            sOrig.player = item.joueur;
+                            placeRemise = true;
+                        }
+                    }
+                    if (!placeRemise) {
+                        for (const seats of Object.values(tablesGenerees)) {
+                            const sLibre = seats.find(s => s.player === null);
+                            if (sLibre) {
+                                sLibre.player = item.joueur;
+                                break;
+                            }
+                        }
+                    }
                 });
-                containerOnline.innerHTML = html + `</tbody></table>`;
+            }
+
+            joueursEliminesHistorique = [];
+            tablesGenerees = null;
+            renderTablesUI();
+            checkTournoiLockStatus();
+            initLive();
+            saveGameStateToSheet();
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, action: "resetTournament", masterToken: masterToken })
+                }).catch(err => console.error("Erreur reset:", err));
+            }
+        }
+
+        function promptNextLevel() {
+            if (!checkMastershipBeforeAction()) return;
+            const choix = prompt("Changement de niveau :\n\n1. Conserver le compte à rebours actuel\n2. Remettre le chrono à zéro (pour le nouveau niveau)\n3. Annuler\n\nTapez 1, 2 ou 3 :", "2");
+            if (choix === "1") changeLevelBy(1, false);
+            else if (choix === "2") changeLevelBy(1, true);
+        }
+
+        function promptPrevLevel() {
+            if (!checkMastershipBeforeAction()) return;
+            const choix = prompt("Retour en arrière (Niveau -) :\n\n1. Conserver le compte à rebours actuel\n2. Remettre le chrono à zéro\n3. Annuler\n\nTapez 1, 2 ou 3 :", "2");
+            if (choix === "1") changeLevelBy(-1, false);
+            else if (choix === "2") changeLevelBy(-1, true);
+        }
+
+        function changeLevelBy(delta, resetTime) {
+            const newNiveau = niveauActuel + delta;
+            const structs = appData.structures || {};
+            if (newNiveau >= 1 && structs[newNiveau]) {
+                niveauActuel = newNiveau;
+                dureeNiveauSec = getDureeStructureSec(niveauActuel);
+                if (resetTime) secondesRestantes = dureeNiveauSec;
+                
+                jouerBipChangementNiveau();
+                chronoEndTime = chronoIsRunning ? (Date.now() + (secondesRestantes * 1000)) : null;
+                updateChronoUI();
+                
+                if (chronoIsRunning) startChronoLoop(true);
+                else saveGameStateToSheet();
+            }
+        }
+
+        function eliminerJoueur() {
+            if (!checkMastershipBeforeAction()) return;
+            const joueur = document.getElementById('select-eliminer').value;
+            if (!joueur) return;
+
+            if (!confirm(`Confirmez-vous l'élimination définitive de ${joueur} ?`)) return;
+
+            let restantsCount = 0;
+            let origTableId = null, origSeat = null;
+
+            if (tablesGenerees) {
+                for (const [tId, seats] of Object.entries(tablesGenerees)) {
+                    seats.forEach(s => {
+                        if (s.player) {
+                            restantsCount++;
+                            if (s.player === joueur) { origTableId = tId; origSeat = s.seat; }
+                        }
+                    });
+                }
+            }
+
+            const classementAttribue = restantsCount;
+            joueursEliminesHistorique.push({ joueur, classement: classementAttribue, origTableId, origSeat });
+
+            if (tablesGenerees && origTableId) {
+                tablesGenerees[origTableId].find(s => s.seat == origSeat).player = null;
+            }
+
+            initLive();
+            saveGameStateToSheet();
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur, action: "eliminer", masterToken: masterToken, classement: classementAttribue })
+                }).catch(err => console.error("Erreur elimination:", err));
+            }
+        }
+
+        function reintegrerJoueur() {
+            if (!checkMastershipBeforeAction()) return;
+            const joueur = document.getElementById('select-reintegrer').value;
+            if (!joueur) return;
+
+            if (!confirm(`Voulez-vous vraiment réintégrer ${joueur} au tournoi ? Son classement sera annulé.`)) return;
+
+            const idx = joueursEliminesHistorique.findIndex(item => item.joueur === joueur);
+            if (idx === -1) return;
+
+            const elemReintegre = joueursEliminesHistorique[idx];
+            const classementsAncien = elemReintegre.classement;
+            joueursEliminesHistorique.splice(idx, 1);
+
+            let eliminationsFutures = [];
+            joueursEliminesHistorique.forEach(item => {
+                if (item.classement > classementsAncien) {
+                    item.classement--;
+                    eliminationsFutures.push({ joueur: item.joueur, nouveauClassement: item.classement });
+                }
+            });
+
+            let remplace = false;
+            if (tablesGenerees) {
+                if (tablesGenerees[elemReintegre.origTableId]) {
+                    const targetSeat = tablesGenerees[elemReintegre.origTableId].find(s => s.seat == elemReintegre.origSeat);
+                    if (targetSeat && targetSeat.player === null) {
+                        targetSeat.player = joueur;
+                        remplace = true;
+                    }
+                }
+                if (!remplace) {
+                    for (const seats of Object.values(tablesGenerees)) {
+                        const sLibre = seats.find(s => s.player === null);
+                        if (sLibre) {
+                            sLibre.player = joueur;
+                            remplace = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            initLive();
+            saveGameStateToSheet();
+
+            if (scriptUrl && activeTournoiId) {
+                fetch(scriptUrl, {
+                    method: "POST",
+                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur, action: "reintegrer", masterToken: masterToken, eliminationsFutures })
+                }).catch(err => console.error("Erreur reintegration:", err));
             }
         }
     </script>
