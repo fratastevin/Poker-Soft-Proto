@@ -407,8 +407,9 @@
             const banner = document.getElementById('spectator-banner');
             banner.style.display = lock ? 'block' : 'none';
 
-            const liveButtons = document.querySelectorAll('#tab-live button, #tab-tables button, #tab-inscriptions .badge');
-            liveButtons.forEach(btn => {
+            // Désactivation sélective uniquement des boutons d'actions en mode spectateur (le reste est consultable)
+            const actionButtons = document.querySelectorAll('#tab-live button, #tab-tables button, #tab-inscriptions button, #tab-inscriptions .badge');
+            actionButtons.forEach(btn => {
                 if (lock && !btn.classList.contains('allow-spectator')) {
                     btn.disabled = true;
                     btn.style.opacity = '0.5';
@@ -1142,7 +1143,8 @@
                 let seatsHtml = '';
                 seats.forEach(s => {
                     const playerDisplay = s.player ? `<span class="seat-player">${s.player}</span>` : `<span class="seat-empty">Siège vide</span>`;
-                    const draggableAttr = s.player ? `draggable="true" ondragstart="onDragStart(event, '${tNum}', '${s.seat}', '${s.player}')"` : '';
+                    // Le drag and drop est permis uniquement si Master
+                    const draggableAttr = (s.player && isMaster) ? `draggable="true" ondragstart="onDragStart(event, '${tNum}', '${s.seat}', '${s.player}')"` : '';
                     
                     seatsHtml += `
                         <div class="seat-item" ${draggableAttr} ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, '${tNum}', '${s.seat}')">
@@ -1166,11 +1168,12 @@
 
         let draggedData = null;
         function onDragStart(event, tableNum, seatNum, playerName) {
+            if (!isMaster) return;
             draggedData = { tableNum, seatNum, playerName };
             event.dataTransfer.setData('text/plain', playerName);
         }
 
-        function onDragOver(event) { event.preventDefault(); event.currentTarget.classList.add('drag-over'); }
+        function onDragOver(event) { if (!isMaster) return; event.preventDefault(); event.currentTarget.classList.add('drag-over'); }
         function onDragLeave(event) { event.currentTarget.classList.remove('drag-over'); }
 
         function onDrop(event, targetTableNum, targetSeatNum) {
@@ -1195,11 +1198,8 @@
         }
 
         function switchTab(tab) {
-            if ((tab === 'tables' || tab === 'live' || tab === 'classement') && !isMaster) {
-                alert("⚠️ Accès restreint : Veuillez vous authentifier en tant que Maître (bouton 👑 Master).");
-                gererBoutonMaster();
-                if (!isMaster) return; 
-            }
+            // CORRECTION : Les spectateurs peuvent désormais consulter librement MTT, tables, live et classement.
+            // Seules les actions d'écriture restent protégées par l'authentification Master.
 
             ['inscriptions', 'tables', 'live', 'classement', 'general'].forEach(t => {
                 document.getElementById(`tab-${t}`).classList.add('hidden');
@@ -1216,16 +1216,13 @@
         }
 
         function initLive() {
-            if (!tablesGenerees) {
-                alert("Veuillez d'abord générer les plans de table !");
-                return;
-            }
-
             recalculerStatistiquesLive();
 
             let tousJoueursActifs = [];
-            for (const seats of Object.values(tablesGenerees)) {
-                seats.forEach(s => { if (s.player) tousJoueursActifs.push(s.player); });
+            if (tablesGenerees) {
+                for (const seats of Object.values(tablesGenerees)) {
+                    seats.forEach(s => { if (s.player) tousJoueursActifs.push(s.player); });
+                }
             }
 
             const selElim = document.getElementById('select-eliminer');
@@ -1246,7 +1243,9 @@
                 }
             }
 
-            verifierEtReequilibrer();
+            if (tablesGenerees) {
+                verifierEtReequilibrer();
+            }
             updateChronoUI();
         }
 
@@ -1285,7 +1284,7 @@
                     if (s) { dernierJoueur = s.player; break; }
                 }
 
-                if (dernierJoueur) {
+                if (dernierJoueur && isMaster) {
                     if (chronoIsRunning) toggleChrono();
 
                     if (scriptUrl && activeTournoiId) {
@@ -1353,7 +1352,7 @@
                 alertBox.innerHTML = consignes;
                 alertBox.className = "alert alert-action";
                 renderTablesUI();
-                saveGameStateToSheet();
+                if (isMaster) saveGameStateToSheet();
                 return;
             }
 
@@ -1384,7 +1383,7 @@
                 alertBox.innerHTML = consignes;
                 alertBox.className = "alert alert-action";
                 renderTablesUI();
-                saveGameStateToSheet();
+                if (isMaster) saveGameStateToSheet();
                 return;
             }
 
@@ -1413,11 +1412,12 @@
             }
 
             eliminesTries.forEach((item, index) => {
+                const draggableAttr = isMaster ? `draggable="true" ondragstart="onDragClassementStart(event, ${index})" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDropClassement(event, ${index})"` : '';
                 container.innerHTML += `
-                    <div class="classement-item" draggable="true" ondragstart="onDragClassementStart(event, ${index})" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDropClassement(event, ${index})">
+                    <div class="classement-item" ${draggableAttr}>
                         <span style="font-weight:bold; color:#fbbf24; width:30px;">#${item.classement}</span>
                         <span style="flex-grow:1; font-weight:500;">${item.joueur}</span>
-                        <span style="font-size:0.75rem; color:#94a3b8;">Glisser pour réordonner</span>
+                        <span style="font-size:0.75rem; color:#94a3b8;">${isMaster ? 'Glisser pour réordonner' : ''}</span>
                     </div>
                 `;
             });
@@ -1425,6 +1425,7 @@
 
         let dragClassementIndex = null;
         function onDragClassementStart(event, index) {
+            if (!isMaster) return;
             dragClassementIndex = index;
         }
 
@@ -1560,7 +1561,7 @@
             }, 1000);
 
             updateChronoUI();
-            if (save) saveGameStateToSheet();
+            if (save && isMaster) saveGameStateToSheet();
         }
 
         function toggleChrono() {
