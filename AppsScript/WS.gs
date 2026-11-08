@@ -12,21 +12,17 @@ function doGet(e) {
       joueurs = dataJoueurs.map(row => row[0]).filter(j => j !== "" && j !== undefined);
     }
 
-    // 2. Récupération du calendrier
-    const sheetCal = ss.getSheetByName("Calendrier");
-    const tournois = [];
-    let prochainTournoiId = null;
-
-    if (sheetCal) {
-      const lastRowCal = sheetCal.getLastRow();
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      let minDiff = Infinity;
-
-      for (let i = 2; i <= lastRowCal; i++) {
-        const num = sheetCal.getRange(i, 1).getValue();
-        const dateStr = sheetCal.getRange(i, 2).getDisplayValue().trim();
-        const intitule = sheetCal.getRange(i, 3).getValue();
+    // Helper pour lire le calendrier MTT ou SNG
+    function readCalendar(sheetName, typePrefix) {
+      const sheet = ss.getSheetByName(sheetName);
+      const list = [];
+      if (!sheet) return list;
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) return list;
+      for (let i = 2; i <= lastRow; i++) {
+        const num = sheet.getRange(i, 1).getValue();
+        const dateStr = sheet.getRange(i, 2).getDisplayValue().trim();
+        const intitule = sheet.getRange(i, 3).getValue();
 
         if (num !== "" && intitule !== "") {
           let dateObj = null;
@@ -44,91 +40,114 @@ function doGet(e) {
             }
           }
 
-          if (dateObj && !isNaN(dateObj.getTime())) {
-            dateObj.setHours(0, 0, 0, 0);
-            const diff = dateObj.getTime() - today.getTime();
-            
-            if (diff >= 0 && diff < minDiff) {
-              minDiff = diff;
-              prochainTournoiId = num.toString();
-            }
-          }
-
+          const labelPrefix = typePrefix === "mtt" ? "MTT" : "SNG";
           const displayStr = dateFormatted ? `${intitule} - ${dateFormatted}` : `${intitule} (Date non définie)`;
 
-          tournois.push({
-            id: num.toString(),
+          list.push({
+            id: typePrefix + "_" + num.toString(),
+            rawId: num.toString(),
+            type: labelPrefix,
             intitule: intitule,
             date: dateFormatted,
-            displayLabel: displayStr
+            displayLabel: `[${labelPrefix}] ${displayStr}`,
+            dateObj: dateObj
           });
         }
       }
+      return list;
     }
+
+    const mttTournois = readCalendar("Calendrier", "mtt");
+    const sngTournois = readCalendar("Calendrier SNG", "sng");
+    const tournois = [...mttTournois, ...sngTournois];
+
+    // Trouver le prochain tournoi
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let minDiff = Infinity;
+    let prochainTournoiId = null;
+
+    tournois.forEach(t => {
+      if (t.dateObj && !isNaN(t.dateObj.getTime())) {
+        t.dateObj.setHours(0, 0, 0, 0);
+        const diff = t.dateObj.getTime() - today.getTime();
+        if (diff >= 0 && diff < minDiff) {
+          minDiff = diff;
+          prochainTournoiId = t.id;
+        }
+      }
+    });
 
     if (!prochainTournoiId && tournois.length > 0) {
       prochainTournoiId = tournois[0].id;
     }
 
-    // 3. Paramètres Structure
-    let maxJoueursParTable = 6;
-    let startingStack = 20000;
-    let dureeNiveauMinutesDefaut = 20;
-    let structuresDynamiques = {};
+    // Helper pour lire les structures (MTT ou SNG)
+    function readStructure(sheetName) {
+      let maxJoueursParTable = 6;
+      let startingStack = 20000;
+      let dureeNiveauMinutesDefaut = 20;
+      let structuresDynamiques = {};
 
-    try {
-      const sheetStruct = ss.getSheetByName("Structure");
-      if (sheetStruct) {
-        const valB2 = sheetStruct.getRange("B2").getValue();
-        if (valB2 !== "" && !isNaN(valB2) && Number(valB2) > 0) {
-          dureeNiveauMinutesDefaut = parseFloat(valB2);
-        }
+      try {
+        const sheetStruct = ss.getSheetByName(sheetName);
+        if (sheetStruct) {
+          const valB2 = sheetStruct.getRange("B2").getValue();
+          if (valB2 !== "" && !isNaN(valB2) && Number(valB2) > 0) {
+            dureeNiveauMinutesDefaut = parseFloat(valB2);
+          }
 
-        const valI3 = sheetStruct.getRange("I3").getValue();
-        if (valI3 !== "" && !isNaN(valI3)) {
-          maxJoueursParTable = parseInt(valI3, 10);
-        }
+          const valI3 = sheetStruct.getRange("I3").getValue();
+          if (valI3 !== "" && !isNaN(valI3)) {
+            maxJoueursParTable = parseInt(valI3, 10);
+          }
 
-        const structData = sheetStruct.getDataRange().getValues();
-        for (let r = 0; r < structData.length; r++) {
-          for (let c = 0; c < structData[r].length; c++) {
-            const cellStr = String(structData[r][c]).toLowerCase();
-            if (cellStr.includes("starting stack") || cellStr.includes("jetons départ") || cellStr.includes("stack départ")) {
-              if (c + 1 < structData[r].length && !isNaN(structData[r][c+1]) && structData[r][c+1] !== "") {
-                startingStack = parseFloat(structData[r][c+1]);
+          const structData = sheetStruct.getDataRange().getValues();
+          for (let r = 0; r < structData.length; r++) {
+            for (let c = 0; c < structData[r].length; c++) {
+              const cellStr = String(structData[r][c]).toLowerCase();
+              if (cellStr.includes("starting stack") || cellStr.includes("jetons départ") || cellStr.includes("stack départ")) {
+                if (c + 1 < structData[r].length && !isNaN(structData[r][c+1]) && structData[r][c+1] !== "") {
+                  startingStack = parseFloat(structData[r][c+1]);
+                }
               }
             }
           }
-        }
 
-        for (let i = 4; i < structData.length; i++) {
-          const row = structData[i];
-          const valNiveau = String(row[0]).trim();
-          if (valNiveau === "" || valNiveau.toLowerCase() === "total" || valNiveau.toLowerCase() === "moyenne") break;
+          for (let i = 4; i < structData.length; i++) {
+            const row = structData[i];
+            const valNiveau = String(row[0]).trim();
+            if (valNiveau === "" || valNiveau.toLowerCase() === "total" || valNiveau.toLowerCase() === "moyenne") break;
 
-          const isPause = valNiveau.toLowerCase().includes("pause") || valNiveau.toLowerCase().includes("break");
-          const sb = parseFloat(row[1]) || 0;
-          const bb = parseFloat(row[2]) || 0;
-          const ante = parseFloat(row[3]) || 0;
-          
-          let indexNiveau = i - 3;
-          structuresDynamiques[indexNiveau] = {
-            label: isPause ? "Pause" : `Niveau ${valNiveau}`,
-            sb: sb,
-            bb: bb,
-            ante: ante,
-            duree: dureeNiveauMinutesDefaut * 60,
-            isPause: isPause
-          };
+            const isPause = valNiveau.toLowerCase().includes("pause") || valNiveau.toLowerCase().includes("break");
+            const sb = parseFloat(row[1]) || 0;
+            const bb = parseFloat(row[2]) || 0;
+            const ante = parseFloat(row[3]) || 0;
+            
+            let indexNiveau = i - 3;
+            structuresDynamiques[indexNiveau] = {
+              label: isPause ? "Pause" : `Niveau ${valNiveau}`,
+              sb: sb,
+              bb: bb,
+              ante: ante,
+              duree: dureeNiveauMinutesDefaut * 60,
+              isPause: isPause
+            };
+          }
         }
+      } catch (err) {}
+
+      if (Object.keys(structuresDynamiques).length === 0) {
+        structuresDynamiques[1] = { label: "Niveau 1", sb: 25, bb: 50, ante: 25, duree: dureeNiveauMinutesDefaut * 60 };
       }
-    } catch (err) {}
 
-    if (Object.keys(structuresDynamiques).length === 0) {
-      structuresDynamiques[1] = { label: "Niveau 1", sb: 25, bb: 50, ante: 25, duree: dureeNiveauMinutesDefaut * 60 };
+      return { maxJoueursParTable, startingStack, structures: structuresDynamiques };
     }
 
-    // 4. Inscriptions
+    const structMTT = readStructure("Structure");
+    const structSNG = readStructure("Structure SNG");
+
+    // 4. Inscriptions (mutualisées dans l'onglet "Inscriptions")
     let sheetInsc = ss.getSheetByName("Inscriptions");
     if (!sheetInsc) {
       sheetInsc = ss.insertSheet("Inscriptions");
@@ -148,55 +167,63 @@ function doGet(e) {
       }
     }
 
-    // 5. Classement Général
-    let classementGeneral = [];
-    const sheetClassement = ss.getSheetByName("Classement MTT");
-    const tournoisTermines = {};
+    // 5. Classements Généraux (MTT & SNG)
+    function readClassement(sheetName, relevantTournois, prefixType) {
+      let classementGeneral = [];
+      let tournoisTermines = {};
+      const sheetClassement = ss.getSheetByName(sheetName);
 
-    if (sheetClassement) {
-      const lastRow = Math.max(sheetClassement.getLastRow(), 58);
-      const rangeData = sheetClassement.getRange(5, 1, lastRow - 4, 8).getValues();
-      
-      for (let r = 0; r < rangeData.length; r++) {
-        const row = rangeData[r];
-        const joueurNom = String(row[1] || "").trim();
+      if (sheetClassement) {
+        const lastRow = Math.max(sheetClassement.getLastRow(), 58);
+        const rangeData = sheetClassement.getRange(5, 1, lastRow - 4, 8).getValues();
         
-        if (joueurNom !== "" && joueurNom.toLowerCase() !== "joueur" && joueurNom.toLowerCase() !== "pseudo") {
-          classementGeneral.push({
-            classement: parseInt(row[2], 10) || 999,
-            joueur: joueurNom,
-            points: parseFloat(row[3]) || 0,
-            pointsTous: parseFloat(row[4]) || 0,
-            win: parseInt(row[5], 10) || 0,
-            itm: parseInt(row[6], 10) || 0,
-            participations: parseInt(row[7], 10) || 0
-          });
-        }
-      }
-
-      classementGeneral.sort((a, b) => a.classement - b.classement);
-
-      const fullRows = sheetClassement.getDataRange().getValues();
-      tournois.forEach(t => {
-        let mttColIndex = -1;
-        let jColIndex = -1;
-        for (let r = 0; r < fullRows.length; r++) {
-          for (let c = 0; c < fullRows[r].length; c++) {
-            const val = String(fullRows[r][c]).trim();
-            if (val === "Joueur" && jColIndex === -1) jColIndex = c;
-            if (val === `MTT ${t.id}` && mttColIndex === -1) mttColIndex = c;
+        for (let r = 0; r < rangeData.length; r++) {
+          const row = rangeData[r];
+          const joueurNom = String(row[1] || "").trim();
+          
+          if (joueurNom !== "" && joueurNom.toLowerCase() !== "joueur" && joueurNom.toLowerCase() !== "pseudo") {
+            classementGeneral.push({
+              classement: parseInt(row[2], 10) || 999,
+              joueur: joueurNom,
+              points: parseFloat(row[3]) || 0,
+              pointsTous: parseFloat(row[4]) || 0,
+              win: parseInt(row[5], 10) || 0,
+              itm: parseInt(row[6], 10) || 0,
+              participations: parseInt(row[7], 10) || 0
+            });
           }
         }
-        if (jColIndex !== -1 && mttColIndex !== -1) {
+
+        classementGeneral.sort((a, b) => a.classement - b.classement);
+
+        const fullRows = sheetClassement.getDataRange().getValues();
+        relevantTournois.forEach(t => {
+          let colIndex = -1;
+          let jColIndex = -1;
+          const colHeader = `${prefixType} ${t.rawId}`;
           for (let r = 0; r < fullRows.length; r++) {
-            if (String(fullRows[r][mttColIndex]).trim() === "1") {
-              tournoisTermines[t.id] = String(fullRows[r][jColIndex]).trim();
-              break;
+            for (let c = 0; c < fullRows[r].length; c++) {
+              const val = String(fullRows[r][c]).trim();
+              if (val === "Joueur" && jColIndex === -1) jColIndex = c;
+              if (val === colHeader && colIndex === -1) colIndex = c;
             }
           }
-        }
-      });
+          if (jColIndex !== -1 && colIndex !== -1) {
+            for (let r = 0; r < fullRows.length; r++) {
+              if (String(fullRows[r][colIndex]).trim() === "1") {
+                tournoisTermines[t.id] = String(fullRows[r][jColIndex]).trim();
+                break;
+              }
+            }
+          }
+        });
+      }
+      return { classementGeneral, tournoisTermines };
     }
+
+    const mttData = readClassement("Classement MTT", mttTournois, "MTT");
+    const sngData = readClassement("Classement SNG", sngTournois, "SNG");
+    const tournoisTermines = { ...mttData.tournoisTermines, ...sngData.tournoisTermines };
 
     // 6. États persistants
     let allStates = {};
@@ -213,12 +240,18 @@ function doGet(e) {
       tournois: tournois,
       prochainTournoiId: prochainTournoiId,
       inscriptions: inscriptions,
-      maxJoueursParTable: maxJoueursParTable,
-      startingStack: startingStack,
-      structures: structuresDynamiques,
+      maxJoueursParTable: structMTT.maxJoueursParTable,
+      startingStack: structMTT.startingStack,
+      maxJoueursParTableSNG: structSNG.maxJoueursParTable,
+      startingStackSNG: structSNG.startingStack,
+      structures: {
+        MTT: structMTT.structures,
+        SNG: structSNG.structures
+      },
       allStates: allStates,
       tournoisTermines: tournoisTermines,
-      classementGeneral: classementGeneral
+      classementGeneralMTT: mttData.classementGeneral,
+      classementGeneralSNG: sngData.classementGeneral
     };
 
     return ContentService.createTextOutput(JSON.stringify(result))
@@ -341,24 +374,29 @@ function doPost(e) {
 
     if (action === "updateClassementBatch") {
       const classementMap = data.classementMap || {};
-      const sheetClassement = ss.getSheetByName("Classement MTT");
+      const isSNG = tournoiId && tournoiId.startsWith("sng_");
+      const sheetName = isSNG ? "Classement SNG" : "Classement MTT";
+      const rawId = tournoiId.replace(/^(mtt_|sng_)/, "");
+      const colPrefix = isSNG ? "SNG" : "MTT";
+
+      const sheetClassement = ss.getSheetByName(sheetName);
       if (sheetClassement) {
         const rows = sheetClassement.getDataRange().getValues();
-        let jCol = -1, mttCol = -1;
+        let jCol = -1, targetCol = -1;
 
         for (let r = 0; r < rows.length; r++) {
           for (let c = 0; c < rows[r].length; c++) {
             const val = String(rows[r][c]).trim();
             if (val === "Joueur" && jCol === -1) jCol = c;
-            if (val === `MTT ${tournoiId}` && mttCol === -1) mttCol = c;
+            if (val === `${colPrefix} ${rawId}` && targetCol === -1) targetCol = c;
           }
         }
 
-        if (jCol !== -1 && mttCol !== -1) {
+        if (jCol !== -1 && targetCol !== -1) {
           for (let r = 0; r < rows.length; r++) {
             const nomJoueur = String(rows[r][jCol]).trim();
             if (classementMap.hasOwnProperty(nomJoueur)) {
-              sheetClassement.getRange(r + 1, mttCol + 1).setValue(classementMap[nomJoueur]);
+              sheetClassement.getRange(r + 1, targetCol + 1).setValue(classementMap[nomJoueur]);
             }
           }
         }
@@ -376,25 +414,30 @@ function doPost(e) {
         sheetState.getRange("A1").setValue(JSON.stringify(allStates));
       }
 
-      const sheetClassement = ss.getSheetByName("Classement MTT");
+      const isSNG = tournoiId && tournoiId.startsWith("sng_");
+      const sheetName = isSNG ? "Classement SNG" : "Classement MTT";
+      const rawId = tournoiId.replace(/^(mtt_|sng_)/, "");
+      const colPrefix = isSNG ? "SNG" : "MTT";
+
+      const sheetClassement = ss.getSheetByName(sheetName);
       if (sheetClassement) {
         const rows = sheetClassement.getDataRange().getValues();
-        let mttColIndex = -1;
+        let colIndex = -1;
 
         for (let r = 0; r < rows.length; r++) {
           for (let c = 0; c < rows[r].length; c++) {
-            if (String(rows[r][c]).trim() === `MTT ${tournoiId}`) {
-              mttColIndex = c;
+            if (String(rows[r][c]).trim() === `${colPrefix} ${rawId}`) {
+              colIndex = c;
               break;
             }
           }
-          if (mttColIndex !== -1) break;
+          if (colIndex !== -1) break;
         }
 
-        if (mttColIndex !== -1) {
+        if (colIndex !== -1) {
           const lastRow = sheetClassement.getLastRow();
           if (lastRow >= 5) {
-            sheetClassement.getRange(5, mttColIndex + 1, lastRow - 4, 1).clearContent();
+            sheetClassement.getRange(5, colIndex + 1, lastRow - 4, 1).clearContent();
           }
         }
       }
@@ -422,31 +465,35 @@ function doPost(e) {
     if (action === "reintegrer") {
       const joueur = data.joueur;
       const eliminationsFutures = data.eliminationsFutures || [];
+      const isSNG = tournoiId && tournoiId.startsWith("sng_");
+      const sheetName = isSNG ? "Classement SNG" : "Classement MTT";
+      const rawId = tournoiId.replace(/^(mtt_|sng_)/, "");
+      const colPrefix = isSNG ? "SNG" : "MTT";
 
-      const sheetClassement = ss.getSheetByName("Classement MTT");
+      const sheetClassement = ss.getSheetByName(sheetName);
       if (sheetClassement) {
         const rows = sheetClassement.getDataRange().getValues();
-        let jCol = -1, mttCol = -1;
+        let jCol = -1, targetCol = -1;
 
         for (let r = 0; r < rows.length; r++) {
           for (let c = 0; c < rows[r].length; c++) {
             const val = String(rows[r][c]).trim();
             if (val === "Joueur" && jCol === -1) jCol = c;
-            if (val === `MTT ${tournoiId}` && mttCol === -1) mttCol = c;
+            if (val === `${colPrefix} ${rawId}` && targetCol === -1) targetCol = c;
           }
         }
 
-        if (jCol !== -1 && mttCol !== -1) {
+        if (jCol !== -1 && targetCol !== -1) {
           for (let r = 0; r < rows.length; r++) {
             if (String(rows[r][jCol]).trim() === String(joueur).trim()) {
-              sheetClassement.getRange(r + 1, mttCol + 1).setValue("");
+              sheetClassement.getRange(r + 1, targetCol + 1).setValue("");
               break;
             }
           }
           eliminationsFutures.forEach(item => {
             for (let r = 0; r < rows.length; r++) {
               if (String(rows[r][jCol]).trim() === String(item.joueur).trim()) {
-                sheetClassement.getRange(r + 1, mttCol + 1).setValue(item.nouveauClassement);
+                sheetClassement.getRange(r + 1, targetCol + 1).setValue(item.nouveauClassement);
                 break;
               }
             }
@@ -456,6 +503,7 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // Inscriptions (toutes centralisées dans l'onglet "Inscriptions")
     let sheetInsc = ss.getSheetByName("Inscriptions");
     if (!sheetInsc) {
       sheetInsc = ss.insertSheet("Inscriptions");
@@ -495,23 +543,28 @@ function doPost(e) {
 }
 
 function updateClassementSheet(ss, tournoiId, joueur, classement) {
-  const sheetClassement = ss.getSheetByName("Classement MTT");
+  const isSNG = tournoiId && tournoiId.startsWith("sng_");
+  const sheetName = isSNG ? "Classement SNG" : "Classement MTT";
+  const rawId = tournoiId.replace(/^(mtt_|sng_)/, "");
+  const colPrefix = isSNG ? "SNG" : "MTT";
+
+  const sheetClassement = ss.getSheetByName(sheetName);
   if (sheetClassement) {
     const rows = sheetClassement.getDataRange().getValues();
-    let jCol = -1, mttCol = -1;
+    let jCol = -1, targetCol = -1;
 
     for (let r = 0; r < rows.length; r++) {
       for (let c = 0; c < rows[r].length; c++) {
         const val = String(rows[r][c]).trim();
         if (val === "Joueur" && jCol === -1) jCol = c;
-        if (val === `MTT ${tournoiId}` && mttCol === -1) mttCol = c;
+        if (val === `${colPrefix} ${rawId}` && targetCol === -1) targetCol = c;
       }
     }
 
-    if (jCol !== -1 && mttCol !== -1) {
+    if (jCol !== -1 && targetCol !== -1) {
       for (let r = 0; r < rows.length; r++) {
         if (String(rows[r][jCol]).trim() === String(joueur).trim()) {
-          sheetClassement.getRange(r + 1, mttCol + 1).setValue(classement);
+          sheetClassement.getRange(r + 1, targetCol + 1).setValue(classement);
           break;
         }
       }

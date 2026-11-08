@@ -87,7 +87,8 @@
             <button onclick="switchTab('tables')" id="btn-tables" class="btn-tab">Plans de Table</button>
             <button onclick="switchTab('live')" id="btn-live" class="btn-tab">Live Tournoi</button>
             <button onclick="switchTab('classement')" id="btn-classement" class="btn-tab">Classement Tournoi</button>
-            <button onclick="switchTab('general')" id="btn-general" class="btn-tab">Classement Général</button>
+            <button onclick="switchTab('mtt')" id="btn-mtt" class="btn-tab">Classement MTT</button>
+            <button onclick="switchTab('sng')" id="btn-sng" class="btn-tab">Classement SNG</button>
             <button onclick="gererBoutonMaster()" id="btn-master-toggle" class="btn-tab btn-purple" title="S'authentifier ou se déconnecter du mode Master">👑 Master</button>
         </div>
     </header>
@@ -96,7 +97,7 @@
         <section id="tab-inscriptions">
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Inscriptions & Appel</h2>
+                    <h2 style="margin:0; color:#fde68a; font-size:1.125rem;">Inscriptions & Appel (MTT & SNG)</h2>
                     <span id="loading-status" style="font-size:0.875rem; color:#94a3b8;"></span>
                 </div>
                 
@@ -197,16 +198,24 @@
         <section id="tab-classement" class="hidden">
             <div class="card">
                 <h2 style="margin-top:0; color:#fde68a; font-size:1.125rem;">Classement du Tournoi en Cours</h2>
-                <p style="font-size:0.75rem; color:#94a3b8;">Glissez-déposez les joueurs éliminés pour réajuster leur ordre de classement si besoin. Le classement se construit par le bas (du 1er éliminé vers le vainqueur).</p>
                 <div id="classement-container" style="margin-top:1rem;"></div>
             </div>
         </section>
 
-        <section id="tab-general" class="hidden">
+        <section id="tab-mtt" class="hidden">
             <div class="card">
-                <h2 style="margin-top:0; color:#fbbf24; font-size:1.125rem;">🏆 Classement Général de la Saison</h2>
-                <div id="general-container">
-                    <p style="color:#94a3b8; font-style:italic;">Chargement du classement général...</p>
+                <h2 style="margin-top:0; color:#fbbf24; font-size:1.125rem;">🏆 Classement Général MTT de la Saison</h2>
+                <div id="general-container-mtt">
+                    <p style="color:#94a3b8; font-style:italic;">Chargement du classement MTT...</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-sng" class="hidden">
+            <div class="card">
+                <h2 style="margin-top:0; color:#fbbf24; font-size:1.125rem;">🏆 Classement Général SNG de la Saison</h2>
+                <div id="general-container-sng">
+                    <p style="color:#94a3b8; font-style:italic;">Chargement du classement SNG...</p>
                 </div>
             </div>
         </section>
@@ -224,7 +233,7 @@
         let isMaster = sessionStorage.getItem('poker_is_master') === 'true';
         let masterToken = sessionStorage.getItem('poker_master_token') || null;
 
-        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6, startingStack: 20000, structures: {}, allStates: {}, tournoisTermines: {}, classementGeneral: [] };
+        let appData = { joueurs: [], tournois: [], prochainTournoiId: null, inscriptions: {}, maxJoueursParTable: 6, startingStack: 20000, structures: { MTT: {}, SNG: {} }, allStates: {}, tournoisTermines: {}, classementGeneralMTT: [], classementGeneralSNG: [] };
         let activeTournoiId = null;
         let tablesGenerees = null;
         let totalJoueursInitial = 0;
@@ -258,8 +267,14 @@
                 });
         };
 
+        function getActiveTournoi() {
+            return (appData.tournois || []).find(t => t.id === activeTournoiId) || null;
+        }
+
         function getDureeStructureSec(numNiveau) {
-            const structs = appData.structures || {};
+            const tournoi = getActiveTournoi();
+            const type = (tournoi && tournoi.type === 'SNG') ? 'SNG' : 'MTT';
+            const structs = (appData.structures && appData.structures[type]) ? appData.structures[type] : {};
             const structActuelle = structs[numNiveau] || {};
             if (structActuelle.duree && !isNaN(structActuelle.duree) && Number(structActuelle.duree) > 0) {
                 return parseFloat(structActuelle.duree);
@@ -298,7 +313,6 @@
 
         function startGlobalSync() {
             if (globalSyncTimer) clearInterval(globalSyncTimer);
-            
             const interval = isMaster ? 15000 : 30000;
 
             globalSyncTimer = setInterval(() => {
@@ -309,7 +323,8 @@
                     .then(data => {
                         appData.allStates = data.allStates || {};
                         appData.tournoisTermines = data.tournoisTermines || {};
-                        appData.classementGeneral = data.classementGeneral || appData.classementGeneral;
+                        appData.classementGeneralMTT = data.classementGeneralMTT || appData.classementGeneralMTT;
+                        appData.classementGeneralSNG = data.classementGeneralSNG || appData.classementGeneralSNG;
                         if (data.structures) appData.structures = data.structures;
 
                         if (data.inscriptions) {
@@ -320,9 +335,11 @@
                             }
                         }
 
-                        const generalTab = document.getElementById('tab-general');
-                        if (generalTab && !generalTab.classList.contains('hidden')) {
-                            renderClassementGeneralUI();
+                        if (!document.getElementById('tab-mtt').classList.contains('hidden')) {
+                            renderClassementGeneralMTTUI();
+                        }
+                        if (!document.getElementById('tab-sng').classList.contains('hidden')) {
+                            renderClassementGeneralSNGUI();
                         }
 
                         if (activeTournoiId) {
@@ -603,7 +620,8 @@
                     }
 
                     checkTournoiLockStatus();
-                    renderClassementGeneralUI();
+                    renderClassementGeneralMTTUI();
+                    renderClassementGeneralSNGUI();
 
                     document.getElementById('global-loader').style.display = 'none';
                     startGlobalSync();
@@ -642,7 +660,7 @@
 
             if (chronoIsRunning && chronoEndTime) {
                 const now = Date.now();
-                const diffSec = Math.floor((chronoEndTime - now) / 1000);
+                const diffSec = Math.ceil((chronoEndTime - now) / 1000);
                 
                 if (diffSec > 0) {
                     secondesRestantes = diffSec;
@@ -871,7 +889,8 @@
         }
 
         function inscrireDerniereMinute(joueur, clubPassword) {
-            const maxPerTable = appData.maxJoueursParTable || 6;
+            const tour = getActiveTournoi();
+            const maxPerTable = (tour && tour.type === 'SNG') ? (appData.maxJoueursParTableSNG || appData.maxJoueursParTable || 6) : (appData.maxJoueursParTable || 6);
             
             if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
             appData.inscriptions[activeTournoiId][joueur] = { present: true };
@@ -935,7 +954,8 @@
         }
 
         function repartirTablesRecalculees(listeJoueurs) {
-            const maxPerTable = appData.maxJoueursParTable || 6;
+            const tour = getActiveTournoi();
+            const maxPerTable = (tour && tour.type === 'SNG') ? (appData.maxJoueursParTableSNG || appData.maxJoueursParTable || 6) : (appData.maxJoueursParTable || 6);
             listeJoueurs.sort(() => Math.random() - 0.5);
             const nbTables = Math.ceil(listeJoueurs.length / maxPerTable);
 
@@ -1037,7 +1057,8 @@
             if (tablesGenerees !== null) return;
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
             let inscritsNoms = Array.isArray(tournoiInsc) ? tournoiInsc : Object.keys(tournoiInsc);
-            const maxPerTable = appData.maxJoueursParTable || 6;
+            const tour = getActiveTournoi();
+            const maxPerTable = (tour && tour.type === 'SNG') ? (appData.maxJoueursParTableSNG || appData.maxJoueursParTable || 6) : (appData.maxJoueursParTable || 6);
 
             if (inscritsNoms.length === 0) {
                 alert("Aucun joueur inscrit !");
@@ -1177,18 +1198,27 @@
         }
 
         function switchTab(tab) {
-            ['inscriptions', 'tables', 'live', 'classement', 'general'].forEach(t => {
-                document.getElementById(`tab-${t}`).classList.add('hidden');
-                document.getElementById(`btn-${t}`).style.backgroundColor = '#334155';
-                document.getElementById(`btn-${t}`).style.color = '#cbd5e1';
+            ['inscriptions', 'tables', 'live', 'classement', 'mtt', 'sng'].forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                const btn = document.getElementById(`btn-${t}`);
+                if (el) el.classList.add('hidden');
+                if (btn) {
+                    btn.style.backgroundColor = '#334155';
+                    btn.style.color = '#cbd5e1';
+                }
             });
-            document.getElementById(`tab-${tab}`).classList.remove('hidden');
-            document.getElementById(`btn-${tab}`).style.backgroundColor = '#d97706';
-            document.getElementById(`btn-${tab}`).style.color = '#ffffff';
+            const targetEl = document.getElementById(`tab-${tab}`);
+            const targetBtn = document.getElementById(`btn-${tab}`);
+            if (targetEl) targetEl.classList.remove('hidden');
+            if (targetBtn) {
+                targetBtn.style.backgroundColor = '#d97706';
+                targetBtn.style.color = '#ffffff';
+            }
 
             if (tab === 'live') initLive();
             else if (tab === 'classement') renderClassementUI();
-            else if (tab === 'general') renderClassementGeneralUI();
+            else if (tab === 'mtt') renderClassementGeneralMTTUI();
+            else if (tab === 'sng') renderClassementGeneralSNGUI();
         }
 
         function initLive() {
@@ -1238,6 +1268,20 @@
 
         function verifierEtReequilibrer() {
             if (!tablesGenerees) return;
+
+            const tour = getActiveTournoi();
+            const isSNG = (tour && tour.type === 'SNG');
+
+            // Si c'est un SNG, les tables ne cassent jamais et ne sont jamais rééquilibrées.
+            if (isSNG) {
+                const eqSpan = document.getElementById('stat-equilibre');
+                const alertBox = document.getElementById('live-alertes');
+                eqSpan.innerText = "FIXE (SNG)";
+                eqSpan.style.color = "#34d399";
+                alertBox.innerHTML = "Tournoi SNG en cours. Tables fixes, pas de rééquilibrage.";
+                alertBox.className = "alert";
+                return;
+            }
 
             const maxPerTable = appData.maxJoueursParTable || 6;
             let tablesActivesIds = [];
@@ -1380,16 +1424,50 @@
             const container = document.getElementById('classement-container');
             container.innerHTML = '';
 
-            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
+            const tour = getActiveTournoi();
+            const isSNG = (tour && tour.type === 'SNG');
 
+            if (isSNG) {
+                if (!tablesGenerees) {
+                    container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table générée pour ce SNG.</p>`;
+                    return;
+                }
+
+                // Pour un SNG, afficher autant de classements qu'il y a de tables
+                let html = '';
+                for (const [tNum, seats] of Object.entries(tablesGenerees)) {
+                    let eliminesTable = joueursEliminesHistorique.filter(item => item.origTableId == tNum);
+                    eliminesTable.sort((a, b) => b.classement - a.classement);
+
+                    html += `<div class="card" style="margin-bottom:1rem;">
+                        <h3 style="margin-top:0; color:#fbbf24; font-size:1.05rem;">Table ${tNum} - Classement</h3>`;
+                    
+                    if (eliminesTable.length === 0) {
+                        html += `<p style="color:#94a3b8; font-style:italic; font-size:0.875rem;">Aucun éliminé sur cette table pour le moment.</p>`;
+                    } else {
+                        html += `<ul style="margin-top:0.5rem;">`;
+                        eliminesTable.forEach(item => {
+                            html += `<li><span><b>#${item.classement}</b> ${item.joueur}</span><span class="badge badge-absent">Éliminé</span></li>`;
+                        });
+                        html += `</ul>`;
+                    }
+                    html += `</div>`;
+                }
+                container.innerHTML = html;
+                return;
+            }
+
+            // Pour un MTT : classement global unique
+            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
             if (eliminesTries.length === 0) {
                 container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucun joueur éliminé pour le moment.</p>`;
                 return;
             }
 
+            let mttHtml = `<p style="font-size:0.75rem; color:#94a3b8; margin-bottom:1rem;">Glissez-déposez les joueurs éliminés pour réajuster leur ordre de classement si besoin.</p>`;
             eliminesTries.forEach((item, index) => {
                 const draggableAttr = isMaster ? `draggable="true" ondragstart="onDragClassementStart(event, ${index})" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDropClassement(event, ${index})"` : '';
-                container.innerHTML += `
+                mttHtml += `
                     <div class="classement-item" ${draggableAttr}>
                         <span style="font-weight:bold; color:#fbbf24; width:30px;">#${item.classement}</span>
                         <span style="flex-grow:1; font-weight:500;">${item.joueur}</span>
@@ -1397,6 +1475,7 @@
                     </div>
                 `;
             });
+            container.innerHTML = mttHtml;
         }
 
         let dragClassementIndex = null;
@@ -1443,12 +1522,55 @@
             }
         }
 
-        function renderClassementGeneralUI() {
-            const container = document.getElementById('general-container');
-            const data = appData.classementGeneral || [];
+        function renderClassementGeneralMTTUI() {
+            const container = document.getElementById('general-container-mtt');
+            const data = appData.classementGeneralMTT || [];
 
             if (data.length === 0) {
-                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune donnée de classement général disponible.</p>`;
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune donnée de classement général MTT disponible.</p>`;
+                return;
+            }
+
+            let html = `
+                <table class="table-general">
+                    <thead>
+                        <tr>
+                            <th style="width:60px;">Place</th>
+                            <th>Pseudo</th>
+                            <th style="text-align:center;">Points</th>
+                            <th style="text-align:center;">Points Tous</th>
+                            <th style="text-align:center;">Win</th>
+                            <th style="text-align:center;">ITM</th>
+                            <th style="text-align:center;">Participations</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            data.forEach((row) => {
+                html += `
+                    <tr>
+                        <td style="font-weight:bold; color:#fbbf24;">#${row.classement}</td>
+                        <td style="font-weight:500;">${row.joueur}</td>
+                        <td style="text-align:center; font-weight:bold; color:#34d399;">${row.points}</td>
+                        <td style="text-align:center; font-weight:bold; color:#60a5fa;">${row.pointsTous}</td>
+                        <td style="text-align:center;">${row.win}</td>
+                        <td style="text-align:center;">${row.itm}</td>
+                        <td style="text-align:center;">${row.participations}</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        function renderClassementGeneralSNGUI() {
+            const container = document.getElementById('general-container-sng');
+            const data = appData.classementGeneralSNG || [];
+
+            if (data.length === 0) {
+                container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune donnée de classement général SNG disponible.</p>`;
                 return;
             }
 
@@ -1491,7 +1613,9 @@
             let s = secondesRestantes % 60;
             document.getElementById('live-chrono').innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
             
-            const structs = appData.structures || {};
+            const tournoi = getActiveTournoi();
+            const type = (tournoi && tournoi.type === 'SNG') ? 'SNG' : 'MTT';
+            const structs = (appData.structures && appData.structures[type]) ? appData.structures[type] : {};
             const currentStruct = structs[niveauActuel] || {label: `Niveau ${niveauActuel}`, sb: 0, bb: 0, ante: 0};
             
             document.getElementById('live-niveau').innerText = currentStruct.label;
@@ -1523,7 +1647,9 @@
                     chronoIsRunning = false;
                     chronoEndTime = null;
                     
-                    const structs = appData.structures || {};
+                    const tournoi = getActiveTournoi();
+                    const type = (tournoi && tournoi.type === 'SNG') ? 'SNG' : 'MTT';
+                    const structs = (appData.structures && appData.structures[type]) ? appData.structures[type] : {};
                     if (structs[niveauActuel + 1]) {
                         niveauActuel++;
                         dureeNiveauSec = getDureeStructureSec(niveauActuel);
@@ -1633,7 +1759,9 @@
 
         function changeLevelBy(delta, resetTime) {
             const newNiveau = niveauActuel + delta;
-            const structs = appData.structures || {};
+            const tournoi = getActiveTournoi();
+            const type = (tournoi && tournoi.type === 'SNG') ? 'SNG' : 'MTT';
+            const structs = (appData.structures && appData.structures[type]) ? appData.structures[type] : {};
             if (newNiveau >= 1 && structs[newNiveau]) {
                 niveauActuel = newNiveau;
                 dureeNiveauSec = getDureeStructureSec(niveauActuel);
