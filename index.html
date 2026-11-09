@@ -239,6 +239,7 @@
         let totalJoueursInitial = 0;
         let joueursEliminesHistorique = []; 
         let alerteIgnoree = false;
+        let lastLocalInscriptionTime = 0; // Anti-écrasement synchro
 
         let niveauActuel = 1;
         let dureeNiveauSec = 1200;
@@ -327,7 +328,8 @@
                         appData.classementGeneralSNG = data.classementGeneralSNG || appData.classementGeneralSNG;
                         if (data.structures) appData.structures = data.structures;
 
-                        if (data.inscriptions) {
+                        // Protection anti-écrasement si inscription récente (< 5s)
+                        if (data.inscriptions && (Date.now() - lastLocalInscriptionTime > 5000)) {
                             appData.inscriptions = data.inscriptions;
                             const tabInsc = document.getElementById('tab-inscriptions');
                             if (tabInsc && !tabInsc.classList.contains('hidden') && tablesGenerees === null) {
@@ -340,6 +342,11 @@
                         }
                         if (!document.getElementById('tab-sng').classList.contains('hidden')) {
                             renderClassementGeneralSNGUI();
+                        }
+
+                        // Mise à jour live de la page classement si elle est visible
+                        if (!document.getElementById('tab-classement').classList.contains('hidden')) {
+                            renderClassementUI();
                         }
 
                         if (activeTournoiId) {
@@ -370,7 +377,7 @@
             try {
                 const audio = new Audio('bip.wav');
                 audio.volume = 1;
-                audio.play().catch(e => console.log("Lecture audio bloquée :", e));
+                audio.play().catch(e => console.log("Lecture audio bloquée (interaction requise) :", e));
             } catch (e) {}
         }
 
@@ -609,8 +616,24 @@
                 .then(data => {
                     appData = data;
                     if (data.structures) appData.structures = data.structures;
-                    populateDropdowns();
 
+                    // Sélection par défaut : prioriser un tournoi démarré et non terminé
+                    let actifDemare = null;
+                    if (appData.tournois && appData.allStates) {
+                        for (const t of appData.tournois) {
+                            const state = appData.allStates[t.id];
+                            const estTermine = appData.tournoisTermines && appData.tournoisTermines[t.id];
+                            if (state && state.tablesGenerees && !estTermine) {
+                                actifDemare = t.id;
+                                break;
+                            }
+                        }
+                    }
+                    if (actifDemare) {
+                        appData.prochainTournoiId = actifDemare;
+                    }
+
+                    populateDropdowns();
                     mettreAJourBoutonMasterUI();
 
                     if (data.allStates && activeTournoiId && data.allStates[activeTournoiId]) {
@@ -841,6 +864,8 @@
                 if (!clubPassword) return;
             }
 
+            lastLocalInscriptionTime = Date.now();
+
             if (isAlreadyInscrit) {
                 desinscrireJoueurDirect(joueur, clubPassword);
             } else {
@@ -884,6 +909,7 @@
             } else {
                 appData.inscriptions[activeTournoiId][joueur] = { present: false };
             }
+            lastLocalInscriptionTime = Date.now();
             updateInscritsUI();
 
             if (scriptUrl && activeTournoiId) {
@@ -918,6 +944,7 @@
             if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
             appData.inscriptions[activeTournoiId][joueur] = { present: true };
             totalJoueursInitial++;
+            lastLocalInscriptionTime = Date.now();
 
             let plusPetiteTableId = null;
             let minJoueurs = Infinity;
@@ -1041,6 +1068,7 @@
             } else {
                 delete tournoiInsc[joueur];
             }
+            lastLocalInscriptionTime = Date.now();
 
             updateInscritsUI();
             if (isTournoiStarted && isMaster) {
@@ -1073,6 +1101,7 @@
             const currentPresent = tournoiInsc[joueur].present || false;
             const newPresent = !currentPresent;
             tournoiInsc[joueur].present = newPresent;
+            lastLocalInscriptionTime = Date.now();
             updateInscritsUI();
 
             if (scriptUrl && activeTournoiId) {
@@ -1332,7 +1361,8 @@
                                         joueur: dernierTable,
                                         action: "eliminer",
                                         masterToken: masterToken,
-                                        classement: 1
+                                        classement: 1,
+                                        tableNum: tId
                                     })
                                 }).catch(err => console.error("Erreur enregistrement vainqueur table SNG:", err));
                             }
@@ -1487,15 +1517,23 @@
             const isSNG = (tour && tour.type === 'SNG');
 
             if (isSNG) {
-                if (!tablesGenerees) {
+                // SNG : Utiliser tablesGenerees ou l'historique des éliminés même en fin de tournoi
+                if (!tablesGenerees && joueursEliminesHistorique.length === 0) {
                     container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table générée pour ce SNG.</p>`;
                     return;
                 }
 
+                let tablesIds = new Set();
+                if (tablesGenerees) {
+                    Object.keys(tablesGenerees).forEach(id => tablesIds.add(id));
+                }
+                joueursEliminesHistorique.forEach(item => {
+                    if (item.origTableId) tablesIds.add(item.origTableId);
+                });
+
                 let html = '';
-                for (const [tNum, seats] of Object.entries(tablesGenerees)) {
+                Array.from(tablesIds).sort((a,b) => a - b).forEach(tNum => {
                     let eliminesTable = joueursEliminesHistorique.filter(item => item.origTableId == tNum);
-                    // Trier par classement croissant (1er de la table en haut, puis 2e, etc.)
                     eliminesTable.sort((a, b) => a.classement - b.classement);
 
                     html += `<div class="card" style="margin-bottom:1rem;">
@@ -1513,7 +1551,7 @@
                         html += `</ul>`;
                     }
                     html += `</div>`;
-                }
+                });
                 container.innerHTML = html;
                 return;
             }
@@ -1863,7 +1901,6 @@
             let classementAttribue = restantsCount;
 
             if (isSNG && origTableId && tablesGenerees[origTableId]) {
-                // Classement par rapport à la table uniquement (ex: 6, 5, 4, 3, 2, 1)
                 let activeOnTable = 0;
                 tablesGenerees[origTableId].forEach(s => {
                     if (s.player !== null && s.player !== joueur) {
@@ -1885,7 +1922,14 @@
             if (scriptUrl && activeTournoiId) {
                 fetch(scriptUrl, {
                     method: "POST",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur, action: "eliminer", masterToken: masterToken, classement: classementAttribue })
+                    body: JSON.stringify({ 
+                        tournoiId: activeTournoiId, 
+                        joueur, 
+                        action: "eliminer", 
+                        masterToken: masterToken, 
+                        classement: classementAttribue,
+                        tableNum: origTableId 
+                    })
                 }).catch(err => console.error("Erreur elimination:", err));
             }
         }

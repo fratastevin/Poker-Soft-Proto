@@ -12,6 +12,9 @@ function doGet(e) {
       joueurs = dataJoueurs.map(row => row[0]).filter(j => j !== "" && j !== undefined);
     }
 
+    // Mise à jour automatique des formules de liaison dans la colonne B de "Classement SNG"
+    mettreAJourFormulesClassementSNG(ss, joueurs);
+
     // Helper pour lire le calendrier MTT ou SNG
     function readCalendar(sheetName, typePrefix) {
       const sheet = ss.getSheetByName(sheetName);
@@ -174,6 +177,7 @@ function doGet(e) {
       if (tId && jNom) {
         if (!inscriptions[tId]) inscriptions[tId] = {};
         inscriptions[tId][jNom] = { present: isPresent };
+        verifierEtAjouterJoueur(ss, jNom, joueurs);
       }
     }
 
@@ -201,6 +205,7 @@ function doGet(e) {
               itm: parseInt(row[6], 10) || 0,
               participations: parseInt(row[7], 10) || 0
             });
+            verifierEtAjouterJoueur(ss, joueurNom, joueurs);
           }
         }
 
@@ -210,12 +215,13 @@ function doGet(e) {
         relevantTournois.forEach(t => {
           let colIndex = -1;
           let jColIndex = -1;
-          const colHeader = `${prefixType} ${t.rawId}`;
+          const colHeader = prefixType === "MTT" ? `MTT ${t.rawId}` : `${t.intitule} - Table`;
           for (let r = 0; r < fullRows.length; r++) {
             for (let c = 0; c < fullRows[r].length; c++) {
               const val = String(fullRows[r][c]).trim();
               if (val === "Joueur" && jColIndex === -1) jColIndex = c;
-              if (val === colHeader && colIndex === -1) colIndex = c;
+              if (prefixType === "MTT" && val === colHeader && colIndex === -1) colIndex = c;
+              if (prefixType === "SNG" && val.startsWith(`${t.intitule} - Table`) && colIndex === -1) colIndex = c;
             }
           }
           if (jColIndex !== -1 && colIndex !== -1) {
@@ -376,15 +382,9 @@ function doPost(e) {
       let sheetJoueurs = ss.getSheetByName("Joueurs");
       if (!sheetJoueurs) sheetJoueurs = ss.insertSheet("Joueurs");
       
-      let existe = false;
-      const rows = sheetJoueurs.getDataRange().getValues();
-      for (let i = 0; i < rows.length; i++) {
-        if (String(rows[i][0]).trim().toLowerCase() === nouveauJoueur.toLowerCase()) {
-          existe = true;
-          break;
-        }
-      }
-      if (!existe) sheetJoueurs.appendRow([nouveauJoueur]);
+      let joueursActuels = sheetJoueurs.getLastRow() >= 2 ? sheetJoueurs.getRange("A2:A" + sheetJoueurs.getLastRow()).getValues().flat() : [];
+      verifierEtAjouterJoueur(ss, nouveauJoueur, joueursActuels);
+      mettreAJourFormulesClassementSNG(ss);
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -410,7 +410,7 @@ function doPost(e) {
 
         if (jCol !== -1 && targetCol !== -1) {
           for (let r = 0; r < rows.length; r++) {
-            const nomJoueur = String(rows[r][jCol]).trim();
+            const nomJoueur = String(sheetClassement.getRange(r + 1, jCol + 1).getValue()).trim();
             if (classementMap.hasOwnProperty(nomJoueur)) {
               sheetClassement.getRange(r + 1, targetCol + 1).setValue(classementMap[nomJoueur]);
             }
@@ -433,27 +433,46 @@ function doPost(e) {
       const isSNG = tournoiId && tournoiId.startsWith("sng_");
       const sheetName = isSNG ? "Classement SNG" : "Classement MTT";
       const rawId = tournoiId.replace(/^(mtt_|sng_)/, "");
-      const colPrefix = isSNG ? "SNG" : "MTT";
-
+      
       const sheetClassement = ss.getSheetByName(sheetName);
       if (sheetClassement) {
         const rows = sheetClassement.getDataRange().getValues();
-        let colIndex = -1;
-
-        for (let r = 0; r < rows.length; r++) {
-          for (let c = 0; c < rows[r].length; c++) {
-            if (String(rows[r][c]).trim() === `${colPrefix} ${rawId}`) {
-              colIndex = c;
-              break;
+        if (isSNG) {
+          let intituleTournoi = "SNG " + rawId;
+          const sheetCalSNG = ss.getSheetByName("Calendrier SNG");
+          if (sheetCalSNG) {
+            const calData = sheetCalSNG.getDataRange().getValues();
+            for (let i = 1; i < calData.length; i++) {
+              if (String(calData[i][0]).trim() === String(rawId).trim()) {
+                intituleTournoi = String(calData[i][2]).trim();
+                break;
+              }
             }
           }
-          if (colIndex !== -1) break;
-        }
-
-        if (colIndex !== -1) {
-          const lastRow = sheetClassement.getLastRow();
-          if (lastRow >= 5) {
-            sheetClassement.getRange(5, colIndex + 1, lastRow - 4, 1).clearContent();
+          const prefixTarget = `${intituleTournoi} - Table`;
+          for (let c = 0; c < rows[0].length; c++) {
+            const cellVal = String(rows[0][c]).trim();
+            if (cellVal.startsWith(prefixTarget)) {
+              sheetClassement.getRange(5, c + 1, sheetClassement.getLastRow() - 4, 1).clearContent();
+              sheetClassement.getRange(1, c + 1).setValue(""); // Effacer l'intitulé ligne 1
+            }
+          }
+        } else {
+          let colIndex = -1;
+          for (let r = 0; r < rows.length; r++) {
+            for (let c = 0; c < rows[r].length; c++) {
+              if (String(rows[r][c]).trim() === `MTT ${rawId}`) {
+                colIndex = c;
+                break;
+              }
+            }
+            if (colIndex !== -1) break;
+          }
+          if (colIndex !== -1) {
+            const lastRow = sheetClassement.getLastRow();
+            if (lastRow >= 5) {
+              sheetClassement.getRange(5, colIndex + 1, lastRow - 4, 1).clearContent();
+            }
           }
         }
       }
@@ -474,7 +493,7 @@ function doPost(e) {
     }
 
     if (action === "eliminer") {
-      updateClassementSheet(ss, tournoiId, data.joueur, data.classement);
+      updateClassementSheet(ss, tournoiId, data.joueur, data.classement, data.tableNum);
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -495,20 +514,46 @@ function doPost(e) {
           for (let c = 0; c < rows[r].length; c++) {
             const val = String(rows[r][c]).trim();
             if (val === "Joueur" && jCol === -1) jCol = c;
-            if (val === `${colPrefix} ${rawId}` && targetCol === -1) targetCol = c;
+            if (!isSNG && val === `${colPrefix} ${rawId}` && targetCol === -1) targetCol = c;
           }
         }
 
-        if (jCol !== -1 && targetCol !== -1) {
+        if (isSNG) {
+          let intituleTournoi = "SNG " + rawId;
+          const sheetCalSNG = ss.getSheetByName("Calendrier SNG");
+          if (sheetCalSNG) {
+            const calData = sheetCalSNG.getDataRange().getValues();
+            for (let i = 1; i < calData.length; i++) {
+              if (String(calData[i][0]).trim() === String(rawId).trim()) {
+                intituleTournoi = String(calData[i][2]).trim();
+                break;
+              }
+            }
+          }
+          const prefixTarget = `${intituleTournoi} - Table`;
           for (let r = 0; r < rows.length; r++) {
-            if (String(rows[r][jCol]).trim() === String(joueur).trim()) {
+            const cellVal = String(sheetClassement.getRange(r + 1, jCol + 1).getValue()).trim();
+            if (cellVal.toLowerCase() === String(joueur).trim().toLowerCase()) {
+              for (let c = 0; c < rows[0].length; c++) {
+                if (String(rows[0][c]).trim().startsWith(prefixTarget)) {
+                  sheetClassement.getRange(r + 1, c + 1).setValue("");
+                }
+              }
+              break;
+            }
+          }
+        } else if (jCol !== -1 && targetCol !== -1) {
+          for (let r = 0; r < rows.length; r++) {
+            const nomJ = String(sheetClassement.getRange(r + 1, jCol + 1).getValue()).trim();
+            if (nomJ === String(joueur).trim()) {
               sheetClassement.getRange(r + 1, targetCol + 1).setValue("");
               break;
             }
           }
           eliminationsFutures.forEach(item => {
             for (let r = 0; r < rows.length; r++) {
-              if (String(rows[r][jCol]).trim() === String(item.joueur).trim()) {
+              const nomJ = String(sheetClassement.getRange(r + 1, jCol + 1).getValue()).trim();
+              if (nomJ === String(item.joueur).trim()) {
                 sheetClassement.getRange(r + 1, targetCol + 1).setValue(item.nouveauClassement);
                 break;
               }
@@ -519,7 +564,7 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Inscriptions (toutes centralisées dans l'onglet "Inscriptions")
+    // Inscriptions
     let sheetInsc = ss.getSheetByName("Inscriptions");
     if (!sheetInsc) {
       sheetInsc = ss.insertSheet("Inscriptions");
@@ -535,6 +580,12 @@ function doPost(e) {
         }
       }
       if (!existe) sheetInsc.appendRow([tournoiId, data.joueur, false, new Date()]);
+      
+      let sheetJoueurs = ss.getSheetByName("Joueurs");
+      let joueursList = sheetJoueurs && sheetJoueurs.getLastRow() >= 2 ? sheetJoueurs.getRange("A2:A" + sheetJoueurs.getLastRow()).getValues().flat() : [];
+      verifierEtAjouterJoueur(ss, data.joueur, joueursList);
+      mettreAJourFormulesClassementSNG(ss);
+
     } else if (action === "desinscrire") {
       for (let i = rows.length - 1; i >= 1; i--) {
         if (rows[i][0].toString() === tournoiId.toString() && rows[i][1] === data.joueur) {
@@ -558,29 +609,125 @@ function doPost(e) {
   }
 }
 
-function updateClassementSheet(ss, tournoiId, joueur, classement) {
+// Fonction utilitaire pour vérifier et ajouter un joueur dans l'onglet "Joueurs"
+function verifierEtAjouterJoueur(ss, nomJoueur, listeActuelle) {
+  if (!nomJoueur || String(nomJoueur).trim() === "") return;
+  const cleanNom = String(nomJoueur).trim();
+  const existe = listeActuelle.some(j => String(j).trim().toLowerCase() === cleanNom.toLowerCase());
+  if (!existe) {
+    let sheetJoueurs = ss.getSheetByName("Joueurs");
+    if (!sheetJoueurs) sheetJoueurs = ss.insertSheet("Joueurs");
+    sheetJoueurs.appendRow([cleanNom]);
+    listeActuelle.push(cleanNom);
+  }
+}
+
+// Insère les formules d'égalité `=Joueurs!Ax` dans la colonne B (à partir de la ligne 5) de "Classement SNG"
+function mettreAJourFormulesClassementSNG(ss, joueursList) {
+  const sheetJoueurs = ss.getSheetByName("Joueurs");
+  let sheetClassementSNG = ss.getSheetByName("Classement SNG");
+  if (!sheetJoueurs || !sheetClassementSNG) return;
+
+  if (!joueursList) {
+    let lastRowJ = sheetJoueurs.getLastRow();
+    if (lastRowJ >= 2) {
+      joueursList = sheetJoueurs.getRange("A2:A" + lastRowJ).getValues().flat().filter(j => j !== "" && j !== undefined);
+    } else {
+      joueursList = [];
+    }
+  }
+
+  for (let i = 0; i < joueursList.length; i++) {
+    let rowIndex = 5 + i;
+    let joueurRowInJoueursTab = i + 2;
+    let formula = `=Joueurs!A${joueurRowInJoueursTab}`;
+    sheetClassementSNG.getRange(rowIndex, 2).setValue(formula);
+  }
+}
+
+function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
   const isSNG = tournoiId && tournoiId.startsWith("sng_");
   const sheetName = isSNG ? "Classement SNG" : "Classement MTT";
   const rawId = tournoiId.replace(/^(mtt_|sng_)/, "");
-  const colPrefix = isSNG ? "SNG" : "MTT";
 
   const sheetClassement = ss.getSheetByName(sheetName);
-  if (sheetClassement) {
-    const rows = sheetClassement.getDataRange().getValues();
-    let jCol = -1, targetCol = -1;
+  if (!sheetClassement) return;
 
-    for (let r = 0; r < rows.length; r++) {
-      for (let c = 0; c < rows[r].length; c++) {
-        const val = String(rows[r][c]).trim();
-        if (val === "Joueur" && jCol === -1) jCol = c;
-        if (val === `${colPrefix} ${rawId}` && targetCol === -1) targetCol = c;
+  const rows = sheetClassement.getDataRange().getValues();
+  let jCol = -1;
+  for (let r = 0; r < rows.length; r++) {
+    for (let c = 0; c < rows[r].length; c++) {
+      if (String(rows[r][c]).trim() === "Joueur") {
+        jCol = c;
+        break;
+      }
+    }
+    if (jCol !== -1) break;
+  }
+  if (jCol === -1) jCol = 1; // par défaut colonne B (index 1)
+
+  if (isSNG) {
+    let intituleTournoi = "SNG " + rawId;
+    const sheetCalSNG = ss.getSheetByName("Calendrier SNG");
+    if (sheetCalSNG) {
+      const calData = sheetCalSNG.getDataRange().getValues();
+      for (let i = 1; i < calData.length; i++) {
+        if (String(calData[i][0]).trim() === String(rawId).trim()) {
+          intituleTournoi = String(calData[i][2]).trim();
+          break;
+        }
       }
     }
 
-    if (jCol !== -1 && targetCol !== -1) {
+    const targetHeader = `${intituleTournoi} - Table ${tableNum}`;
+    let headerColIndex = -1;
+
+    for (let c = 0; c < rows[0].length; c++) {
+      if (String(rows[0][c]).trim() === targetHeader) {
+        headerColIndex = c;
+        break;
+      }
+    }
+
+    if (headerColIndex === -1) {
+      for (let c = 0; c < rows[0].length; c += 2) {
+        if (!rows[0][c] || String(rows[0][c]).trim() === "") {
+          headerColIndex = c;
+          break;
+        }
+      }
+      if (headerColIndex === -1) {
+        headerColIndex = rows[0].length;
+      }
+      sheetClassement.getRange(1, headerColIndex + 1).setValue(targetHeader);
+    }
+
+    const currentValues = sheetClassement.getDataRange().getValues();
+    for (let r = 0; r < currentValues.length; r++) {
+      const cellValue = String(sheetClassement.getRange(r + 1, jCol + 1).getValue()).trim();
+      if (cellValue.toLowerCase() === String(joueur).trim().toLowerCase()) {
+        sheetClassement.getRange(r + 1, headerColIndex + 1).setValue(classement);
+        break;
+      }
+    }
+
+  } else {
+    let mttCol = -1;
+    for (let r = 0; r < rows.length; r++) {
+      for (let c = 0; c < rows[r].length; c++) {
+        if (String(rows[r][c]).trim() === `MTT ${rawId}`) {
+          mttCol = c;
+          break;
+        }
+      }
+      if (mttCol !== -1) break;
+    }
+
+    if (jCol !== -1 && mttCol !== -1) {
       for (let r = 0; r < rows.length; r++) {
-        if (String(rows[r][jCol]).trim() === String(joueur).trim()) {
-          sheetClassement.getRange(r + 1, targetCol + 1).setValue(classement);
+        const nomJ = String(sheetClassement.getRange(r + 1, jCol + 1).getValue()).trim();
+        if (nomJ === String(joueur).trim()) {
+          sheetClassement.getRange(r + 1, mttCol + 1).setValue(classement);
           break;
         }
       }
