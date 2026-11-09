@@ -488,7 +488,8 @@ function doPost(e) {
     }
 
     if (action === "eliminer") {
-      updateClassementSheet(ss, tournoiId, data.joueur, data.classement, data.tableNum);
+      const tableNum = data.tableNum !== undefined ? data.tableNum : (data.table !== undefined ? data.table : 1);
+      updateClassementSheet(ss, tournoiId, data.joueur, data.classement, tableNum);
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 

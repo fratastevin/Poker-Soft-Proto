@@ -1936,7 +1936,16 @@
                         classement: classementAttribue,
                         tableNum: origTableId 
                     })
-                }).catch(err => console.error("Erreur elimination:", err));
+                })
+                .then(res => res.json())
+                .then(res => {
+                    if (res.status === "error") {
+                        alert("Erreur Apps Script : " + res.message);
+                    } else {
+                        console.log("Élimination enregistrée avec succès");
+                    }
+                })
+                .catch(err => console.error("Erreur réseau:", err));
             }
         }
 
