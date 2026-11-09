@@ -239,7 +239,7 @@
         let totalJoueursInitial = 0;
         let joueursEliminesHistorique = []; 
         let alerteIgnoree = false;
-        let lastLocalInscriptionTime = 0; // Anti-écrasement synchro
+        let lastLocalInscriptionTime = 0;
 
         let niveauActuel = 1;
         let dureeNiveauSec = 1200;
@@ -328,7 +328,6 @@
                         appData.classementGeneralSNG = data.classementGeneralSNG || appData.classementGeneralSNG;
                         if (data.structures) appData.structures = data.structures;
 
-                        // Protection anti-écrasement si inscription récente (< 5s)
                         if (data.inscriptions && (Date.now() - lastLocalInscriptionTime > 5000)) {
                             appData.inscriptions = data.inscriptions;
                             const tabInsc = document.getElementById('tab-inscriptions');
@@ -344,7 +343,6 @@
                             renderClassementGeneralSNGUI();
                         }
 
-                        // Mise à jour live de la page classement si elle est visible
                         if (!document.getElementById('tab-classement').classList.contains('hidden')) {
                             renderClassementUI();
                         }
@@ -617,7 +615,6 @@
                     appData = data;
                     if (data.structures) appData.structures = data.structures;
 
-                    // Sélection par défaut : prioriser un tournoi démarré et non terminé
                     let actifDemare = null;
                     if (appData.tournois && appData.allStates) {
                         for (const t of appData.tournois) {
@@ -1344,7 +1341,6 @@
                 alertBox.innerHTML = "Tournoi SNG en cours. Tables fixes, pas de rééquilibrage.";
                 alertBox.className = "alert";
 
-                // En SNG, si une table n'a plus qu'1 joueur, ce joueur est le vainqueur de la table (rang 1)
                 for (const [tId, seats] of Object.entries(tablesGenerees)) {
                     let actifsTable = seats.filter(s => s.player !== null);
                     if (actifsTable.length === 1) {
@@ -1517,7 +1513,6 @@
             const isSNG = (tour && tour.type === 'SNG');
 
             if (isSNG) {
-                // SNG : Utiliser tablesGenerees ou l'historique des éliminés même en fin de tournoi
                 if (!tablesGenerees && joueursEliminesHistorique.length === 0) {
                     container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucune table générée pour ce SNG.</p>`;
                     return;

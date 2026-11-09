@@ -12,9 +12,6 @@ function doGet(e) {
       joueurs = dataJoueurs.map(row => row[0]).filter(j => j !== "" && j !== undefined);
     }
 
-    // Mise à jour automatique des formules de liaison dans la colonne B de "Classement SNG"
-    mettreAJourFormulesClassementSNG(ss, joueurs);
-
     // Helper pour lire le calendrier MTT ou SNG
     function readCalendar(sheetName, typePrefix) {
       const sheet = ss.getSheetByName(sheetName);
@@ -64,7 +61,6 @@ function doGet(e) {
     const sngTournois = readCalendar("Calendrier SNG", "sng");
     const tournois = [...mttTournois, ...sngTournois];
 
-    // Tri chronologique des tournois par date
     tournois.sort((a, b) => {
       if (a.dateObj && b.dateObj) {
         return a.dateObj.getTime() - b.dateObj.getTime();
@@ -74,7 +70,6 @@ function doGet(e) {
       return a.id.localeCompare(b.id);
     });
 
-    // Trouver le prochain tournoi
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     let minDiff = Infinity;
@@ -95,7 +90,6 @@ function doGet(e) {
       prochainTournoiId = tournois[0].id;
     }
 
-    // Helper pour lire les structures (MTT ou SNG)
     function readStructure(sheetName) {
       let maxJoueursParTable = 6;
       let startingStack = 20000;
@@ -160,7 +154,6 @@ function doGet(e) {
     const structMTT = readStructure("Structure");
     const structSNG = readStructure("Structure SNG");
 
-    // 4. Inscriptions (mutualisées dans l'onglet "Inscriptions")
     let sheetInsc = ss.getSheetByName("Inscriptions");
     if (!sheetInsc) {
       sheetInsc = ss.insertSheet("Inscriptions");
@@ -181,7 +174,6 @@ function doGet(e) {
       }
     }
 
-    // 5. Classements Généraux (MTT & SNG)
     function readClassement(sheetName, relevantTournois, prefixType) {
       let classementGeneral = [];
       let tournoisTermines = {};
@@ -241,7 +233,6 @@ function doGet(e) {
     const sngData = readClassement("Classement SNG", sngTournois, "SNG");
     const tournoisTermines = { ...mttData.tournoisTermines, ...sngData.tournoisTermines };
 
-    // 6. États persistants
     let allStates = {};
     let sheetState = ss.getSheetByName("State");
     if (sheetState) {
@@ -384,7 +375,6 @@ function doPost(e) {
       
       let joueursActuels = sheetJoueurs.getLastRow() >= 2 ? sheetJoueurs.getRange("A2:A" + sheetJoueurs.getLastRow()).getValues().flat() : [];
       verifierEtAjouterJoueur(ss, nouveauJoueur, joueursActuels);
-      mettreAJourFormulesClassementSNG(ss);
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -454,7 +444,7 @@ function doPost(e) {
             const cellVal = String(rows[0][c]).trim();
             if (cellVal.startsWith(prefixTarget)) {
               sheetClassement.getRange(5, c + 1, sheetClassement.getLastRow() - 4, 1).clearContent();
-              sheetClassement.getRange(1, c + 1).setValue(""); // Effacer l'intitulé ligne 1
+              sheetClassement.getRange(1, c + 1).setValue("");
             }
           }
         } else {
@@ -564,7 +554,6 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Inscriptions
     let sheetInsc = ss.getSheetByName("Inscriptions");
     if (!sheetInsc) {
       sheetInsc = ss.insertSheet("Inscriptions");
@@ -584,7 +573,6 @@ function doPost(e) {
       let sheetJoueurs = ss.getSheetByName("Joueurs");
       let joueursList = sheetJoueurs && sheetJoueurs.getLastRow() >= 2 ? sheetJoueurs.getRange("A2:A" + sheetJoueurs.getLastRow()).getValues().flat() : [];
       verifierEtAjouterJoueur(ss, data.joueur, joueursList);
-      mettreAJourFormulesClassementSNG(ss);
 
     } else if (action === "desinscrire") {
       for (let i = rows.length - 1; i >= 1; i--) {
@@ -609,7 +597,6 @@ function doPost(e) {
   }
 }
 
-// Fonction utilitaire pour vérifier et ajouter un joueur dans l'onglet "Joueurs"
 function verifierEtAjouterJoueur(ss, nomJoueur, listeActuelle) {
   if (!nomJoueur || String(nomJoueur).trim() === "") return;
   const cleanNom = String(nomJoueur).trim();
@@ -619,29 +606,6 @@ function verifierEtAjouterJoueur(ss, nomJoueur, listeActuelle) {
     if (!sheetJoueurs) sheetJoueurs = ss.insertSheet("Joueurs");
     sheetJoueurs.appendRow([cleanNom]);
     listeActuelle.push(cleanNom);
-  }
-}
-
-// Insère les formules d'égalité `=Joueurs!Ax` dans la colonne B (à partir de la ligne 5) de "Classement SNG"
-function mettreAJourFormulesClassementSNG(ss, joueursList) {
-  const sheetJoueurs = ss.getSheetByName("Joueurs");
-  let sheetClassementSNG = ss.getSheetByName("Classement SNG");
-  if (!sheetJoueurs || !sheetClassementSNG) return;
-
-  if (!joueursList) {
-    let lastRowJ = sheetJoueurs.getLastRow();
-    if (lastRowJ >= 2) {
-      joueursList = sheetJoueurs.getRange("A2:A" + lastRowJ).getValues().flat().filter(j => j !== "" && j !== undefined);
-    } else {
-      joueursList = [];
-    }
-  }
-
-  for (let i = 0; i < joueursList.length; i++) {
-    let rowIndex = 5 + i;
-    let joueurRowInJoueursTab = i + 2;
-    let formula = `=Joueurs!A${joueurRowInJoueursTab}`;
-    sheetClassementSNG.getRange(rowIndex, 2).setValue(formula);
   }
 }
 
@@ -664,7 +628,7 @@ function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
     }
     if (jCol !== -1) break;
   }
-  if (jCol === -1) jCol = 1; // par défaut colonne B (index 1)
+  if (jCol === -1) jCol = 1;
 
   if (isSNG) {
     let intituleTournoi = "SNG " + rawId;
@@ -690,7 +654,7 @@ function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
     }
 
     if (headerColIndex === -1) {
-      for (let c = 0; c < rows[0].length; c += 2) {
+      for (let c = 2; c < rows[0].length; c += 2) {
         if (!rows[0][c] || String(rows[0][c]).trim() === "") {
           headerColIndex = c;
           break;
