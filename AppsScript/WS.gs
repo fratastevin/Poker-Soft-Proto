@@ -1,18 +1,14 @@
 // --- GOOGLE APPS SERVICE BACKEND SÉCURISÉ ---
 
 function doGet(e) {
-  // Sécurisation anti-concurrence : pose d'un verrou pour bloquer les lectures simultanées pendant les écritures
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(5000);
-  } catch (err) {
-    // Si le verrou est pris, on continue après expiration du délai de sécurité
-  }
+  } catch (err) {}
 
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. Récupération des joueurs
     const sheetJoueurs = ss.getSheetByName("Joueurs");
     let joueurs = [];
     if (sheetJoueurs && sheetJoueurs.getLastRow() >= 2) {
@@ -20,7 +16,6 @@ function doGet(e) {
       joueurs = dataJoueurs.map(row => row[0]).filter(j => j !== "" && j !== undefined);
     }
 
-    // Helper pour lire le calendrier MTT ou SNG
     function readCalendar(sheetName, typePrefix) {
       const sheet = ss.getSheetByName(sheetName);
       const list = [];
@@ -276,7 +271,7 @@ function doGet(e) {
     return ContentService.createTextOutput(JSON.stringify({ error: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
   } finally {
-    lock.releaseLock(); // Libération impérative du verrou de lecture
+    lock.releaseLock();
   }
 }
 
@@ -404,7 +399,7 @@ function doPost(e) {
           for (let c = 0; c < rows[r].length; c++) {
             const val = String(rows[r][c]).trim();
             if (val === "Joueur" && jCol === -1) jCol = c;
-            if (val === `${colPrefix} ${rawId}` && targetCol === -1) targetCol = c;
+            if (!isSNG && val === `${colPrefix} ${rawId}` && targetCol === -1) targetCol = c;
           }
         }
 
@@ -656,26 +651,32 @@ function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
     const targetHeader = `${intituleTournoi} - Table ${tableNum}`;
     let headerColIndex = -1;
 
-    for (let c = 0; c < rows[0].length; c++) {
+    // 1. Chercher si la colonne existe déjà avec le nom exact dans les colonnes à partir de I (index 8)
+    for (let c = 8; c < rows[0].length; c++) {
       if (String(rows[0][c]).trim() === targetHeader) {
         headerColIndex = c;
         break;
       }
     }
 
+    // 2. Si non trouvée, trouver la première case vide de la ligne 1 à partir de la colonne I (index 8)
     if (headerColIndex === -1) {
-      for (let c = 2; c < rows[0].length; c += 2) {
-        if (!rows[0][c] || String(rows[0][c]).trim() === "") {
+      let c = 8; // Index 8 correspond à la colonne I (9ème colonne)
+      while (true) {
+        let cellVal = "";
+        if (c < rows[0].length) {
+          cellVal = String(rows[0][c]).trim();
+        }
+        if (cellVal === "") {
           headerColIndex = c;
           break;
         }
-      }
-      if (headerColIndex === -1) {
-        headerColIndex = rows[0].length;
+        c++;
       }
       sheetClassement.getRange(1, headerColIndex + 1).setValue(targetHeader);
     }
 
+    // 3. Assigner la valeur du classement au joueur sur la bonne ligne et bonne colonne
     const currentValues = sheetClassement.getDataRange().getValues();
     for (let r = 0; r < currentValues.length; r++) {
       const cellValue = String(sheetClassement.getRange(r + 1, jCol + 1).getValue()).trim();
