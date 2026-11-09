@@ -615,6 +615,15 @@ function verifierEtAjouterJoueur(ss, nomJoueur, listeActuelle) {
   }
 }
 
+// Fonction utilitaire de normalisation (gère les accents, la casse et les espaces de formules)
+function cleanStr(str) {
+  return String(str || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
   const isSNG = tournoiId && tournoiId.startsWith("sng_");
   const sheetName = isSNG ? "Classement SNG" : "Classement MTT";
@@ -677,14 +686,27 @@ function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
       sheetClassement.getRange(1, headerColIndex + 1).setValue(targetHeader);
     }
 
-    // 3. Assigner la valeur du classement au joueur sur la bonne ligne et bonne colonne
+    // 3. Assigner la valeur du classement au joueur (avec normalisation pour contrer les formules)
+    const joueurRecherche = cleanStr(joueur);
+    let joueurTrouve = false;
+
     const currentValues = sheetClassement.getDataRange().getValues();
     for (let r = 0; r < currentValues.length; r++) {
-      const cellValue = String(sheetClassement.getRange(r + 1, jCol + 1).getValue()).trim();
-      if (cellValue.toLowerCase() === String(joueur).trim().toLowerCase()) {
+      const cellRawValue = sheetClassement.getRange(r + 1, jCol + 1).getValue();
+      const cellValueClean = cleanStr(cellRawValue);
+
+      if (cellValueClean === joueurRecherche) {
         sheetClassement.getRange(r + 1, headerColIndex + 1).setValue(classement);
+        joueurTrouve = true;
         break;
       }
+    }
+
+    // 4. Si le joueur n'est pas trouvé, on l'ajoute automatiquement à la suite
+    if (!joueurTrouve) {
+      const nextRow = Math.max(sheetClassement.getLastRow() + 1, 5);
+      sheetClassement.getRange(nextRow, jCol + 1).setValue(joueur);
+      sheetClassement.getRange(nextRow, headerColIndex + 1).setValue(classement);
     }
 
   } else {
@@ -700,12 +722,22 @@ function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
     }
 
     if (jCol !== -1 && mttCol !== -1) {
+      const joueurRecherche = cleanStr(joueur);
+      let joueurTrouveMTT = false;
       for (let r = 0; r < rows.length; r++) {
-        const nomJ = String(sheetClassement.getRange(r + 1, jCol + 1).getValue()).trim();
-        if (nomJ === String(joueur).trim()) {
+        const cellRawValue = sheetClassement.getRange(r + 1, jCol + 1).getValue();
+        const cellValueClean = cleanStr(cellRawValue);
+
+        if (cellValueClean === joueurRecherche) {
           sheetClassement.getRange(r + 1, mttCol + 1).setValue(classement);
+          joueurTrouveMTT = true;
           break;
         }
+      }
+      if (!joueurTrouveMTT) {
+        const nextRow = Math.max(sheetClassement.getLastRow() + 1, 5);
+        sheetClassement.getRange(nextRow, jCol + 1).setValue(joueur);
+        sheetClassement.getRange(nextRow, mttCol + 1).setValue(classement);
       }
     }
   }
