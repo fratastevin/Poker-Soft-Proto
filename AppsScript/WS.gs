@@ -445,7 +445,7 @@ function doPost(e) {
             }
           }
           const prefixTarget = `${intituleTournoi} - Table`;
-          for (let c = 0; c < rows[0].length; c++) {
+          for (let c = 0; c < rows[0].length; c += 2) {
             const cellVal = String(rows[0][c]).trim();
             if (cellVal.startsWith(prefixTarget)) {
               sheetClassement.getRange(5, c + 1, sheetClassement.getLastRow() - 4, 1).clearContent();
@@ -530,7 +530,7 @@ function doPost(e) {
           for (let r = 0; r < rows.length; r++) {
             const cellVal = String(sheetClassement.getRange(r + 1, jCol + 1).getValue()).trim();
             if (cellVal.toLowerCase() === String(joueur).trim().toLowerCase()) {
-              for (let c = 0; c < rows[0].length; c++) {
+              for (let c = 0; c < rows[0].length; c += 2) {
                 if (String(rows[0][c]).trim().startsWith(prefixTarget)) {
                   sheetClassement.getRange(r + 1, c + 1).setValue("");
                 }
@@ -661,15 +661,15 @@ function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
     const targetHeader = `${intituleTournoi} - Table ${tableNum}`;
     let headerColIndex = -1;
 
-    // 1. Chercher si la colonne existe déjà avec le nom exact dans les colonnes à partir de I (index 8)
-    for (let c = 8; c < rows[0].length; c++) {
+    // 1. Chercher si la colonne existe déjà avec le nom exact dans les colonnes à partir de I (index 8) par pas de 2
+    for (let c = 8; c < rows[0].length; c += 2) {
       if (String(rows[0][c]).trim() === targetHeader) {
         headerColIndex = c;
         break;
       }
     }
 
-    // 2. Si non trouvée, trouver la première case vide de la ligne 1 à partir de la colonne I (index 8)
+    // 2. Si non trouvée, trouver la première case vide de la ligne 1 à partir de la colonne I (index 8) par pas de 2
     if (headerColIndex === -1) {
       let c = 8; // Index 8 correspond à la colonne I (9ème colonne)
       while (true) {
@@ -681,7 +681,7 @@ function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
           headerColIndex = c;
           break;
         }
-        c++;
+        c += 2;
       }
       sheetClassement.getRange(1, headerColIndex + 1).setValue(targetHeader);
     }
