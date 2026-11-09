@@ -1,6 +1,14 @@
 // --- GOOGLE APPS SERVICE BACKEND SÉCURISÉ ---
 
 function doGet(e) {
+  // Sécurisation anti-concurrence : pose d'un verrou pour bloquer les lectures simultanées pendant les écritures
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(5000);
+  } catch (err) {
+    // Si le verrou est pris, on continue après expiration du délai de sécurité
+  }
+
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
@@ -267,6 +275,8 @@ function doGet(e) {
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ error: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock(); // Libération impérative du verrou de lecture
   }
 }
 

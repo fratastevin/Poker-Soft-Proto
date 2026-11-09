@@ -328,7 +328,18 @@
                         appData.classementGeneralSNG = data.classementGeneralSNG || appData.classementGeneralSNG;
                         if (data.structures) appData.structures = data.structures;
 
-                        if (data.inscriptions && (Date.now() - lastLocalInscriptionTime > 5000)) {
+                        if (data.inscriptions) {
+                            // Fusion intelligente et sécurisée pour préserver les inscriptions locales récentes (< 20s)
+                            if (Date.now() - lastLocalInscriptionTime < 20000) {
+                                for (const tId in appData.inscriptions) {
+                                    if (!data.inscriptions[tId]) data.inscriptions[tId] = {};
+                                    for (const joueur in appData.inscriptions[tId]) {
+                                        if (data.inscriptions[tId][joueur] === undefined) {
+                                            data.inscriptions[tId][joueur] = appData.inscriptions[tId][joueur];
+                                        }
+                                    }
+                                }
+                            }
                             appData.inscriptions = data.inscriptions;
                             const tabInsc = document.getElementById('tab-inscriptions');
                             if (tabInsc && !tabInsc.classList.contains('hidden') && tablesGenerees === null) {
