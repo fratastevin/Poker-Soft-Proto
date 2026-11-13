@@ -279,7 +279,6 @@
             return (appData.tournois || []).find(t => t.id === activeTournoiId) || null;
         }
 
-        // Détermine la taille officielle de la Table Finale (règles TDA : +1 siège en 6-max et 7-max)
         function getFinalTableSize(maxPerTable) {
             if (maxPerTable === 6 || maxPerTable === 7) {
                 return maxPerTable + 1;
@@ -1097,7 +1096,6 @@
             const finalTableSize = getFinalTableSize(maxPerTable);
             listeJoueurs.sort(() => Math.random() - 0.5);
 
-            // Si le nombre total de joueurs tient en Table Finale (+1 en 6/7-max), on crée une seule table
             const nbTables = (listeJoueurs.length <= finalTableSize) ? 1 : Math.ceil(listeJoueurs.length / maxPerTable);
             const seatsPerTable = (nbTables === 1 && listeJoueurs.length > maxPerTable) ? finalTableSize : maxPerTable;
 
@@ -1226,7 +1224,6 @@
             const totalJoueurs = inscritsNoms.length;
             totalJoueursInitial = totalJoueurs;
 
-            // Si MTT et effectif initial <= taille de la table finale (ex: 7 joueurs en 6-max), on démarre directement en Table Finale
             const isDirectFinalTable = (!isSNG && totalJoueurs <= finalTableSize && totalJoueurs > maxPerTable);
             const nbTables = isDirectFinalTable ? 1 : Math.ceil(totalJoueurs / maxPerTable);
             const seatsCount = isDirectFinalTable ? finalTableSize : maxPerTable;
@@ -1444,8 +1441,9 @@
                         let dernierTable = actifsTable[0].player;
                         let dejaEnregistre = joueursEliminesHistorique.some(item => item.joueur === dernierTable && item.origTableId == tId);
                         if (!dejaEnregistre && isMaster) {
-                            joueursEliminesHistorique.push({ joueur: dernierTable, classement: 1, origTableId: tId, origSeat: seats.find(s => s.player === dernierTable).seat });
-                            seats.find(s => s.player === dernierTable).player = null;
+                            const seatWinner = seats.find(s => s.player === dernierTable);
+                            joueursEliminesHistorique.push({ joueur: dernierTable, classement: 1, origTableId: tId, origSeat: seatWinner.seat });
+                            seatWinner.player = null;
                             if (scriptUrl && activeTournoiId) {
                                 fetch(scriptUrl, {
                                     method: "POST",
@@ -1482,13 +1480,46 @@
 
             if (totalJoueursActifs === 1 && !appData.tournoisTermines[activeTournoiId]) {
                 let dernierJoueur = null;
-                for (const seats of Object.values(tablesGenerees)) {
+                let winnerTableId = null;
+                let winnerSeat = null;
+
+                for (const [tId, seats] of Object.entries(tablesGenerees)) {
                     const s = seats.find(seat => seat.player !== null);
-                    if (s) { dernierJoueur = s.player; break; }
+                    if (s) {
+                        dernierJoueur = s.player;
+                        winnerTableId = tId;
+                        winnerSeat = s;
+                        break;
+                    }
                 }
 
                 if (dernierJoueur && isMaster) {
                     if (chronoIsRunning) toggleChrono();
+
+                    const dejaClasse = joueursEliminesHistorique.some(item => item.joueur === dernierJoueur);
+                    if (!dejaClasse) {
+                        joueursEliminesHistorique.push({
+                            joueur: dernierJoueur,
+                            classement: 1,
+                            origTableId: winnerTableId,
+                            origSeat: winnerSeat.seat
+                        });
+                    }
+                    winnerSeat.player = null;
+
+                    appData.tournoisTermines[activeTournoiId] = dernierJoueur;
+                    checkTournoiLockStatus();
+                    renderTablesUI();
+                    recalculerStatistiquesLive();
+
+                    const selElim = document.getElementById('select-eliminer');
+                    if (selElim) selElim.innerHTML = '<option value="" disabled selected>-- Tournoi terminé --</option>';
+
+                    const alertBox = document.getElementById('live-alertes');
+                    if (alertBox) {
+                        alertBox.innerHTML = `🏆 <b>TOURNOI TERMINÉ !</b><br>Vainqueur : <b>${dernierJoueur}</b>`;
+                        alertBox.className = "alert alert-action";
+                    }
 
                     if (scriptUrl && activeTournoiId) {
                         fetch(scriptUrl, {
@@ -1500,21 +1531,21 @@
                                 masterToken: masterToken,
                                 classement: 1
                             })
-                        }).catch(err => console.error("Erreur enregistrement vainqueur:", err));
+                        })
+                        .then(() => saveGameStateToSheet())
+                        .then(() => {
+                            setTimeout(() => {
+                                loadDataFromSheet();
+                            }, 2000);
+                        })
+                        .catch(err => console.error("Erreur enregistrement vainqueur:", err));
                     }
 
-                    appData.tournoisTermines[activeTournoiId] = dernierJoueur;
-                    checkTournoiLockStatus();
-                    
-                    setTimeout(() => {
-                        loadDataFromSheet();
-                    }, 1500);
-
-                    alert(`🏆 TOURNOI TERMINÉ !\n\nVainqueur : ${dernierJoueur}.\nLe classement général a été mis à jour.`);
+                    alert(`🏆 TOURNOI TERMINÉ !\n\nVainqueur : ${dernierJoueur}.\nLe classement général va être mis à jour.`);
+                    return;
                 }
             }
 
-            // Calcul du nombre de tables nécessaires en tenant compte de la règle de Table Finale (+1 en 6/7-max)
             const nbTablesNecessaires = (totalJoueursActifs <= finalTableSize) ? 1 : Math.ceil(totalJoueursActifs / maxPerTable);
             const alertBox = document.getElementById('live-alertes');
             const eqSpan = document.getElementById('stat-equilibre');
@@ -1528,7 +1559,6 @@
                 const tableAFermerId = tablesActivesIds[randIndex];
                 const joueursAFermer = tablesGenerees[tableAFermerId].filter(s => s.player !== null).map(s => s.player);
 
-                // Si passage en Table Finale à +1 joueur (ex: 7 joueurs en 6-max), on ajoute dynamiquement le siège supplémentaire sur la table restante
                 if (isFinalTableBreak) {
                     const tableFinaleId = tablesActivesIds.find(id => id !== tableAFermerId);
                     if (tableFinaleId && tablesGenerees[tableFinaleId].length < finalTableSize) {
@@ -1663,18 +1693,19 @@
                 return;
             }
 
-            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
+            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => a.classement - b.classement);
             if (eliminesTries.length === 0) {
                 container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucun joueur éliminé pour le moment.</p>`;
                 return;
             }
 
-            let mttHtml = `<p style="font-size:0.75rem; color:#94a3b8; margin-bottom:1rem;">Glissez-déposez les joueurs éliminés pour réajuster leur ordre de classement si besoin.</p>`;
+            let mttHtml = `<p style="font-size:0.75rem; color:#94a3b8; margin-bottom:1rem;">Classés du mieux placé au moins bien placé. Glissez-déposez pour réajuster l'ordre si besoin.</p>`;
             eliminesTries.forEach((item, index) => {
                 const draggableAttr = isMaster ? `draggable="true" ondragstart="onDragClassementStart(event, ${index})" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDropClassement(event, ${index})"` : '';
+                const rankBadge = item.classement === 1 ? `🏆 #1` : `#${item.classement}`;
                 mttHtml += `
                     <div class="classement-item" ${draggableAttr}>
-                        <span style="font-weight:bold; color:#fbbf24; width:30px;">#${item.classement}</span>
+                        <span style="font-weight:bold; color:#fbbf24; width:45px;">${rankBadge}</span>
                         <span style="flex-grow:1; font-weight:500;">${item.joueur}</span>
                         <span style="font-size:0.75rem; color:#94a3b8;">${isMaster ? 'Glisser pour réordonner' : ''}</span>
                     </div>
@@ -1694,14 +1725,14 @@
             event.currentTarget.classList.remove('drag-over');
             if (dragClassementIndex === null || dragClassementIndex === targetIndex || !checkMastershipBeforeAction()) return;
 
-            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
+            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => a.classement - b.classement);
             const movedItem = eliminesTries.splice(dragClassementIndex, 1)[0];
             eliminesTries.splice(targetIndex, 0, movedItem);
 
-            const baseClassementPire = totalJoueursInitial || (eliminesTries.length + 1);
+            const baseClassementMeilleur = Math.min(...eliminesTries.map(i => i.classement));
 
             eliminesTries.forEach((item, idx) => {
-                item.classement = baseClassementPire - idx;
+                item.classement = baseClassementMeilleur + idx;
             });
 
             joueursEliminesHistorique = eliminesTries;
