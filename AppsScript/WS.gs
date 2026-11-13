@@ -363,7 +363,7 @@ function doPost(e) {
           }
         }
       }
-      clearClassementCache(); // Invalidation du cache des classements
+      clearClassementCache();
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -423,7 +423,7 @@ function doPost(e) {
           }
         }
       }
-      clearClassementCache(); // Invalidation du cache des classements
+      clearClassementCache();
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -443,7 +443,7 @@ function doPost(e) {
     if (action === "eliminer") {
       const tableNum = data.tableNum !== undefined ? data.tableNum : (data.table !== undefined ? data.table : 1);
       updateClassementSheet(ss, tournoiId, data.joueur, data.classement, tableNum);
-      clearClassementCache(); // Invalidation du cache des classements à chaque élimination / enregistrement de résultat
+      clearClassementCache();
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -511,7 +511,7 @@ function doPost(e) {
           });
         }
       }
-      clearClassementCache(); // Invalidation du cache des classements
+      clearClassementCache();
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -523,6 +523,24 @@ function doPost(e) {
     const rows = sheetInsc.getDataRange().getValues();
 
     if (action === "inscrire") {
+      // Sécurité serveur : vérification du verrou de blocage last minute si les tables sont générées
+      let sheetState = ss.getSheetByName("State");
+      if (sheetState) {
+        let rawState = sheetState.getRange("A1").getValue();
+        if (rawState) {
+          try {
+            let allStates = JSON.parse(rawState);
+            let tState = allStates[tournoiId];
+            if (tState && tState.tablesGenerees && tState.bloquerLastMinute) {
+              return ContentService.createTextOutput(JSON.stringify({ 
+                status: "error", 
+                message: "Les inscriptions de dernière minute sont bloquées pour ce tournoi." 
+              })).setMimeType(ContentService.MimeType.JSON);
+            }
+          } catch(e){}
+        }
+      }
+
       let existe = false;
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0].toString() === tournoiId.toString() && rows[i][1] === data.joueur) {
@@ -570,7 +588,6 @@ function verifierEtAjouterJoueur(ss, nomJoueur, listeActuelle) {
   }
 }
 
-// Fonctions de gestion du cache des classements généraux
 function readClassement(ss, sheetName, relevantTournois, prefixType) {
   let classementGeneral = [];
   let tournoisTermines = {};
@@ -637,7 +654,7 @@ function getCachedClassementData(ss, sheetName, relevantTournois, prefixType) {
   }
 
   const data = readClassement(ss, sheetName, relevantTournois, prefixType);
-  cache.put(cacheKey, JSON.stringify(data), 21600); // Cache valide pendant 6 heures
+  cache.put(cacheKey, JSON.stringify(data), 21600);
   return data;
 }
 
@@ -647,7 +664,6 @@ function clearClassementCache() {
   cache.remove('poker_classement_data_SNG');
 }
 
-// Fonction utilitaire de normalisation (gère les accents, la casse et les espaces de formules)
 function cleanStr(str) {
   return String(str || "")
     .normalize("NFD")
@@ -693,7 +709,6 @@ function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
     const targetHeader = `${intituleTournoi} - Table ${tableNum}`;
     let headerColIndex = -1;
 
-    // 1. Chercher si la colonne existe déjà avec le nom exact dans les colonnes à partir de I (index 8) par pas de 2
     for (let c = 8; c < rows[0].length; c += 2) {
       if (String(rows[0][c]).trim() === targetHeader) {
         headerColIndex = c;
@@ -701,9 +716,8 @@ function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
       }
     }
 
-    // 2. Si non trouvée, trouver la première case vide de la ligne 1 à partir de la colonne I (index 8) par pas de 2
     if (headerColIndex === -1) {
-      let c = 8; // Index 8 correspond à la colonne I (9ème colonne)
+      let c = 8;
       while (true) {
         let cellVal = "";
         if (c < rows[0].length) {
@@ -718,7 +732,6 @@ function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
       sheetClassement.getRange(1, headerColIndex + 1).setValue(targetHeader);
     }
 
-    // 3. Assigner la valeur du classement au joueur (avec normalisation pour contrer les formules)
     const joueurRecherche = cleanStr(joueur);
     let joueurTrouve = false;
 
@@ -734,7 +747,6 @@ function updateClassementSheet(ss, tournoiId, joueur, classement, tableNum) {
       }
     }
 
-    // 4. Si le joueur n'est pas trouvé, on l'ajoute automatiquement à la suite
     if (!joueurTrouve) {
       const nextRow = Math.max(sheetClassement.getLastRow() + 1, 5);
       sheetClassement.getRange(nextRow, jCol + 1).setValue(joueur);

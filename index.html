@@ -121,6 +121,11 @@
                     <button onclick="desinscrireJoueurAction()" id="btn-desinscrire" class="btn-rose" style="flex:1;">Désinscrire</button>
                     <button onclick="ouvrirModalAjoutJoueur()" class="btn-blue" style="width:auto; padding:0.5rem 1rem;">+ Ajouter un nouveau joueur</button>
                 </div>
+                <!-- Option de verrouillage last minute réservée au Master -->
+                <div id="master-last-minute-container" style="margin-top: 1rem; display: none; align-items: center; gap: 0.5rem; background: #0f172a; padding: 0.75rem; border-radius: 0.375rem; border: 1px solid #334155;">
+                    <input type="checkbox" id="chk-block-last-minute" onchange="onToggleBlockLastMinute(this)" style="width: auto; margin: 0; cursor: pointer;">
+                    <label for="chk-block-last-minute" style="margin: 0; color: #fde68a; cursor: pointer; font-size: 0.875rem;">Bloquer les inscriptions de dernière minute (après génération des tables)</label>
+                </div>
             </div>
 
             <div class="card">
@@ -240,6 +245,7 @@
         let tablesGenerees = null;
         let totalJoueursInitial = 0;
         let joueursEliminesHistorique = []; 
+        let bloquerLastMinute = false;
         let alerteIgnoree = false;
         let lastLocalInscriptionTime = 0;
 
@@ -406,6 +412,12 @@
             totalJoueursInitial = state.totalJoueursInitial || 0;
             chronoIsRunning = state.chronoIsRunning || false;
 
+            if (state.bloquerLastMinute !== undefined) {
+                bloquerLastMinute = state.bloquerLastMinute;
+                const chk = document.getElementById('chk-block-last-minute');
+                if (chk) chk.checked = bloquerLastMinute;
+            }
+
             const alertBox = document.getElementById('live-alertes');
             if (alertBox && state.derniereAlerte) {
                 let consigneNettoyee = state.derniereAlerte.replace(/<button[^>]*>Compris<\/button>/gi, '');
@@ -445,6 +457,11 @@
             const btnMaster = document.getElementById('btn-master-toggle');
             if (!btnMaster) return;
 
+            const masterContainer = document.getElementById('master-last-minute-container');
+            if (masterContainer) {
+                masterContainer.style.display = isMaster ? 'flex' : 'none';
+            }
+
             if (isMaster) {
                 btnMaster.innerText = "👑 Master (Déco)";
                 btnMaster.style.backgroundColor = "#059669";
@@ -454,6 +471,15 @@
                 btnMaster.style.backgroundColor = "#7c3aed";
                 lockLiveInterfaceForSpectator(true);
             }
+        }
+
+        function onToggleBlockLastMinute(checkbox) {
+            if (!checkMastershipBeforeAction()) {
+                checkbox.checked = !checkbox.checked;
+                return;
+            }
+            bloquerLastMinute = checkbox.checked;
+            saveGameStateToSheet();
         }
 
         function gererBoutonMaster() {
@@ -668,6 +694,9 @@
             tablesGenerees = null;
             totalJoueursInitial = 0;
             joueursEliminesHistorique = [];
+            bloquerLastMinute = false;
+            const chk = document.getElementById('chk-block-last-minute');
+            if (chk) chk.checked = false;
             niveauActuel = 1;
             dureeNiveauSec = getDureeStructureSec(1);
             secondesRestantes = dureeNiveauSec;
@@ -683,6 +712,9 @@
             tablesGenerees = state.tablesGenerees || null;
             totalJoueursInitial = state.totalJoueursInitial || 0;
             joueursEliminesHistorique = state.joueursEliminesHistorique || [];
+            bloquerLastMinute = state.bloquerLastMinute || false;
+            const chk = document.getElementById('chk-block-last-minute');
+            if (chk) chk.checked = bloquerLastMinute;
             
             niveauActuel = state.niveauActuel || 1;
             dureeNiveauSec = getDureeStructureSec(niveauActuel);
@@ -722,6 +754,7 @@
                 tablesGenerees: tablesGenerees,
                 totalJoueursInitial: totalJoueursInitial,
                 joueursEliminesHistorique: joueursEliminesHistorique,
+                bloquerLastMinute: bloquerLastMinute,
                 niveauActuel: niveauActuel,
                 secondesRestantes: secondesRestantes,
                 chronoEndTime: chronoEndTime,
@@ -881,6 +914,10 @@
             lastLocalInscriptionTime = Date.now();
 
             if (tablesGenerees !== null) {
+                if (bloquerLastMinute) {
+                    alert("❌ Les inscriptions de dernière minute sont bloquées pour ce tournoi.");
+                    return;
+                }
                 if (!checkMastershipBeforeAction()) return;
                 inscrireDerniereMinute(joueur, clubPassword);
             } else {
