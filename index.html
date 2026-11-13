@@ -121,7 +121,6 @@
                     <button onclick="desinscrireJoueurAction()" id="btn-desinscrire" class="btn-rose" style="flex:1;">Désinscrire</button>
                     <button onclick="ouvrirModalAjoutJoueur()" class="btn-blue" style="width:auto; padding:0.5rem 1rem;">+ Ajouter un nouveau joueur</button>
                 </div>
-                <!-- Option de verrouillage last minute réservée au Master -->
                 <div id="master-last-minute-container" style="margin-top: 1rem; display: none; align-items: center; gap: 0.5rem; background: #0f172a; padding: 0.75rem; border-radius: 0.375rem; border: 1px solid #334155;">
                     <input type="checkbox" id="chk-block-last-minute" onchange="onToggleBlockLastMinute(this)" style="width: auto; margin: 0; cursor: pointer;">
                     <label for="chk-block-last-minute" style="margin: 0; color: #fde68a; cursor: pointer; font-size: 0.875rem;">Bloquer les inscriptions de dernière minute (après génération des tables)</label>
@@ -278,6 +277,14 @@
 
         function getActiveTournoi() {
             return (appData.tournois || []).find(t => t.id === activeTournoiId) || null;
+        }
+
+        // Détermine la taille officielle de la Table Finale (règles TDA : +1 siège en 6-max et 7-max)
+        function getFinalTableSize(maxPerTable) {
+            if (maxPerTable === 6 || maxPerTable === 7) {
+                return maxPerTable + 1;
+            }
+            return maxPerTable;
         }
 
         function getDureeStructureSec(numNiveau) {
@@ -445,7 +452,7 @@
         }
 
         function consignesContiennentUneAlerte(htmlTexte) {
-            return htmlTexte.includes("CASSAGE") || htmlTexte.includes("RÉÉQUILIBRAGE") || htmlTexte.includes("⚠️") || htmlTexte.includes("🚨");
+            return htmlTexte.includes("CASSAGE") || htmlTexte.includes("RÉÉQUILIBRAGE") || htmlTexte.includes("TABLE FINALE") || htmlTexte.includes("⚠️") || htmlTexte.includes("🚨") || htmlTexte.includes("🏆");
         }
 
         function lockLiveInterfaceForSpectator(lock) {
@@ -1025,7 +1032,8 @@
 
             for (const [tId, seats] of Object.entries(tablesGenerees)) {
                 const actifsCount = seats.filter(s => s.player !== null).length;
-                if (actifsCount < maxPerTable && actifsCount < minJoueurs) {
+                const capaciteTable = seats.length;
+                if (actifsCount < capaciteTable && actifsCount < minJoueurs) {
                     minJoueurs = actifsCount;
                     plusPetiteTableId = tId;
                 }
@@ -1086,13 +1094,17 @@
         function repartirTablesRecalculees(listeJoueurs) {
             const tour = getActiveTournoi();
             const maxPerTable = (tour && tour.type === 'SNG') ? (appData.maxJoueursParTableSNG || appData.maxJoueursParTable || 6) : (appData.maxJoueursParTable || 6);
+            const finalTableSize = getFinalTableSize(maxPerTable);
             listeJoueurs.sort(() => Math.random() - 0.5);
-            const nbTables = Math.ceil(listeJoueurs.length / maxPerTable);
+
+            // Si le nombre total de joueurs tient en Table Finale (+1 en 6/7-max), on crée une seule table
+            const nbTables = (listeJoueurs.length <= finalTableSize) ? 1 : Math.ceil(listeJoueurs.length / maxPerTable);
+            const seatsPerTable = (nbTables === 1 && listeJoueurs.length > maxPerTable) ? finalTableSize : maxPerTable;
 
             let tables = {};
             for (let t = 1; t <= nbTables; t++) {
                 tables[t] = [];
-                for (let s = 1; s <= maxPerTable; s++) {
+                for (let s = 1; s <= seatsPerTable; s++) {
                     tables[t].push({ seat: s, player: null });
                 }
             }
@@ -1196,7 +1208,9 @@
             const tournoiInsc = appData.inscriptions[activeTournoiId] || {};
             let inscritsNoms = Array.isArray(tournoiInsc) ? tournoiInsc : Object.keys(tournoiInsc);
             const tour = getActiveTournoi();
-            const maxPerTable = (tour && tour.type === 'SNG') ? (appData.maxJoueursParTableSNG || appData.maxJoueursParTable || 6) : (appData.maxJoueursParTable || 6);
+            const isSNG = (tour && tour.type === 'SNG');
+            const maxPerTable = isSNG ? (appData.maxJoueursParTableSNG || appData.maxJoueursParTable || 6) : (appData.maxJoueursParTable || 6);
+            const finalTableSize = isSNG ? maxPerTable : getFinalTableSize(maxPerTable);
 
             if (inscritsNoms.length === 0) {
                 alert("Aucun joueur inscrit !");
@@ -1211,12 +1225,16 @@
 
             const totalJoueurs = inscritsNoms.length;
             totalJoueursInitial = totalJoueurs;
-            const nbTables = Math.ceil(totalJoueurs / maxPerTable);
+
+            // Si MTT et effectif initial <= taille de la table finale (ex: 7 joueurs en 6-max), on démarre directement en Table Finale
+            const isDirectFinalTable = (!isSNG && totalJoueurs <= finalTableSize && totalJoueurs > maxPerTable);
+            const nbTables = isDirectFinalTable ? 1 : Math.ceil(totalJoueurs / maxPerTable);
+            const seatsCount = isDirectFinalTable ? finalTableSize : maxPerTable;
 
             let tables = {};
             for (let t = 1; t <= nbTables; t++) {
                 tables[t] = [];
-                for (let s = 1; s <= maxPerTable; s++) {
+                for (let s = 1; s <= seatsCount; s++) {
                     tables[t].push({ seat: s, player: null });
                 }
             }
@@ -1242,7 +1260,7 @@
 
             absents.forEach(a => {
                 let placed = false;
-                for (let s = 0; s < maxPerTable && !placed; s++) {
+                for (let s = 0; s < seatsCount && !placed; s++) {
                     for (let t = 1; t <= nbTables && !placed; t++) {
                         if (tables[t][s].player === null) {
                             tables[t][s].player = a;
@@ -1263,7 +1281,9 @@
             tablesGenerees = tables;
             joueursEliminesHistorique = [];
             renderTablesUI();
-            document.getElementById('table-status-msg').innerText = `Tables générées avec succès (${nbTables} tables réparties pour ${totalJoueurs} inscrits).`;
+            document.getElementById('table-status-msg').innerText = isDirectFinalTable 
+                ? `Table Finale directe générée (${totalJoueurs} joueurs réunis sur 1 table de ${seatsCount}).`
+                : `Tables générées avec succès (${nbTables} tables réparties pour ${totalJoueurs} inscrits).`;
             checkTournoiLockStatus();
             saveGameStateToSheet();
         }
@@ -1446,6 +1466,7 @@
             }
 
             const maxPerTable = appData.maxJoueursParTable || 6;
+            const finalTableSize = getFinalTableSize(maxPerTable);
             let tablesActivesIds = [];
             let totalJoueursActifs = 0;
 
@@ -1493,17 +1514,29 @@
                 }
             }
 
-            const nbTablesNecessaires = Math.ceil(totalJoueursActifs / maxPerTable);
+            // Calcul du nombre de tables nécessaires en tenant compte de la règle de Table Finale (+1 en 6/7-max)
+            const nbTablesNecessaires = (totalJoueursActifs <= finalTableSize) ? 1 : Math.ceil(totalJoueursActifs / maxPerTable);
             const alertBox = document.getElementById('live-alertes');
             const eqSpan = document.getElementById('stat-equilibre');
 
             if (nbTablesNecessaires < tablesActivesIds.length) {
-                eqSpan.innerText = "CASSAGE APPLIQUÉ";
-                eqSpan.style.color = "#f43f5e";
+                const isFinalTableBreak = (nbTablesNecessaires === 1);
+                eqSpan.innerText = isFinalTableBreak ? "TABLE FINALE" : "CASSAGE APPLIQUÉ";
+                eqSpan.style.color = isFinalTableBreak ? "#fbbf24" : "#f43f5e";
 
                 const randIndex = Math.floor(Math.random() * tablesActivesIds.length);
                 const tableAFermerId = tablesActivesIds[randIndex];
                 const joueursAFermer = tablesGenerees[tableAFermerId].filter(s => s.player !== null).map(s => s.player);
+
+                // Si passage en Table Finale à +1 joueur (ex: 7 joueurs en 6-max), on ajoute dynamiquement le siège supplémentaire sur la table restante
+                if (isFinalTableBreak) {
+                    const tableFinaleId = tablesActivesIds.find(id => id !== tableAFermerId);
+                    if (tableFinaleId && tablesGenerees[tableFinaleId].length < finalTableSize) {
+                        for (let s = tablesGenerees[tableFinaleId].length + 1; s <= finalTableSize; s++) {
+                            tablesGenerees[tableFinaleId].push({ seat: s, player: null });
+                        }
+                    }
+                }
 
                 let siegesLibres = [];
                 tablesActivesIds.forEach(tId => {
@@ -1517,7 +1550,9 @@
                 });
 
                 siegesLibres.sort(() => Math.random() - 0.5);
-                let consignes = `🚨 <b>CASSAGE DE TABLE EFFECTUÉ (FERMETURE TABLE ${tableAFermerId})</b><br>Joueurs replacés :<br>`;
+                let consignes = isFinalTableBreak 
+                    ? `🏆 <b>CONSTITUTION DE LA TABLE FINALE (${totalJoueursActifs} JOUEURS)</b><br>Fermeture Table ${tableAFermerId} — Joueurs replacés :<br>`
+                    : `🚨 <b>CASSAGE DE TABLE EFFECTUÉ (FERMETURE TABLE ${tableAFermerId})</b><br>Joueurs replacés :<br>`;
 
                 joueursAFermer.forEach((j, idx) => {
                     if (siegesLibres[idx]) {
