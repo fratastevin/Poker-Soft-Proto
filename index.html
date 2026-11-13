@@ -27,6 +27,7 @@
         .btn-green:hover { background-color: #047857; }
         .btn-amber { background-color: #d97706; color: white; }
         .btn-rose { background-color: #e11d48; color: white; }
+        .btn-rose:hover { background-color: #be123c; }
         .btn-blue { background-color: #2563eb; color: white; }
         .btn-purple { background-color: #7c3aed; color: white; }
         .btn-disabled { background-color: #334155 !important; color: #64748b !important; cursor: not-allowed !important; }
@@ -116,7 +117,8 @@
                     </div>
                 </div>
                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                    <button onclick="toggleInscription()" id="btn-inscrire" class="btn-green" style="flex:1;">S'inscrire / Se désinscrire</button>
+                    <button onclick="inscrireJoueur()" id="btn-inscrire" class="btn-green" style="flex:1;">S'inscrire</button>
+                    <button onclick="desinscrireJoueurAction()" id="btn-desinscrire" class="btn-rose" style="flex:1;">Désinscrire</button>
                     <button onclick="ouvrirModalAjoutJoueur()" class="btn-blue" style="width:auto; padding:0.5rem 1rem;">+ Ajouter un nouveau joueur</button>
                 </div>
             </div>
@@ -329,7 +331,6 @@
                         if (data.structures) appData.structures = data.structures;
 
                         if (data.inscriptions) {
-                            // Fusion intelligente et sécurisée pour préserver les inscriptions locales récentes (< 20s)
                             if (Date.now() - lastLocalInscriptionTime < 20000) {
                                 for (const tId in appData.inscriptions) {
                                     if (!data.inscriptions[tId]) data.inscriptions[tId] = {};
@@ -793,7 +794,7 @@
             populateDropdowns();
 
             document.getElementById('select-joueur').value = cleanNom;
-            toggleInscriptionWithPassword(clubPassword);
+            inscrireJoueurWithPassword(clubPassword);
 
             if (scriptUrl) {
                 fetch(scriptUrl, {
@@ -855,7 +856,7 @@
             renderTablesUI();
         }
 
-        async function toggleInscription() {
+        async function inscrireJoueur() {
             const joueur = document.getElementById('select-joueur').value;
             if (!joueur) {
                 alert("Veuillez sélectionner un joueur dans la liste.");
@@ -866,6 +867,11 @@
             const tournoiInsc = appData.inscriptions[activeTournoiId];
             const isAlreadyInscrit = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
             
+            if (isAlreadyInscrit) {
+                alert(`${joueur} est déjà inscrit à ce tournoi.`);
+                return;
+            }
+
             let clubPassword = "";
             if (!isMaster) {
                 clubPassword = await demanderMotDePasseClubAsync();
@@ -874,38 +880,61 @@
 
             lastLocalInscriptionTime = Date.now();
 
-            if (isAlreadyInscrit) {
-                desinscrireJoueurDirect(joueur, clubPassword);
+            if (tablesGenerees !== null) {
+                if (!checkMastershipBeforeAction()) return;
+                inscrireDerniereMinute(joueur, clubPassword);
             } else {
-                if (tablesGenerees !== null) {
-                    if (!checkMastershipBeforeAction()) return;
-                    inscrireDerniereMinute(joueur, clubPassword);
+                if (Array.isArray(tournoiInsc)) {
+                    appData.inscriptions[activeTournoiId].push(joueur);
                 } else {
-                    if (Array.isArray(tournoiInsc)) {
-                        appData.inscriptions[activeTournoiId].push(joueur);
-                    } else {
-                        appData.inscriptions[activeTournoiId][joueur] = { present: false };
-                    }
-                    updateInscritsUI();
+                    appData.inscriptions[activeTournoiId][joueur] = { present: false };
+                }
+                updateInscritsUI();
 
-                    if (scriptUrl && activeTournoiId) {
-                        fetch(scriptUrl, {
-                            method: "POST",
-                            body: JSON.stringify({ 
-                                tournoiId: activeTournoiId, 
-                                joueur: joueur, 
-                                action: "inscrire", 
-                                clubPassword: clubPassword,
-                                masterToken: isMaster ? masterToken : null 
-                            })
-                        });
-                    }
+                if (scriptUrl && activeTournoiId) {
+                    fetch(scriptUrl, {
+                        method: "POST",
+                        body: JSON.stringify({ 
+                            tournoiId: activeTournoiId, 
+                            joueur: joueur, 
+                            action: "inscrire", 
+                            clubPassword: clubPassword,
+                            masterToken: isMaster ? masterToken : null 
+                        })
+                    });
                 }
             }
             document.getElementById('select-joueur').selectedIndex = 0;
         }
 
-        async function toggleInscriptionWithPassword(clubPassword) {
+        async function desinscrireJoueurAction() {
+            const joueur = document.getElementById('select-joueur').value;
+            if (!joueur) {
+                alert("Veuillez sélectionner un joueur dans la liste.");
+                return;
+            }
+
+            if (!appData.inscriptions[activeTournoiId]) appData.inscriptions[activeTournoiId] = {};
+            const tournoiInsc = appData.inscriptions[activeTournoiId];
+            const isAlreadyInscrit = Array.isArray(tournoiInsc) ? tournoiInsc.includes(joueur) : tournoiInsc.hasOwnProperty(joueur);
+            
+            if (!isAlreadyInscrit) {
+                alert(`${joueur} n'est pas inscrit à ce tournoi.`);
+                return;
+            }
+
+            let clubPassword = "";
+            if (!isMaster) {
+                clubPassword = await demanderMotDePasseClubAsync();
+                if (!clubPassword) return;
+            }
+
+            lastLocalInscriptionTime = Date.now();
+            desinscrireJoueurDirect(joueur, clubPassword);
+            document.getElementById('select-joueur').selectedIndex = 0;
+        }
+
+        async function inscrireJoueurWithPassword(clubPassword) {
             const joueur = document.getElementById('select-joueur').value;
             if (!joueur) return;
 
