@@ -60,7 +60,7 @@ function doGet(e) {
       return list;
     }
 
-    const mttTournois = readCalendar("Calendrier", "mtt");
+    const mttTournois = readCalendar("Calendrier MTT", "mtt");
     const sngTournois = readCalendar("Calendrier SNG", "sng");
     const tournois = [...mttTournois, ...sngTournois];
 
@@ -154,7 +154,7 @@ function doGet(e) {
       return { maxJoueursParTable, startingStack, structures: structuresDynamiques };
     }
 
-    const structMTT = readStructure("Structure");
+    const structMTT = readStructure("Structure MTT");
     const structSNG = readStructure("Structure SNG");
 
     let sheetInsc = ss.getSheetByName("Inscriptions");
