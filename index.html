@@ -256,6 +256,37 @@
         let chronoTimer = null;
         let globalSyncTimer = null;
 
+        // File d'attente séquentielle pour éviter les collisions LockService sur Google Apps Script
+        let postQueue = Promise.resolve();
+
+        function enqueuePostRequest(payload, maxRetries = 3) {
+            const task = async () => {
+                for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                    try {
+                        const res = await fetch(scriptUrl, {
+                            method: "POST",
+                            body: JSON.stringify(payload)
+                        });
+                        const text = await res.text();
+                        let json = {};
+                        try { json = JSON.parse(text); } catch (e) {}
+
+                        if (json.status === "error" && json.message && json.message.includes("Serveur occupé") && attempt < maxRetries) {
+                            await new Promise(r => setTimeout(r, 800 * attempt));
+                            continue;
+                        }
+                        return json;
+                    } catch (err) {
+                        if (attempt === maxRetries) throw err;
+                        await new Promise(r => setTimeout(r, 800 * attempt));
+                    }
+                }
+            };
+            const resultPromise = postQueue.then(task, task);
+            postQueue = resultPromise.catch(() => {});
+            return resultPromise;
+        }
+
         window.onload = function() {
             mettreAJourBoutonMasterUI();
 
@@ -549,15 +580,11 @@
             fermerModalLogin();
 
             try {
-                const response = await fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({
-                        action: "loginMaster",
-                        username: userSaisi,
-                        password: pwdSaisi
-                    })
+                const result = await enqueuePostRequest({
+                    action: "loginMaster",
+                    username: userSaisi,
+                    password: pwdSaisi
                 });
-                const result = await response.json();
 
                 if (result.status === "success") {
                     masterToken = result.masterToken;
@@ -631,14 +658,10 @@
             }
 
             try {
-                const response = await fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({
-                        action: "verifyClubPassword",
-                        clubPassword: pwdSaisi
-                    })
+                const result = await enqueuePostRequest({
+                    action: "verifyClubPassword",
+                    clubPassword: pwdSaisi
                 });
-                const result = await response.json();
 
                 if (result.status === "success") {
                     fermerModalClub(pwdSaisi);
@@ -751,7 +774,7 @@
         }
 
         function saveGameStateToSheet() {
-            if (!scriptUrl || !activeTournoiId || !isMaster) return;
+            if (!scriptUrl || !activeTournoiId || !isMaster) return Promise.resolve();
 
             const alertBox = document.getElementById('live-alertes');
             let consigneActuelle = alertBox ? alertBox.innerHTML : "";
@@ -769,14 +792,11 @@
                 derniereAlerte: consigneActuelle
             };
 
-            fetch(scriptUrl, {
-                method: "POST",
-                body: JSON.stringify({
-                    tournoiId: activeTournoiId,
-                    action: "saveState",
-                    masterToken: masterToken,
-                    state: state
-                })
+            return enqueuePostRequest({
+                tournoiId: activeTournoiId,
+                action: "saveState",
+                masterToken: masterToken,
+                state: state
             }).catch(err => console.error("Erreur saveState:", err));
         }
 
@@ -837,9 +857,11 @@
             inscrireJoueurWithPassword(clubPassword);
 
             if (scriptUrl) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "ajouterJoueur", clubPassword: clubPassword, masterToken: isMaster ? masterToken : null, joueur: cleanNom })
+                enqueuePostRequest({
+                    action: "ajouterJoueur",
+                    clubPassword: clubPassword,
+                    masterToken: isMaster ? masterToken : null,
+                    joueur: cleanNom
                 }).catch(err => console.error("Erreur ajout joueur:", err));
             }
         }
@@ -936,15 +958,12 @@
                 updateInscritsUI();
 
                 if (scriptUrl && activeTournoiId) {
-                    fetch(scriptUrl, {
-                        method: "POST",
-                        body: JSON.stringify({ 
-                            tournoiId: activeTournoiId, 
-                            joueur: joueur, 
-                            action: "inscrire", 
-                            clubPassword: clubPassword,
-                            masterToken: isMaster ? masterToken : null 
-                        })
+                    enqueuePostRequest({ 
+                        tournoiId: activeTournoiId, 
+                        joueur: joueur, 
+                        action: "inscrire", 
+                        clubPassword: clubPassword,
+                        masterToken: isMaster ? masterToken : null 
                     });
                 }
             }
@@ -994,15 +1013,12 @@
             updateInscritsUI();
 
             if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ 
-                        tournoiId: activeTournoiId, 
-                        joueur: joueur, 
-                        action: "inscrire", 
-                        clubPassword: clubPassword,
-                        masterToken: isMaster ? masterToken : null 
-                    })
+                enqueuePostRequest({ 
+                    tournoiId: activeTournoiId, 
+                    joueur: joueur, 
+                    action: "inscrire", 
+                    clubPassword: clubPassword,
+                    masterToken: isMaster ? masterToken : null 
                 });
             }
         }
@@ -1074,19 +1090,19 @@
             saveGameStateToSheet();
 
             if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ 
-                        tournoiId: activeTournoiId, 
-                        joueur: joueur, 
-                        action: "inscrire", 
-                        clubPassword: clubPassword,
-                        masterToken: isMaster ? masterToken : null 
-                    })
+                enqueuePostRequest({ 
+                    tournoiId: activeTournoiId, 
+                    joueur: joueur, 
+                    action: "inscrire", 
+                    clubPassword: clubPassword,
+                    masterToken: isMaster ? masterToken : null 
                 });
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: true, masterToken: masterToken })
+                enqueuePostRequest({ 
+                    tournoiId: activeTournoiId, 
+                    joueur: joueur, 
+                    action: "present", 
+                    present: true, 
+                    masterToken: masterToken 
                 });
             }
         }
@@ -1097,7 +1113,6 @@
             const finalTableSize = getFinalTableSize(maxPerTable);
             listeJoueurs.sort(() => Math.random() - 0.5);
 
-            // Si le nombre total de joueurs tient en Table Finale (+1 en 6/7-max), on crée une seule table
             const nbTables = (listeJoueurs.length <= finalTableSize) ? 1 : Math.ceil(listeJoueurs.length / maxPerTable);
             const seatsPerTable = (nbTables === 1 && listeJoueurs.length > maxPerTable) ? finalTableSize : maxPerTable;
 
@@ -1163,15 +1178,12 @@
             }
 
             if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ 
-                        tournoiId: activeTournoiId, 
-                        joueur: joueur, 
-                        action: "desinscrire", 
-                        clubPassword: clubPassword,
-                        masterToken: isMaster ? masterToken : null 
-                    })
+                enqueuePostRequest({ 
+                    tournoiId: activeTournoiId, 
+                    joueur: joueur, 
+                    action: "desinscrire", 
+                    clubPassword: clubPassword,
+                    masterToken: isMaster ? masterToken : null 
                 });
             }
         }
@@ -1191,9 +1203,12 @@
             updateInscritsUI();
 
             if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur: joueur, action: "present", present: newPresent, masterToken: masterToken })
+                enqueuePostRequest({ 
+                    tournoiId: activeTournoiId, 
+                    joueur: joueur, 
+                    action: "present", 
+                    present: newPresent, 
+                    masterToken: masterToken 
                 }).then(() => {
                     if (tablesGenerees !== null && isMaster) {
                         saveGameStateToSheet();
@@ -1226,7 +1241,6 @@
             const totalJoueurs = inscritsNoms.length;
             totalJoueursInitial = totalJoueurs;
 
-            // Si MTT et effectif initial <= taille de la table finale (ex: 7 joueurs en 6-max), on démarre directement en Table Finale
             const isDirectFinalTable = (!isSNG && totalJoueurs <= finalTableSize && totalJoueurs > maxPerTable);
             const nbTables = isDirectFinalTable ? 1 : Math.ceil(totalJoueurs / maxPerTable);
             const seatsCount = isDirectFinalTable ? finalTableSize : maxPerTable;
@@ -1444,19 +1458,17 @@
                         let dernierTable = actifsTable[0].player;
                         let dejaEnregistre = joueursEliminesHistorique.some(item => item.joueur === dernierTable && item.origTableId == tId);
                         if (!dejaEnregistre && isMaster) {
-                            joueursEliminesHistorique.push({ joueur: dernierTable, classement: 1, origTableId: tId, origSeat: seats.find(s => s.player === dernierTable).seat });
-                            seats.find(s => s.player === dernierTable).player = null;
+                            const seatWinner = seats.find(s => s.player === dernierTable);
+                            joueursEliminesHistorique.push({ joueur: dernierTable, classement: 1, origTableId: tId, origSeat: seatWinner.seat });
+                            seatWinner.player = null;
                             if (scriptUrl && activeTournoiId) {
-                                fetch(scriptUrl, {
-                                    method: "POST",
-                                    body: JSON.stringify({
-                                        tournoiId: activeTournoiId,
-                                        joueur: dernierTable,
-                                        action: "eliminer",
-                                        masterToken: masterToken,
-                                        classement: 1,
-                                        tableNum: tId
-                                    })
+                                enqueuePostRequest({
+                                    tournoiId: activeTournoiId,
+                                    joueur: dernierTable,
+                                    action: "eliminer",
+                                    masterToken: masterToken,
+                                    classement: 1,
+                                    tableNum: tId
                                 }).catch(err => console.error("Erreur enregistrement vainqueur table SNG:", err));
                             }
                         }
@@ -1480,37 +1492,72 @@
 
             if (totalJoueursActifs === 0) return;
 
+            // Détection de la fin du tournoi MTT (1 dernier joueur restant)
             if (totalJoueursActifs === 1 && !appData.tournoisTermines[activeTournoiId]) {
                 let dernierJoueur = null;
-                for (const seats of Object.values(tablesGenerees)) {
+                let winnerTableId = null;
+                let winnerSeat = null;
+
+                for (const [tId, seats] of Object.entries(tablesGenerees)) {
                     const s = seats.find(seat => seat.player !== null);
-                    if (s) { dernierJoueur = s.player; break; }
+                    if (s) {
+                        dernierJoueur = s.player;
+                        winnerTableId = tId;
+                        winnerSeat = s;
+                        break;
+                    }
                 }
 
                 if (dernierJoueur && isMaster) {
                     if (chronoIsRunning) toggleChrono();
 
-                    if (scriptUrl && activeTournoiId) {
-                        fetch(scriptUrl, {
-                            method: "POST",
-                            body: JSON.stringify({
-                                tournoiId: activeTournoiId,
-                                joueur: dernierJoueur,
-                                action: "eliminer",
-                                masterToken: masterToken,
-                                classement: 1
-                            })
-                        }).catch(err => console.error("Erreur enregistrement vainqueur:", err));
+                    // Enregistrer le vainqueur en #1 dans le classement du tournoi en cours et libérer son siège
+                    const dejaClasse = joueursEliminesHistorique.some(item => item.joueur === dernierJoueur);
+                    if (!dejaClasse) {
+                        joueursEliminesHistorique.push({
+                            joueur: dernierJoueur,
+                            classement: 1,
+                            origTableId: winnerTableId,
+                            origSeat: winnerSeat.seat
+                        });
                     }
+                    winnerSeat.player = null;
 
                     appData.tournoisTermines[activeTournoiId] = dernierJoueur;
                     checkTournoiLockStatus();
-                    
-                    setTimeout(() => {
-                        loadDataFromSheet();
-                    }, 1500);
+                    renderTablesUI();
+                    recalculerStatistiquesLive();
 
-                    alert(`🏆 TOURNOI TERMINÉ !\n\nVainqueur : ${dernierJoueur}.\nLe classement général a été mis à jour.`);
+                    const selElim = document.getElementById('select-eliminer');
+                    if (selElim) selElim.innerHTML = '<option value="" disabled selected>-- Tournoi terminé --</option>';
+
+                    const alertBox = document.getElementById('live-alertes');
+                    if (alertBox) {
+                        alertBox.innerHTML = `🏆 <b>TOURNOI TERMINÉ !</b><br>Vainqueur : <b>${dernierJoueur}</b>`;
+                        alertBox.className = "alert alert-action";
+                    }
+
+                    // Sauvegarde séquentielle : d'abord enregistrer le #1 sur la feuille, puis l'état, puis recharger le classement général
+                    if (scriptUrl && activeTournoiId) {
+                        enqueuePostRequest({
+                            tournoiId: activeTournoiId,
+                            joueur: dernierJoueur,
+                            action: "eliminer",
+                            masterToken: masterToken,
+                            classement: 1
+                        })
+                        .then(() => saveGameStateToSheet())
+                        .then(() => {
+                            // Laisser 2 secondes à Google Sheets pour recalculer ses formules de points avant de recharger
+                            setTimeout(() => {
+                                loadDataFromSheet();
+                            }, 2000);
+                        })
+                        .catch(err => console.error("Erreur enregistrement vainqueur:", err));
+                    }
+
+                    alert(`🏆 TOURNOI TERMINÉ !\n\nVainqueur : ${dernierJoueur}.\nLe classement général va être mis à jour.`);
+                    return;
                 }
             }
 
@@ -1528,7 +1575,6 @@
                 const tableAFermerId = tablesActivesIds[randIndex];
                 const joueursAFermer = tablesGenerees[tableAFermerId].filter(s => s.player !== null).map(s => s.player);
 
-                // Si passage en Table Finale à +1 joueur (ex: 7 joueurs en 6-max), on ajoute dynamiquement le siège supplémentaire sur la table restante
                 if (isFinalTableBreak) {
                     const tableFinaleId = tablesActivesIds.find(id => id !== tableAFermerId);
                     if (tableFinaleId && tablesGenerees[tableFinaleId].length < finalTableSize) {
@@ -1641,6 +1687,7 @@
                 let html = '';
                 Array.from(tablesIds).sort((a,b) => a - b).forEach(tNum => {
                     let eliminesTable = joueursEliminesHistorique.filter(item => item.origTableId == tNum);
+                    // Ordre croissant : 1er en haut, dernier en bas
                     eliminesTable.sort((a, b) => a.classement - b.classement);
 
                     html += `<div class="card" style="margin-bottom:1rem;">
@@ -1663,18 +1710,20 @@
                 return;
             }
 
-            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
+            // MTT : Ordre croissant (du mieux classé #1 en haut au moins bien classé en bas)
+            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => a.classement - b.classement);
             if (eliminesTries.length === 0) {
                 container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucun joueur éliminé pour le moment.</p>`;
                 return;
             }
 
-            let mttHtml = `<p style="font-size:0.75rem; color:#94a3b8; margin-bottom:1rem;">Glissez-déposez les joueurs éliminés pour réajuster leur ordre de classement si besoin.</p>`;
+            let mttHtml = `<p style="font-size:0.75rem; color:#94a3b8; margin-bottom:1rem;">Classés du mieux placé au moins bien placé. Glissez-déposez pour réajuster l'ordre si besoin.</p>`;
             eliminesTries.forEach((item, index) => {
                 const draggableAttr = isMaster ? `draggable="true" ondragstart="onDragClassementStart(event, ${index})" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDropClassement(event, ${index})"` : '';
+                const rankBadge = item.classement === 1 ? `🏆 #1` : `#${item.classement}`;
                 mttHtml += `
                     <div class="classement-item" ${draggableAttr}>
-                        <span style="font-weight:bold; color:#fbbf24; width:30px;">#${item.classement}</span>
+                        <span style="font-weight:bold; color:#fbbf24; width:45px;">${rankBadge}</span>
                         <span style="flex-grow:1; font-weight:500;">${item.joueur}</span>
                         <span style="font-size:0.75rem; color:#94a3b8;">${isMaster ? 'Glisser pour réordonner' : ''}</span>
                     </div>
@@ -1694,14 +1743,16 @@
             event.currentTarget.classList.remove('drag-over');
             if (dragClassementIndex === null || dragClassementIndex === targetIndex || !checkMastershipBeforeAction()) return;
 
-            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => b.classement - a.classement);
+            // Tri croissant (du mieux classé au moins bien classé)
+            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => a.classement - b.classement);
             const movedItem = eliminesTries.splice(dragClassementIndex, 1)[0];
             eliminesTries.splice(targetIndex, 0, movedItem);
 
-            const baseClassementPire = totalJoueursInitial || (eliminesTries.length + 1);
+            // La meilleure place parmi les classés (ex: 1 si le tournoi est fini, ou 3 s'il reste 2 joueurs actifs)
+            const baseClassementMeilleur = Math.min(...eliminesTries.map(i => i.classement));
 
             eliminesTries.forEach((item, idx) => {
-                item.classement = baseClassementPire - idx;
+                item.classement = baseClassementMeilleur + idx;
             });
 
             joueursEliminesHistorique = eliminesTries;
@@ -1715,14 +1766,11 @@
             });
 
             if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({
-                        tournoiId: activeTournoiId,
-                        action: "updateClassementBatch",
-                        masterToken: masterToken,
-                        classementMap: classementMap
-                    })
+                enqueuePostRequest({
+                    tournoiId: activeTournoiId,
+                    action: "updateClassementBatch",
+                    masterToken: masterToken,
+                    classementMap: classementMap
                 }).catch(err => console.error("Erreur synchro classement:", err));
             }
         }
@@ -1941,9 +1989,10 @@
             saveGameStateToSheet();
 
             if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, action: "resetTournament", masterToken: masterToken })
+                enqueuePostRequest({
+                    tournoiId: activeTournoiId,
+                    action: "resetTournament",
+                    masterToken: masterToken
                 }).catch(err => console.error("Erreur reset:", err));
             }
         }
@@ -2023,31 +2072,33 @@
                 tablesGenerees[origTableId].find(s => s.seat == origSeat).player = null;
             }
 
-            initLive();
-            saveGameStateToSheet();
-
+            // On envoie d'abord l'élimination dans la file d'attente AVANT que initLive() ne déclenche saveState ou l'enregistrement du vainqueur
             if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ 
-                        tournoiId: activeTournoiId, 
-                        joueur, 
-                        action: "eliminer", 
-                        masterToken: masterToken, 
-                        classement: classementAttribue,
-                        tableNum: origTableId 
-                    })
+                enqueuePostRequest({ 
+                    tournoiId: activeTournoiId, 
+                    joueur, 
+                    action: "eliminer", 
+                    masterToken: masterToken, 
+                    classement: classementAttribue,
+                    tableNum: origTableId 
                 })
-                .then(res => res.json())
                 .then(res => {
-                    if (res.status === "error") {
-                        alert("Erreur Apps Script : " + res.message);
-                    } else {
-                        console.log("Élimination enregistrée avec succès");
+                    if (res && res.status === "error") {
+                        alert("⚠️ Erreur serveur lors de l'élimination de " + joueur + " : " + res.message + "\nLe joueur a été replacé à sa table.");
+                        // Annulation locale en cas d'échec serveur
+                        const idx = joueursEliminesHistorique.findIndex(i => i.joueur === joueur);
+                        if (idx !== -1) joueursEliminesHistorique.splice(idx, 1);
+                        if (tablesGenerees && origTableId) {
+                            tablesGenerees[origTableId].find(s => s.seat == origSeat).player = joueur;
+                        }
+                        initLive();
                     }
                 })
                 .catch(err => console.error("Erreur réseau:", err));
             }
+
+            initLive();
+            saveGameStateToSheet();
         }
 
         function reintegrerJoueur() {
@@ -2098,15 +2149,18 @@
                 }
             }
 
-            initLive();
-            saveGameStateToSheet();
-
             if (scriptUrl && activeTournoiId) {
-                fetch(scriptUrl, {
-                    method: "POST",
-                    body: JSON.stringify({ tournoiId: activeTournoiId, joueur, action: "reintegrer", masterToken: masterToken, eliminationsFutures })
+                enqueuePostRequest({
+                    tournoiId: activeTournoiId,
+                    joueur,
+                    action: "reintegrer",
+                    masterToken: masterToken,
+                    eliminationsFutures
                 }).catch(err => console.error("Erreur reintegration:", err));
             }
+
+            initLive();
+            saveGameStateToSheet();
         }
     </script>
 </body>
