@@ -177,63 +177,14 @@ function doGet(e) {
       }
     }
 
-    function readClassement(sheetName, relevantTournois, prefixType) {
-      let classementGeneral = [];
-      let tournoisTermines = {};
-      const sheetClassement = ss.getSheetByName(sheetName);
+    // Utilisation du cache pour les classements généraux
+    const mttData = getCachedClassementData(ss, "Classement MTT", mttTournois, "MTT");
+    const sngData = getCachedClassementData(ss, "Classement SNG", sngTournois, "SNG");
+    
+    // Enregistrement des joueurs découverts dans les classements
+    mttData.classementGeneral.forEach(row => verifierEtAjouterJoueur(ss, row.joueur, joueurs));
+    sngData.classementGeneral.forEach(row => verifierEtAjouterJoueur(ss, row.joueur, joueurs));
 
-      if (sheetClassement) {
-        const lastRow = Math.max(sheetClassement.getLastRow(), 58);
-        const rangeData = sheetClassement.getRange(5, 1, lastRow - 4, 8).getValues();
-        
-        for (let r = 0; r < rangeData.length; r++) {
-          const row = rangeData[r];
-          const joueurNom = String(row[1] || "").trim();
-          
-          if (joueurNom !== "" && joueurNom.toLowerCase() !== "joueur" && joueurNom.toLowerCase() !== "pseudo") {
-            classementGeneral.push({
-              classement: parseInt(row[2], 10) || 999,
-              joueur: joueurNom,
-              points: parseFloat(row[3]) || 0,
-              pointsTous: parseFloat(row[4]) || 0,
-              win: parseInt(row[5], 10) || 0,
-              itm: parseInt(row[6], 10) || 0,
-              participations: parseInt(row[7], 10) || 0
-            });
-            verifierEtAjouterJoueur(ss, joueurNom, joueurs);
-          }
-        }
-
-        classementGeneral.sort((a, b) => a.classement - b.classement);
-
-        const fullRows = sheetClassement.getDataRange().getValues();
-        relevantTournois.forEach(t => {
-          let colIndex = -1;
-          let jColIndex = -1;
-          const colHeader = prefixType === "MTT" ? `MTT ${t.rawId}` : `${t.intitule} - Table`;
-          for (let r = 0; r < fullRows.length; r++) {
-            for (let c = 0; c < fullRows[r].length; c++) {
-              const val = String(fullRows[r][c]).trim();
-              if (val === "Joueur" && jColIndex === -1) jColIndex = c;
-              if (prefixType === "MTT" && val === colHeader && colIndex === -1) colIndex = c;
-              if (prefixType === "SNG" && val.startsWith(`${t.intitule} - Table`) && colIndex === -1) colIndex = c;
-            }
-          }
-          if (jColIndex !== -1 && colIndex !== -1) {
-            for (let r = 0; r < fullRows.length; r++) {
-              if (String(fullRows[r][colIndex]).trim() === "1") {
-                tournoisTermines[t.id] = String(fullRows[r][jColIndex]).trim();
-                break;
-              }
-            }
-          }
-        });
-      }
-      return { classementGeneral, tournoisTermines };
-    }
-
-    const mttData = readClassement("Classement MTT", mttTournois, "MTT");
-    const sngData = readClassement("Classement SNG", sngTournois, "SNG");
     const tournoisTermines = { ...mttData.tournoisTermines, ...sngData.tournoisTermines };
 
     let allStates = {};
@@ -412,6 +363,7 @@ function doPost(e) {
           }
         }
       }
+      clearClassementCache(); // Invalidation du cache des classements
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -471,6 +423,7 @@ function doPost(e) {
           }
         }
       }
+      clearClassementCache(); // Invalidation du cache des classements
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -490,6 +443,7 @@ function doPost(e) {
     if (action === "eliminer") {
       const tableNum = data.tableNum !== undefined ? data.tableNum : (data.table !== undefined ? data.table : 1);
       updateClassementSheet(ss, tournoiId, data.joueur, data.classement, tableNum);
+      clearClassementCache(); // Invalidation du cache des classements à chaque élimination / enregistrement de résultat
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -557,6 +511,7 @@ function doPost(e) {
           });
         }
       }
+      clearClassementCache(); // Invalidation du cache des classements
       return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -613,6 +568,83 @@ function verifierEtAjouterJoueur(ss, nomJoueur, listeActuelle) {
     sheetJoueurs.appendRow([cleanNom]);
     listeActuelle.push(cleanNom);
   }
+}
+
+// Fonctions de gestion du cache des classements généraux
+function readClassement(ss, sheetName, relevantTournois, prefixType) {
+  let classementGeneral = [];
+  let tournoisTermines = {};
+  const sheetClassement = ss.getSheetByName(sheetName);
+
+  if (sheetClassement) {
+    const lastRow = Math.max(sheetClassement.getLastRow(), 58);
+    const rangeData = sheetClassement.getRange(5, 1, lastRow - 4, 8).getValues();
+    
+    for (let r = 0; r < rangeData.length; r++) {
+      const row = rangeData[r];
+      const joueurNom = String(row[1] || "").trim();
+      
+      if (joueurNom !== "" && joueurNom.toLowerCase() !== "joueur" && joueurNom.toLowerCase() !== "pseudo") {
+        classementGeneral.push({
+          classement: parseInt(row[2], 10) || 999,
+          joueur: joueurNom,
+          points: parseFloat(row[3]) || 0,
+          pointsTous: parseFloat(row[4]) || 0,
+          win: parseInt(row[5], 10) || 0,
+          itm: parseInt(row[6], 10) || 0,
+          participations: parseInt(row[7], 10) || 0
+        });
+      }
+    }
+
+    classementGeneral.sort((a, b) => a.classement - b.classement);
+
+    const fullRows = sheetClassement.getDataRange().getValues();
+    relevantTournois.forEach(t => {
+      let colIndex = -1;
+      let jColIndex = -1;
+      const colHeader = prefixType === "MTT" ? `MTT ${t.rawId}` : `${t.intitule} - Table`;
+      for (let r = 0; r < fullRows.length; r++) {
+        for (let c = 0; c < fullRows[r].length; c++) {
+          const val = String(fullRows[r][c]).trim();
+          if (val === "Joueur" && jColIndex === -1) jColIndex = c;
+          if (prefixType === "MTT" && val === colHeader && colIndex === -1) colIndex = c;
+          if (prefixType === "SNG" && val.startsWith(`${t.intitule} - Table`) && colIndex === -1) colIndex = c;
+        }
+      }
+      if (jColIndex !== -1 && colIndex !== -1) {
+        for (let r = 0; r < fullRows.length; r++) {
+          if (String(fullRows[r][colIndex]).trim() === "1") {
+            tournoisTermines[t.id] = String(fullRows[r][jColIndex]).trim();
+            break;
+          }
+        }
+      }
+    });
+  }
+  return { classementGeneral, tournoisTermines };
+}
+
+function getCachedClassementData(ss, sheetName, relevantTournois, prefixType) {
+  const cache = CacheService.getDocumentCache();
+  const cacheKey = 'poker_classement_data_' + prefixType;
+  const cachedData = cache.get(cacheKey);
+
+  if (cachedData) {
+    try {
+      return JSON.parse(cachedData);
+    } catch (e) {}
+  }
+
+  const data = readClassement(ss, sheetName, relevantTournois, prefixType);
+  cache.put(cacheKey, JSON.stringify(data), 21600); // Cache valide pendant 6 heures
+  return data;
+}
+
+function clearClassementCache() {
+  const cache = CacheService.getDocumentCache();
+  cache.remove('poker_classement_data_MTT');
+  cache.remove('poker_classement_data_SNG');
 }
 
 // Fonction utilitaire de normalisation (gère les accents, la casse et les espaces de formules)
