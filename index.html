@@ -279,6 +279,24 @@
             return (appData.tournois || []).find(t => t.id === activeTournoiId) || null;
         }
 
+        function getDeadlineClassementLundi23h(dateStr) {
+            if (!dateStr || !dateStr.includes('/')) return null;
+            const parts = dateStr.split('/');
+            if (parts.length !== 3) return null;
+
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            let year = parseInt(parts[2], 10);
+            if (year < 100) year += 2000;
+
+            const d = new Date(year, month, day, 23, 0, 0, 0);
+            // getDay() : 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
+            const dayOfWeek = d.getDay();
+            const daysUntilMonday = (dayOfWeek === 1) ? 0 : (8 - dayOfWeek) % 7;
+            d.setDate(d.getDate() + daysUntilMonday);
+            return d.getTime();
+        }
+
         function getFinalTableSize(maxPerTable) {
             if (maxPerTable === 6 || maxPerTable === 7) {
                 return maxPerTable + 1;
@@ -660,18 +678,32 @@
                     if (data.structures) appData.structures = data.structures;
 
                     let actifDemare = null;
+                    let termineRecent = null;
+                    const now = Date.now();
+
                     if (appData.tournois && appData.allStates) {
                         for (const t of appData.tournois) {
                             const state = appData.allStates[t.id];
                             const estTermine = appData.tournoisTermines && appData.tournoisTermines[t.id];
+
                             if (state && (state.tablesGenerees || state.chronoIsRunning) && !estTermine) {
                                 actifDemare = t.id;
                                 break;
                             }
+
+                            if (estTermine && t.date) {
+                                const deadline = getDeadlineClassementLundi23h(t.date);
+                                if (deadline && now < deadline) {
+                                    termineRecent = t.id;
+                                }
+                            }
                         }
                     }
+
                     if (actifDemare) {
                         appData.prochainTournoiId = actifDemare;
+                    } else if (termineRecent) {
+                        appData.prochainTournoiId = termineRecent;
                     }
 
                     populateDropdowns();
@@ -689,6 +721,8 @@
 
                     if (actifDemare) {
                         switchTab('live');
+                    } else if (termineRecent) {
+                        switchTab('classement');
                     }
 
                     document.getElementById('global-loader').style.display = 'none';
@@ -1560,6 +1594,7 @@
                     }
 
                     alert(`🏆 TOURNOI TERMINÉ !\n\nVainqueur : ${dernierJoueur}.\nLe classement général va être mis à jour.`);
+                    switchTab('classement');
                     return;
                 }
             }
@@ -2162,3 +2197,4 @@
     </script>
 </body>
 </html>
+```[cite: 5]
