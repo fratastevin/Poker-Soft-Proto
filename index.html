@@ -664,7 +664,7 @@
                         for (const t of appData.tournois) {
                             const state = appData.allStates[t.id];
                             const estTermine = appData.tournoisTermines && appData.tournoisTermines[t.id];
-                            if (state && state.tablesGenerees && !estTermine) {
+                            if (state && (state.tablesGenerees || state.chronoIsRunning) && !estTermine) {
                                 actifDemare = t.id;
                                 break;
                             }
@@ -686,6 +686,10 @@
                     checkTournoiLockStatus();
                     renderClassementGeneralMTTUI();
                     renderClassementGeneralSNGUI();
+
+                    if (actifDemare) {
+                        switchTab('live');
+                    }
 
                     document.getElementById('global-loader').style.display = 'none';
                     startGlobalSync();
@@ -752,6 +756,12 @@
         function saveGameStateToSheet() {
             if (!scriptUrl || !activeTournoiId || !isMaster) return;
 
+            const remoteState = appData.allStates && appData.allStates[activeTournoiId];
+            if (!tablesGenerees && remoteState && remoteState.tablesGenerees) {
+                console.warn("Sauvegarde bloquée : tablesGenerees est null localement alors que des tables existent sur le serveur.");
+                return;
+            }
+
             const alertBox = document.getElementById('live-alertes');
             let consigneActuelle = alertBox ? alertBox.innerHTML : "";
 
@@ -767,6 +777,9 @@
                 chronoIsRunning: chronoIsRunning,
                 derniereAlerte: consigneActuelle
             };
+
+            if (!appData.allStates) appData.allStates = {};
+            appData.allStates[activeTournoiId] = state;
 
             fetch(scriptUrl, {
                 method: "POST",
@@ -1132,6 +1145,11 @@
 
         function desinscrireJoueurDirect(joueur, clubPassword) {
             const isTournoiStarted = tablesGenerees !== null;
+
+            if (isTournoiStarted && !isMaster) {
+                alert("❌ Le tournoi a déjà démarré. Seul le Maître du tournoi peut retirer un joueur.");
+                return;
+            }
 
             if (isTournoiStarted) {
                 let trouveTable = false;
@@ -2054,6 +2072,7 @@
                 tablesGenerees[origTableId].find(s => s.seat == origSeat).player = null;
             }
 
+            renderTablesUI();
             initLive();
             saveGameStateToSheet();
 
@@ -2129,6 +2148,7 @@
                 }
             }
 
+            renderTablesUI();
             initLive();
             saveGameStateToSheet();
 
