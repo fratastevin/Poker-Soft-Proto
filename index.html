@@ -2,9 +2,9 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-	<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
-    <meta name="googlebot" content="noindex, nofollow">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+    <meta name="googlebot" content="noindex, nofollow">
     <title>Poker Club Manager - Connected</title>
     <style>
         body { font-family: ui-sans-serif, system-ui, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
@@ -249,6 +249,8 @@
         let bloquerLastMinute = false;
         let alerteIgnoree = false;
         let lastLocalInscriptionTime = 0;
+        let isDraggingClassement = false;
+        let draggedPlayerName = null;
 
         let niveauActuel = 1;
         let dureeNiveauSec = 1200;
@@ -292,7 +294,6 @@
             if (year < 100) year += 2000;
 
             const d = new Date(year, month, day, 23, 0, 0, 0);
-            // getDay() : 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
             const dayOfWeek = d.getDay();
             const daysUntilMonday = (dayOfWeek === 1) ? 0 : (8 - dayOfWeek) % 7;
             d.setDate(d.getDate() + daysUntilMonday);
@@ -387,7 +388,7 @@
                             renderClassementGeneralSNGUI();
                         }
 
-                        if (!document.getElementById('tab-classement').classList.contains('hidden')) {
+                        if (!document.getElementById('tab-classement').classList.contains('hidden') && !isDraggingClassement) {
                             renderClassementUI();
                         }
 
@@ -1353,7 +1354,8 @@
                 let seatsHtml = '';
                 seats.forEach(s => {
                     const playerDisplay = s.player ? `<span class="seat-player">${s.player}</span>` : `<span class="seat-empty">Siège vide</span>`;
-                    const draggableAttr = (s.player && isMaster) ? `draggable="true" ondragstart="onDragStart(event, '${tNum}', '${s.seat}', '${s.player}')"` : '';
+                    const safePlayer = s.player ? s.player.replace(/'/g, "\\'") : '';
+                    const draggableAttr = (s.player && isMaster) ? `draggable="true" ondragstart="onDragStart(event, '${tNum}', '${s.seat}', '${safePlayer}')"` : '';
                     
                     seatsHtml += `
                         <div class="seat-item" ${draggableAttr} ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, '${tNum}', '${s.seat}')">
@@ -1748,15 +1750,25 @@
                 return;
             }
 
-            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => a.classement - b.classement);
+            const uniquesMap = new Map();
+            joueursEliminesHistorique.forEach(item => {
+                if (!uniquesMap.has(item.joueur)) {
+                    uniquesMap.set(item.joueur, item);
+                }
+            });
+            let eliminesTries = Array.from(uniquesMap.values()).sort((a, b) => a.classement - b.classement);
+
             if (eliminesTries.length === 0) {
                 container.innerHTML = `<p style="color:#94a3b8; font-style:italic;">Aucun joueur éliminé pour le moment.</p>`;
                 return;
             }
 
             let mttHtml = `<p style="font-size:0.75rem; color:#94a3b8; margin-bottom:1rem;">Classés du mieux placé au moins bien placé. Glissez-déposez pour réajuster l'ordre si besoin.</p>`;
-            eliminesTries.forEach((item, index) => {
-                const draggableAttr = isMaster ? `draggable="true" ondragstart="onDragClassementStart(event, ${index})" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDropClassement(event, ${index})"` : '';
+            eliminesTries.forEach((item) => {
+                const safePlayer = item.joueur.replace(/'/g, "\\'");
+                const draggableAttr = isMaster
+                    ? `draggable="true" ondragstart="onDragClassementStart(event, '${safePlayer}')" ondragend="onDragClassementEnd()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDropClassement(event, '${safePlayer}')"`
+                    : '';
                 const rankBadge = item.classement === 1 ? `🏆 #1` : `#${item.classement}`;
                 mttHtml += `
                     <div class="classement-item" ${draggableAttr}>
@@ -1769,29 +1781,58 @@
             container.innerHTML = mttHtml;
         }
 
-        let dragClassementIndex = null;
-        function onDragClassementStart(event, index) {
+        function onDragClassementStart(event, playerName) {
             if (!isMaster) return;
-            dragClassementIndex = index;
+            isDraggingClassement = true;
+            draggedPlayerName = playerName;
+            event.dataTransfer.setData('text/plain', playerName);
         }
 
-        function onDropClassement(event, targetIndex) {
+        function onDragClassementEnd() {
+            isDraggingClassement = false;
+            draggedPlayerName = null;
+        }
+
+        function onDropClassement(event, targetPlayerName) {
             event.preventDefault();
             event.currentTarget.classList.remove('drag-over');
-            if (dragClassementIndex === null || dragClassementIndex === targetIndex || !checkMastershipBeforeAction()) return;
+            isDraggingClassement = false;
 
-            let eliminesTries = [...joueursEliminesHistorique].sort((a, b) => a.classement - b.classement);
-            const movedItem = eliminesTries.splice(dragClassementIndex, 1)[0];
-            eliminesTries.splice(targetIndex, 0, movedItem);
+            if (!draggedPlayerName || draggedPlayerName === targetPlayerName || !checkMastershipBeforeAction()) {
+                draggedPlayerName = null;
+                return;
+            }
 
-            const baseClassementMeilleur = Math.min(...eliminesTries.map(i => i.classement));
+            const uniquesMap = new Map();
+            joueursEliminesHistorique.forEach(item => {
+                if (!uniquesMap.has(item.joueur)) {
+                    uniquesMap.set(item.joueur, { ...item });
+                }
+            });
+            let eliminesTries = Array.from(uniquesMap.values()).sort((a, b) => a.classement - b.classement);
+
+            const fromIndex = eliminesTries.findIndex(i => i.joueur === draggedPlayerName);
+            const toIndex = eliminesTries.findIndex(i => i.joueur === targetPlayerName);
+            draggedPlayerName = null;
+
+            if (fromIndex === -1 || toIndex === -1) return;
+
+            const [movedItem] = eliminesTries.splice(fromIndex, 1);
+            eliminesTries.splice(toIndex, 0, movedItem);
+
+            let actifsRestants = 0;
+            if (tablesGenerees) {
+                for (const seats of Object.values(tablesGenerees)) {
+                    actifsRestants += seats.filter(s => s.player !== null).length;
+                }
+            }
+            const rangDepart = actifsRestants + 1;
 
             eliminesTries.forEach((item, idx) => {
-                item.classement = baseClassementMeilleur + idx;
+                item.classement = rangDepart + idx;
             });
 
             joueursEliminesHistorique = eliminesTries;
-            dragClassementIndex = null;
             renderClassementUI();
             saveGameStateToSheet();
 
@@ -1809,7 +1850,11 @@
                         masterToken: masterToken,
                         classementMap: classementMap
                     })
-                }).catch(err => console.error("Erreur synchro classement:", err));
+                })
+                .then(() => {
+                    setTimeout(() => loadDataFromSheet(), 1500);
+                })
+                .catch(err => console.error("Erreur synchro classement:", err));
             }
         }
 
