@@ -181,6 +181,8 @@ function genererTables() {
 
     tablesGenerees = tables;
     joueursEliminesHistorique = [];
+    liveActionHistory = [];
+    addLiveHistoryEntry('info', `🎲 Tables générées (${nbTables} table(s) pour ${totalJoueurs} joueur(s))`);
     renderTablesUI();
     document.getElementById('table-status-msg').innerText = isDirectFinalTable 
         ? `Table Finale directe générée (${totalJoueurs} joueurs réunis sur 1 table de ${seatsCount}).`
@@ -281,6 +283,13 @@ function onDrop(event, targetTableNum, targetSeatNum) {
     targetSeatObj.player = movingPlayer;
 
     draggedData = null;
+    const dstName = getTableDisplayName(targetTableNum);
+    const srcName = getTableDisplayName(srcTable);
+    if (targetPlayer) {
+        addLiveHistoryEntry('move', `🔄 Échange manuel : <b>${movingPlayer}</b> (${srcName} S.${srcSeat}) ↔ <b>${targetPlayer}</b> (${dstName} S.${targetSeatNum})`);
+    } else {
+        addLiveHistoryEntry('move', `🔄 Déplacement manuel : <b>${movingPlayer}</b> (${srcName} S.${srcSeat} ➔ ${dstName} S.${targetSeatNum})`);
+    }
     renderTablesUI();
     verifierEtReequilibrer();
     saveGameStateToSheet();

@@ -9,6 +9,8 @@ const PALETTE_COULEURS_CLUB = [
     { label: "Rose", hex: "#ec4899" }
 ];
 
+const MAX_LIVE_HISTORY_ITEMS = 12;
+
 let scriptUrl = "";
 
 let myClientId = localStorage.getItem('poker_client_id');
@@ -39,6 +41,7 @@ let tablesGenerees = null;
 let tablesMeta = {}; // { [tNum]: { name: "Table Rouge", color: "#ef4444" } }
 let totalJoueursInitial = 0;
 let joueursEliminesHistorique = [];
+let liveActionHistory = []; // [{ id, time, type, html }]
 let bloquerLastMinute = false;
 let alerteIgnoree = false;
 let lastLocalInscriptionTime = 0;

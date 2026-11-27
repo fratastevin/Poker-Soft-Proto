@@ -1,3 +1,58 @@
+function formatHeureAction(dateObj = new Date()) {
+    const h = dateObj.getHours().toString().padStart(2, '0');
+    const m = dateObj.getMinutes().toString().padStart(2, '0');
+    const s = dateObj.getSeconds().toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
+}
+
+function addLiveHistoryEntry(type, htmlMessage, dedupKey = null) {
+    if (!Array.isArray(liveActionHistory)) liveActionHistory = [];
+
+    if (dedupKey && liveActionHistory.length > 0 && liveActionHistory[0].dedupKey === dedupKey) {
+        return;
+    }
+
+    liveActionHistory.unshift({
+        id: 'hist_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        time: formatHeureAction(),
+        type: type || 'info',
+        html: htmlMessage,
+        dedupKey: dedupKey || null
+    });
+
+    if (liveActionHistory.length > MAX_LIVE_HISTORY_ITEMS) {
+        liveActionHistory = liveActionHistory.slice(0, MAX_LIVE_HISTORY_ITEMS);
+    }
+
+    renderLiveHistoryUI();
+}
+
+function renderLiveHistoryUI() {
+    const container = document.getElementById('live-history-log');
+    const countEl = document.getElementById('live-history-count');
+    if (!container) return;
+
+    if (!Array.isArray(liveActionHistory) || liveActionHistory.length === 0) {
+        container.innerHTML = `<div class="history-empty">Aucune action enregistrée pour le moment.</div>`;
+        if (countEl) countEl.innerText = '';
+        return;
+    }
+
+    if (countEl) {
+        countEl.innerText = `${liveActionHistory.length} dernière(s)`;
+    }
+
+    container.innerHTML = liveActionHistory.map(entry => {
+        const typeClass = `type-${entry.type || 'info'}`;
+        return `
+            <div class="history-item ${typeClass}">
+                <span class="history-time">[${entry.time}]</span>
+                <span>${entry.html}</span>
+            </div>
+        `;
+    }).join('');
+}
+
 function recalculerStatistiquesLive() {
     let tousJoueursActifs = [];
     if (tablesGenerees) {
@@ -38,6 +93,7 @@ function consignesContiennentUneAlerte(htmlTexte) {
 
 function initLive() {
     recalculerStatistiquesLive();
+    renderLiveHistoryUI();
 
     const tour = getActiveTournoi();
     const isSNG = (tour && tour.type === 'SNG');
@@ -48,7 +104,6 @@ function initLive() {
         for (const seats of Object.values(tablesGenerees)) {
             seats.forEach(s => {
                 if (s.player) {
-                    // En SNG, exclure les joueurs déjà 1ers de table (vainqueurs)
                     if (isSNG && dejaClassesSet.has(s.player)) return;
                     tousJoueursActifs.push(s.player);
                 }
@@ -90,6 +145,8 @@ function marquerAlerteCompris() {
     alertBox.className = "alert";
     eqSpan.innerText = "OK";
     eqSpan.style.color = "#34d399";
+    addLiveHistoryEntry('info', 'Consigne de mouvement acquittée par le Master.');
+    saveGameStateToSheet();
 }
 
 function verifierEtReequilibrer() {
@@ -123,6 +180,12 @@ function verifierEtReequilibrer() {
                     });
                     if (seatWinner) seatWinner.player = null;
                     changedSNG = true;
+
+                    addLiveHistoryEntry(
+                        'info',
+                        `🏆 Vainqueur ${getTableDisplayName(validTableNum)} : <b>${dernierTable}</b> (#1)`,
+                        `sng_win_${validTableNum}_${dernierTable}`
+                    );
 
                     if (scriptUrl && activeTournoiId) {
                         enqueuePostRequest({
@@ -202,6 +265,8 @@ function verifierEtReequilibrer() {
                 alertBox.className = "alert alert-action";
             }
 
+            addLiveHistoryEntry('info', `🏆 <b>Tournoi terminé !</b> Vainqueur : <b>${dernierJoueur}</b> (#1)`, `mtt_win_${dernierJoueur}`);
+
             if (scriptUrl && activeTournoiId) {
                 enqueuePostRequest({
                     tournoiId: activeTournoiId,
@@ -217,7 +282,10 @@ function verifierEtReequilibrer() {
                 }, 2000);
             }
 
-            alert(`🏆 TOURNOI TERMINÉ !\n\nVainqueur : ${dernierJoueur}.\nLe classement général va être mis à jour.`);
+            alert(`🏆 TOURNOI TERMINÉ !
+
+Vainqueur : ${dernierJoueur}.
+Le classement général va être mis à jour.`);
             switchTab('classement');
             return;
         }
@@ -257,14 +325,18 @@ function verifierEtReequilibrer() {
         });
 
         siegesLibres.sort(() => Math.random() - 0.5);
+        const closedTableName = getTableDisplayName(tableAFermerId);
         let consignes = isFinalTableBreak 
-            ? `🏆 <b>CONSTITUTION DE LA TABLE FINALE (${totalJoueursActifs} JOUEURS)</b><br>Fermeture ${getTableDisplayName(tableAFermerId)} — Joueurs replacés :<br>`
-            : `🚨 <b>CASSAGE DE TABLE EFFECTUÉ (FERMETURE ${getTableDisplayName(tableAFermerId)})</b><br>Joueurs replacés :<br>`;
+            ? `🏆 <b>CONSTITUTION DE LA TABLE FINALE (${totalJoueursActifs} JOUEURS)</b><br>Fermeture ${closedTableName} — Joueurs replacés :<br>`
+            : `🚨 <b>CASSAGE DE TABLE EFFECTUÉ (FERMETURE ${closedTableName})</b><br>Joueurs replacés :<br>`;
 
+        let movesSummary = [];
         joueursAFermer.forEach((j, idx) => {
             if (siegesLibres[idx]) {
                 const destination = siegesLibres[idx];
-                consignes += `• <b>${j}</b> ➔ ${getTableDisplayName(destination.tableId)}, Siège ${destination.seat}<br>`;
+                const destName = getTableDisplayName(destination.tableId);
+                consignes += `• <b>${j}</b> ➔ ${destName}, Siège ${destination.seat}<br>`;
+                movesSummary.push(`<b>${j}</b> ➔ ${destName} (S.${destination.seat})`);
                 
                 tablesGenerees[tableAFermerId].find(s => s.player === j).player = null;
                 tablesGenerees[destination.tableId].find(s => s.seat === destination.seat).player = j;
@@ -273,8 +345,15 @@ function verifierEtReequilibrer() {
 
         consignes += `<br><button onclick="marquerAlerteCompris()" style="background:#d97706; color:white; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto;">Compris</button>`;
 
+        alerteIgnoree = false;
         alertBox.innerHTML = consignes;
         alertBox.className = "alert alert-action";
+
+        const histHeader = isFinalTableBreak
+            ? `🏆 <b>Table Finale</b> (fermeture ${closedTableName}) : `
+            : `🚨 <b>Cassage ${closedTableName}</b> : `;
+        addLiveHistoryEntry('move', histHeader + movesSummary.join(', '));
+
         renderTablesUI();
         if (isMaster) saveGameStateToSheet();
         return;
@@ -296,16 +375,22 @@ function verifierEtReequilibrer() {
         const joueursGrandeTable = tablesGenerees[tablePlusGrandeId].filter(s => s.player !== null).map(s => s.player);
         const joueurADeplacer = joueursGrandeTable[Math.floor(Math.random() * joueursGrandeTable.length)];
         const siegeLibre = tablesGenerees[tablePlusPetiteId].find(s => s.player === null);
+        const srcName = getTableDisplayName(tablePlusGrandeId);
+        const dstName = getTableDisplayName(tablePlusPetiteId);
 
         let consignes = `⚠️ <b>RÉÉQUILIBRAGE EFFECTUÉ (Écart ≥ 2)</b><br>`;
-        consignes += `<b>${joueurADeplacer}</b> a été déplacé de ${getTableDisplayName(tablePlusGrandeId)} vers ${getTableDisplayName(tablePlusPetiteId)} (Siège ${siegeLibre.seat}).<br><br>`;
+        consignes += `<b>${joueurADeplacer}</b> a été déplacé de ${srcName} vers ${dstName} (Siège ${siegeLibre.seat}).<br><br>`;
         consignes += `<button onclick="marquerAlerteCompris()" style="background:#d97706; color:white; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; width:auto;">Compris</button>`;
 
         tablesGenerees[tablePlusGrandeId].find(s => s.player === joueurADeplacer).player = null;
         siegeLibre.player = joueurADeplacer;
 
+        alerteIgnoree = false;
         alertBox.innerHTML = consignes;
         alertBox.className = "alert alert-action";
+
+        addLiveHistoryEntry('move', `⚠️ <b>Rééquilibrage</b> : <b>${joueurADeplacer}</b> (${srcName} ➔ ${dstName}, Siège ${siegeLibre.seat})`);
+
         renderTablesUI();
         if (isMaster) saveGameStateToSheet();
         return;
@@ -370,6 +455,9 @@ function startChronoLoop(save = true) {
                 niveauActuel++;
                 dureeNiveauSec = getDureeStructureSec(niveauActuel);
                 secondesRestantes = dureeNiveauSec;
+                const st = structs[niveauActuel] || {};
+                const blindsTxt = st.isPause ? 'PAUSE' : `${st.sb}/${st.bb}`;
+                addLiveHistoryEntry('level', `⏱️ Passage automatique : <b>${st.label || 'Niveau ' + niveauActuel}</b> (${blindsTxt})`);
                 jouerBipChangementNiveau();
                 startChronoLoop(true);
             } else {
@@ -391,10 +479,12 @@ function toggleChrono() {
         chronoEndTime = null;
         const btn = document.getElementById('btn-chrono');
         if (btn) { btn.innerText = "Start"; btn.className = "btn-green"; }
+        addLiveHistoryEntry('level', `⏸️ Chrono mis en pause (${document.getElementById('live-chrono').innerText})`);
         updateChronoUI();
         saveGameStateToSheet();
     } else {
         chronoEndTime = Date.now() + (secondesRestantes * 1000);
+        addLiveHistoryEntry('level', `▶️ Chrono démarré (Niveau ${niveauActuel})`);
         startChronoLoop(true);
     }
 }
@@ -445,9 +535,11 @@ function resetChrono() {
     }
 
     joueursEliminesHistorique = [];
+    liveActionHistory = [];
     tablesGenerees = null;
     tablesMeta = {};
     renderTablesUI();
+    renderLiveHistoryUI();
     checkTournoiLockStatus();
     initLive();
     saveGameStateToSheet();
@@ -481,6 +573,10 @@ function changeLevelBy(delta, resetTime) {
         dureeNiveauSec = getDureeStructureSec(niveauActuel);
         if (resetTime) secondesRestantes = dureeNiveauSec;
         
+        const st = structs[niveauActuel] || {};
+        const blindsTxt = st.isPause ? 'PAUSE' : `${st.sb}/${st.bb}`;
+        addLiveHistoryEntry('level', `🎚️ Changement manuel : <b>${st.label || 'Niveau ' + niveauActuel}</b> (${blindsTxt})`);
+
         jouerBipChangementNiveau();
         chronoEndTime = chronoIsRunning ? (Date.now() + (secondesRestantes * 1000)) : null;
         updateChronoUI();
@@ -495,7 +591,6 @@ function eliminerJoueur() {
     const joueur = document.getElementById('select-eliminer').value;
     if (!joueur) return;
 
-    // Garde anti-doublon : un joueur déjà classé ne peut pas être éliminé une 2e fois
     if (joueursEliminesHistorique.some(item => item.joueur === joueur)) {
         alert(`⚠️ ${joueur} est déjà enregistré dans le classement de ce tournoi.`);
         return;
@@ -545,7 +640,6 @@ function eliminerJoueur() {
         const autresActifs = tableSeats.filter(s => s.player !== null && s.player !== joueur);
         classementAttribue = autresActifs.length + 1;
 
-        // S'il ne reste qu'un seul autre joueur sur cette table SNG, il devient implicitement 1er de la table
         if (autresActifs.length === 1) {
             dernierJoueurTableSNG = autresActifs[0].player;
             dernierSeatTableSNG = autresActifs[0].seat;
@@ -559,7 +653,9 @@ function eliminerJoueur() {
         if (seatObj) seatObj.player = null;
     }
 
-    // Enregistrement implicite du 1er de la table SNG lorsqu'on élimine le 2e
+    const tableSuffix = origTableId ? ` (${getTableDisplayName(origTableId)})` : '';
+    addLiveHistoryEntry('elim', `❌ Élimination : <b>${joueur}</b> · Place <b>#${classementAttribue}</b>${tableSuffix}`);
+
     if (isSNG && dernierJoueurTableSNG) {
         const dejaPremier = joueursEliminesHistorique.some(item => item.joueur === dernierJoueurTableSNG);
         if (!dejaPremier) {
@@ -569,6 +665,11 @@ function eliminerJoueur() {
                 origTableId: origTableId,
                 origSeat: dernierSeatTableSNG
             });
+            addLiveHistoryEntry(
+                'info',
+                `🏆 Vainqueur ${getTableDisplayName(origTableId)} : <b>${dernierJoueurTableSNG}</b> (#1)`,
+                `sng_win_${origTableId}_${dernierJoueurTableSNG}`
+            );
         }
         const lastSeatObj = tablesGenerees[origTableId].find(s => s.seat == dernierSeatTableSNG);
         if (lastSeatObj) lastSeatObj.player = null;
@@ -631,25 +732,30 @@ function reintegrerJoueur() {
     }
 
     let remplace = false;
+    let placedLabel = '';
     if (tablesGenerees) {
         if (elemReintegre.origTableId && tablesGenerees[elemReintegre.origTableId]) {
             const targetSeat = tablesGenerees[elemReintegre.origTableId].find(s => s.seat == elemReintegre.origSeat);
             if (targetSeat && targetSeat.player === null) {
                 targetSeat.player = joueur;
                 remplace = true;
+                placedLabel = ` ➔ ${getTableDisplayName(elemReintegre.origTableId)}, Siège ${elemReintegre.origSeat}`;
             }
         }
         if (!remplace) {
-            for (const seats of Object.values(tablesGenerees)) {
+            for (const [tId, seats] of Object.entries(tablesGenerees)) {
                 const sLibre = seats.find(s => s.player === null);
                 if (sLibre) {
                     sLibre.player = joueur;
                     remplace = true;
+                    placedLabel = ` ➔ ${getTableDisplayName(tId)}, Siège ${sLibre.seat}`;
                     break;
                 }
             }
         }
     }
+
+    addLiveHistoryEntry('reint', `↩️ Réintégration : <b>${joueur}</b>${placedLabel}`);
 
     renderTablesUI();
     initLive();

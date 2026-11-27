@@ -75,7 +75,9 @@ function startGlobalSync() {
                     } else {
                         tablesGenerees = null;
                         tablesMeta = {};
+                        liveActionHistory = [];
                         renderTablesUI();
+                        renderLiveHistoryUI();
                     }
                 }
             })
@@ -97,6 +99,9 @@ function syncRemoteLiveState(state) {
     tablesMeta = state.tablesMeta || {};
     ensureTablesMeta();
     joueursEliminesHistorique = state.joueursEliminesHistorique || [];
+    if (Array.isArray(state.liveActionHistory)) {
+        liveActionHistory = state.liveActionHistory;
+    }
     totalJoueursInitial = state.totalJoueursInitial || 0;
     chronoIsRunning = state.chronoIsRunning || false;
 
@@ -129,6 +134,7 @@ function syncRemoteLiveState(state) {
 
     updateChronoUI();
     renderTablesUI();
+    renderLiveHistoryUI();
     recalculerStatistiquesLive();
 }
 
@@ -203,6 +209,7 @@ function resetLocalState() {
     tablesMeta = {};
     totalJoueursInitial = 0;
     joueursEliminesHistorique = [];
+    liveActionHistory = [];
     bloquerLastMinute = false;
     const chk = document.getElementById('chk-block-last-minute');
     if (chk) chk.checked = false;
@@ -214,6 +221,7 @@ function resetLocalState() {
     if (chronoTimer) clearInterval(chronoTimer);
     updateChronoUI();
     renderTablesUI();
+    renderLiveHistoryUI();
 }
 
 function restoreGameState(state) {
@@ -223,6 +231,7 @@ function restoreGameState(state) {
     ensureTablesMeta();
     totalJoueursInitial = state.totalJoueursInitial || 0;
     joueursEliminesHistorique = state.joueursEliminesHistorique || [];
+    liveActionHistory = Array.isArray(state.liveActionHistory) ? state.liveActionHistory : [];
     bloquerLastMinute = state.bloquerLastMinute || false;
     const chk = document.getElementById('chk-block-last-minute');
     if (chk) chk.checked = bloquerLastMinute;
@@ -252,6 +261,7 @@ function restoreGameState(state) {
         updateChronoUI();
     }
     renderTablesUI();
+    renderLiveHistoryUI();
 }
 
 function saveGameStateToSheet() {
@@ -273,6 +283,7 @@ function saveGameStateToSheet() {
         tablesMeta: tablesMeta,
         totalJoueursInitial: totalJoueursInitial,
         joueursEliminesHistorique: joueursEliminesHistorique,
+        liveActionHistory: liveActionHistory,
         bloquerLastMinute: bloquerLastMinute,
         niveauActuel: niveauActuel,
         secondesRestantes: secondesRestantes,
